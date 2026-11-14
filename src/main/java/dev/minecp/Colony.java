@@ -35,7 +35,8 @@ final class Colony {
     final List<Hut> huts = new ArrayList<>(); // huts.getFirst() is the town hall
     final List<Colonist> colonists = new ArrayList<>();
     final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
-    Builder builder; // the builder job; null until a Builder's Hut is placed
+    final List<Job> jobs = new ArrayList<>(); // one per worker hut
+    Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     String style = "medievaloak"; // structure pack hut buildings come from
     private int growth = 0;
 
@@ -100,18 +101,49 @@ final class Colony {
     void addHut(Hut.Type type, Block block) {
         Hut hut = new Hut(type, block, 0);
         huts.add(hut);
-        if (type == Hut.Type.BUILDER) {
-            builder = newBuilder(hut);
-            colonists.stream().findFirst().ifPresent(c -> builder.worker = c.id); // everyone else is unemployed
+        addJob(hut);
+        assignJobs();
+    }
+
+    private void addJob(Hut hut) {
+        switch (hut.type) {
+            case BUILDER -> jobs.add(builder = newBuilder(hut));
+            case LUMBERJACK -> jobs.add(new Lumberjack(hut));
+            default -> {}
+        }
+    }
+
+    Job jobAt(Hut hut) {
+        for (Job j : jobs) if (j.hut == hut) return j;
+        return null;
+    }
+
+    private Job jobOf(Colonist c) {
+        for (Job j : jobs) if (c.id.equals(j.worker)) return j;
+        return null;
+    }
+
+    Colonist worker(Job j) {
+        for (Colonist c : colonists) if (c.id.equals(j.worker)) return c;
+        return null;
+    }
+
+    /** Gives every job without a worker to an unemployed citizen, oldest jobs first. */
+    private void assignJobs() {
+        for (Job j : jobs) {
+            if (worker(j) != null) continue;
+            j.worker = colonists.stream().filter(c -> jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
         }
     }
 
     void removeHut(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
         if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
-        if (hut.type == Hut.Type.BUILDER) {
-            builder.dropCarried();
-            builder = null;
+        Job job = jobAt(hut);
+        if (job != null) {
+            job.dropCarried();
+            jobs.remove(job);
+            if (job == builder) builder = null;
         }
         for (Colonist c : colonists) if (c.home == hut) c.home = null;
         huts.remove(hut);
@@ -171,12 +203,14 @@ final class Colony {
             if (colonists.size() < capacity()) {
                 addCitizen();
                 assignHomes();
+                assignJobs();
                 tell(colonists.getLast().name + " moved into " + name + ".");
             }
         }
         for (Colonist c : colonists) {
             if (!c.tick()) continue;
-            if (builder != null && c.id.equals(builder.worker)) builder.tick(c);
+            Job job = jobOf(c);
+            if (job != null) job.tick(c);
             else {
                 c.setStatus("Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
@@ -224,6 +258,12 @@ final class Colony {
                     bs.set("order.level", builder.work.level());
                 }
             }
+        }
+        for (Job j : jobs) {
+            if (j == builder) continue; // saved in its own section above
+            var js = s.createSection("jobs." + huts.indexOf(j.hut));
+            if (j.worker != null) js.set("worker", j.worker.toString());
+            j.carried.forEach((m, n) -> js.set("carried." + m.name(), n));
         }
         for (Colonist c : colonists) {
             var cs = s.createSection("citizens." + c.id);
@@ -273,18 +313,21 @@ final class Colony {
             if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level")));
         }
 
+        for (Hut h : colony.huts) colony.addJob(h);
+        for (Job j : colony.jobs) {
+            var js = s.getConfigurationSection("jobs." + colony.huts.indexOf(j.hut));
+            if (js == null || j == colony.builder) continue;
+            String worker = js.getString("worker");
+            if (worker != null) j.worker = UUID.fromString(worker);
+            loadCarried(js, j);
+        }
         Hut builderHut = colony.hut(Hut.Type.BUILDER);
         var bs = s.getConfigurationSection("builder");
         if (builderHut != null) {
-            colony.builder = colony.newBuilder(builderHut);
             if (bs != null) {
                 String worker = bs.getString("worker");
                 if (worker != null) colony.builder.worker = UUID.fromString(worker);
-                var carried = bs.getConfigurationSection("carried");
-                if (carried != null) for (String m : carried.getKeys(false)) {
-                    Material mat = Material.matchMaterial(m);
-                    if (mat != null) colony.builder.carried.put(mat, carried.getInt(m));
-                }
+                loadCarried(bs, colony.builder);
                 Location origin = getLocation(bs, "order.origin");
                 if (origin != null) {
                     String structure = bs.getString("order.structure");
@@ -301,7 +344,16 @@ final class Colony {
             }
         }
         colony.assignHomes();
+        colony.assignJobs();
         return colony;
+    }
+
+    private static void loadCarried(ConfigurationSection s, Job j) {
+        var carried = s.getConfigurationSection("carried");
+        if (carried != null) for (String m : carried.getKeys(false)) {
+            Material mat = Material.matchMaterial(m);
+            if (mat != null) j.carried.put(mat, carried.getInt(m));
+        }
     }
 
     private Hut hutByIndex(int i) {

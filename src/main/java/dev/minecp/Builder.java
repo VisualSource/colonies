@@ -19,23 +19,20 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
-final class Builder {
+final class Builder extends Job {
     private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
     private static final int CARRY_LIMIT = 256;   // items fetched per trip
 
-    final Hut hut; // the Builder's Hut; its chest holds the materials
-    UUID worker;   // colonist id, or null while the hut has no builder
     BuildOrder order;
     Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
-    final Map<Material, Integer> carried = new EnumMap<>(Material.class); // saved with the colony
     private int cooldown = 0;
     private Consumer<Hut.WorkOrder> onFinish = w -> {};
     Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets its hut blocks
 
     Builder(Hut hut) {
-        this.hut = hut;
+        super(hut);
     }
 
     /** Called when an order is finished, with its work order (null for a plain structure). */
@@ -73,10 +70,8 @@ final class Builder {
         return n;
     }
 
-    Inventory chest() {
-        return hut.block.getState(false) instanceof Container c ? c.getInventory() : null;
-    }
 
+    @Override
     void tick(Colonist w) {
         if (order == null) {
             w.setStatus("Builder");
@@ -89,7 +84,7 @@ final class Builder {
 
         BuildOrder.Step step = order.next(protect);
         if (step == null) {
-            returnCarried(chest);
+            deliver(); // leftovers back in the chest; what doesn't fit stays carried
             Hut.WorkOrder done = work;
             cancel();
             onFinish.accept(done);
@@ -98,9 +93,9 @@ final class Builder {
 
         Material need = step.cost();
         if (need != null && carried.getOrDefault(need, 0) == 0) {
-            if (distance(w, hut.block) > 3) {
+            if (!atHut(w)) {
                 w.setStatus("Builder: fetching materials");
-                if (w.walkBeside(hut.block) == null) w.teleportNear(hut.block);
+                goToHut(w);
                 return;
             }
             restock(chest);
@@ -183,11 +178,6 @@ final class Builder {
         });
     }
 
-    /** Puts leftovers back in the chest; what doesn't fit stays carried (and saved) instead of spilling. */
-    private void returnCarried(Inventory chest) {
-        carried.replaceAll((m, n) -> n <= 0 ? 0 : chest.addItem(new ItemStack(m, n)).values().stream().mapToInt(ItemStack::getAmount).sum());
-        carried.values().removeIf(n -> n <= 0);
-    }
 
     /**
      * shortcut: drops teleport straight into the hut chest; make the builder carry them back if it matters.
@@ -199,12 +189,6 @@ final class Builder {
             at.getWorld().dropItemNaturally(at, overflow);
     }
 
-    /** Called when the hut is removed or the builder loses the job: give back what it carries. */
-    void dropCarried() {
-        Location at = hut.block.getLocation().toCenterLocation();
-        carried.forEach((m, n) -> { if (n > 0) at.getWorld().dropItemNaturally(at, new ItemStack(m, n)); });
-        carried.clear();
-    }
 
     private static double distance(Colonist w, Block b) {
         return w.location().distance(b.getLocation().toCenterLocation());

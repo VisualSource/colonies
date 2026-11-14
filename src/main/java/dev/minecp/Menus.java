@@ -57,7 +57,7 @@ final class Menus {
                         c.workOrders.stream().map(w -> w.hut().type.title + " " + w.level()).toList()), NamedTextColor.GRAY)));
             }
             case BUILDER -> {
-                Colonist worker = b == null ? null : c.colonists.stream().filter(x -> x.id.equals(b.worker)).findFirst().orElse(null);
+                Colonist worker = b == null ? null : c.worker(b);
                 body.add(text(Component.text(worker == null ? "No builder." : worker.name + " — " + worker.status())));
                 if (b != null && b.order != null) {
                     if (b.work == null) body.add(text(Component.text("Building " + b.order.structure + ".")));
@@ -65,6 +65,14 @@ final class Menus {
                     body.add(text(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
                             : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED)));
                 }
+            }
+            case LUMBERJACK -> {
+                Job job = c.jobAt(h);
+                Colonist worker = job == null ? null : c.worker(job);
+                body.add(text(Component.text(worker == null ? "No lumberjack: every citizen has a job." : worker.name + " — " + worker.status())));
+                body.add(text(Component.text(h.level == 0 ? "The lumberjack starts once level 1 is built."
+                        : "Cuts natural trees within " + ((Lumberjack) job).radius() + " blocks and replants them.", NamedTextColor.GRAY)));
+                if (job instanceof Lumberjack lj && lj.note != null) body.add(text(Component.text(lj.note, NamedTextColor.YELLOW)));
             }
             case HOUSE -> {
                 var residents = c.residents(h);

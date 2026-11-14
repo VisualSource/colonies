@@ -10,7 +10,8 @@ final class Hut {
     enum Type {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall"),
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder"),
-        HOUSE("House", Material.CHEST, "fundamentals/residence");
+        HOUSE("House", Material.CHEST, "fundamentals/residence"),
+        LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack");
 
         final String title;
         final Material block;

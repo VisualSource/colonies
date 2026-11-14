@@ -78,7 +78,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut", "house" -> {
+            case "townhall", "builderhut", "house", "lumberjack" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
@@ -86,6 +86,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 player.getInventory().addItem(hutItem(switch (args[0]) {
                     case "townhall" -> Hut.Type.TOWN_HALL;
                     case "builderhut" -> Hut.Type.BUILDER;
+                    case "lumberjack" -> Hut.Type.LUMBERJACK;
                     default -> Hut.Type.HOUSE;
                 }));
             }
@@ -147,6 +148,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 case TOWN_HALL -> "Place to found a colony";
                 case BUILDER -> "Its chest holds building materials";
                 case HOUSE -> "Room for more citizens";
+                case LUMBERJACK -> "A citizen cuts and replants trees nearby";
             }, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });

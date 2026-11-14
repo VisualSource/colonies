@@ -13,10 +13,13 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.WanderingTrader;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.profile.PlayerTextures.SkinModel;
 import org.bukkit.util.BoundingBox;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -107,6 +110,10 @@ final class Colonist {
         if (body != null) body.setDescription(Component.text(status));
     }
 
+    boolean onGround() {
+        return legs.isOnGround();
+    }
+
     boolean isMoving() {
         return legs.getPathfinder().hasPath();
     }
@@ -163,10 +170,13 @@ final class Colonist {
     /** Free spots next to {@code block} to reach it from: level with it, or up to 2 below (it sits on a pillar) or 1 above. */
     private static List<Block> spotsBeside(Block block) {
         List<Block> spots = new ArrayList<>();
-        for (int dy : new int[]{0, -1, 1, -2}) for (BlockFace f : SIDES) {
-            Block b = block.getRelative(f).getRelative(0, dy, 0);
+        // Up to 2 blocks out (a small oak's leaves hang at head height right beside the trunk), nearest first.
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy : new int[]{0, -1, 1, -2}) {
+            if (dx == 0 && dz == 0) continue;
+            Block b = block.getRelative(dx, dy, dz);
             if (canStandIn(b)) spots.add(b);
         }
+        spots.sort(Comparator.comparingDouble(b -> b.getLocation().distanceSquared(block.getLocation())));
         return spots;
     }
 
@@ -209,20 +219,17 @@ final class Colonist {
     }
 
     /**
-     * Walks to the closest reachable free side of {@code block} (e.g. a chest).
-     * @return the spot it is walking to, or null if no side can be reached.
+     * Walks to the nearest reachable free spot within 2 blocks of {@code block} (e.g. a chest or a tree).
+     * @return the spot it is walking to, or null if none can be reached.
      */
     Location walkBeside(Block block) {
-        PathResult best = null;
-        Location spot = null;
+        int tries = 0;
         for (Block b : spotsBeside(block)) {
+            if (++tries > 12) break; // each try is a path search; enough to get around one obstacle
             PathResult path = reachablePath(b.getLocation().toCenterLocation());
-            if (path != null && (best == null || path.getPoints().size() < best.getPoints().size())) {
-                best = path;
-                spot = b.getLocation().toCenterLocation();
-            }
+            if (path != null && legs.getPathfinder().moveTo(path, WALK_SPEED)) return b.getLocation().toCenterLocation();
         }
-        return best != null && legs.getPathfinder().moveTo(best, WALK_SPEED) ? spot : null;
+        return null;
     }
 
     /** Vanilla returns partial paths that stop short of unreachable targets; treat those as no path. */
@@ -267,6 +274,10 @@ final class Colonist {
             l.setDespawnDelay(0);
         });
         Bukkit.getMobGoals().removeAllGoals(legs);
+        // Paper only fully ticks mobs within ~32 blocks of a player ("entity activation range"); farther
+        // away the legs would freeze mid-walk. Any potion effect makes Paper keep an entity active.
+        legs.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, PotionEffect.INFINITE_DURATION, 0,
+                false, false, false));
         // Vanilla caps path search by follow range; the trader's default cut paths off ~10 blocks out.
         legs.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(48);
         String skinName = SKINS[skin % SKINS.length];
