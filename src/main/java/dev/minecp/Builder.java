@@ -6,7 +6,6 @@ import org.bukkit.Material;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,47 +24,33 @@ final class Builder {
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
     private static final int CARRY_LIMIT = 256;   // items fetched per trip
-    static final int MAX_LEVEL = 5;
-    private static final String HUT_PATH = "fundamentals/builder"; // + level, inside the colony's style pack
 
-    final Block hut;
-    UUID worker; // colonist id, or null while the hut has no builder
+    final Hut hut; // the Builder's Hut; its chest holds the materials
+    UUID worker;   // colonist id, or null while the hut has no builder
     BuildOrder order;
-    int level = 0;       // 0: just the chest; N: the level N building is finished
-    int upgradingTo = 0; // level the current order builds, 0 if it is some other structure
+    Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // saved with the colony
     private int cooldown = 0;
-    private Consumer<String> onFinish = message -> {};
-    Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets hut + town hall
+    private Consumer<Hut.WorkOrder> onFinish = w -> {};
+    Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets its hut blocks
 
-    Builder(Block hut) {
+    Builder(Hut hut) {
         this.hut = hut;
     }
 
-    void onFinish(Consumer<String> r) {
+    /** Called when an order is finished, with its work order (null for a plain structure). */
+    void onFinish(Consumer<Hut.WorkOrder> r) {
         onFinish = r;
     }
 
-    /** Queues the hut's next level, anchored on the hut. @return why it can't, or null when queued. */
-    String upgrade(String style) {
-        if (order != null) return "The builder is busy.";
-        if (level >= MAX_LEVEL) return "The Builder's Hut is at the highest level.";
-        String structure = style + "/" + HUT_PATH + (level + 1);
-        BuildOrder o = BuildOrder.create(structure, hut.getLocation(), StructureRotation.NONE, hut);
-        if (o == null) return "Structure " + structure + " not found.";
-        start(o, level + 1);
-        return null;
-    }
-
-    /** @param upgradeLevel the hut level this order builds, or 0 for any other structure */
-    void start(BuildOrder o, int upgradeLevel) {
+    void start(BuildOrder o, Hut.WorkOrder w) {
         order = o;
-        upgradingTo = upgradeLevel;
+        work = w;
     }
 
     void cancel() {
         order = null;
-        upgradingTo = 0;
+        work = null;
     }
 
     /** Items the rest of the build needs that are neither carried nor in the hut chest. */
@@ -89,13 +74,13 @@ final class Builder {
     }
 
     Inventory chest() {
-        return hut.getState(false) instanceof Container c ? c.getInventory() : null;
+        return hut.block.getState(false) instanceof Container c ? c.getInventory() : null;
     }
 
     void tick(Colonist w) {
         if (order == null) {
             w.setStatus("Builder");
-            w.wander(hut.getLocation().toCenterLocation());
+            w.wander(hut.block.getLocation().toCenterLocation());
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
@@ -105,8 +90,7 @@ final class Builder {
         BuildOrder.Step step = order.next(protect);
         if (step == null) {
             returnCarried(chest);
-            if (upgradingTo > 0) level = upgradingTo;
-            String done = upgradingTo > 0 ? "Your Builder's Hut is now level " + level + "." : "Your builder finished the build.";
+            Hut.WorkOrder done = work;
             cancel();
             onFinish.accept(done);
             return;
@@ -114,9 +98,9 @@ final class Builder {
 
         Material need = step.cost();
         if (need != null && carried.getOrDefault(need, 0) == 0) {
-            if (distance(w, hut) > 3) {
+            if (distance(w, hut.block) > 3) {
                 w.setStatus("Builder: fetching materials");
-                if (w.walkBeside(hut) == null) w.teleportNear(hut);
+                if (w.walkBeside(hut.block) == null) w.teleportNear(hut.block);
                 return;
             }
             restock(chest);
@@ -210,14 +194,14 @@ final class Builder {
      * {@link #work} checks they fit first, so the overflow drop is only a safety net.
      */
     private void store(Inventory chest, Collection<ItemStack> items) {
-        Location at = hut.getLocation().toCenterLocation();
+        Location at = hut.block.getLocation().toCenterLocation();
         for (ItemStack overflow : chest.addItem(items.toArray(ItemStack[]::new)).values())
             at.getWorld().dropItemNaturally(at, overflow);
     }
 
     /** Called when the hut is removed or the builder loses the job: give back what it carries. */
     void dropCarried() {
-        Location at = hut.getLocation().toCenterLocation();
+        Location at = hut.block.getLocation().toCenterLocation();
         carried.forEach((m, n) -> { if (n > 0) at.getWorld().dropItemNaturally(at, new ItemStack(m, n)); });
         carried.clear();
     }

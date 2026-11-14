@@ -46,6 +46,7 @@ final class Colonist {
     final UUID id;
     final String name;
     final int skin;
+    Hut home; // the house the colonist lives in, or null
     private Location last; // where the colonist is, kept while despawned
     private Mannequin body;
     private WanderingTrader legs;

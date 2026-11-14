@@ -4,19 +4,25 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.structure.StructureRotation;
-import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
+import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** A player's colony: a town hall block and its citizens. */
+/**
+ * A player's colony: its huts (the town hall first), citizens, and the builder's queue of hut upgrades.
+ * Rules: levels above 1 need the town hall at that level or higher; housing room is
+ * {@link #STARTING_CITIZENS} plus the total level of all houses, and a citizen moves in every
+ * {@link #GROWTH_TICKS} while there is room.
+ */
 final class Colony {
     private static final int STARTING_CITIZENS = 4;
+    private static final int GROWTH_TICKS = 20 * 120;
     private static final String[] FEMALE = {"Ada", "Cora", "Edda", "Greta", "Ivy", "Lena", "Nell", "Pia", "Rosa",
             "Tilda", "Vera", "Yara"};
     private static final String[] MALE = {"Bram", "Dell", "Finn", "Hal", "Jory", "Milo", "Otto", "Sven", "Ulric",
@@ -26,26 +32,48 @@ final class Colony {
 
     final UUID owner;
     final String name;
-    final Location townHall; // block location
+    final List<Hut> huts = new ArrayList<>(); // huts.getFirst() is the town hall
     final List<Colonist> colonists = new ArrayList<>();
-    Builder builder; // null until a builder's hut is placed
+    final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
+    Builder builder; // the builder job; null until a Builder's Hut is placed
     String style = "medievaloak"; // structure pack hut buildings come from
+    private int growth = 0;
 
-    Colony(UUID owner, String name, Location townHall) {
+    Colony(UUID owner, String name, Block townHall, int townHallLevel) {
         this.owner = owner;
         this.name = name;
-        this.townHall = townHall.toBlockLocation();
+        huts.add(new Hut(Hut.Type.TOWN_HALL, townHall, townHallLevel));
     }
 
     static Colony found(UUID owner, String name, Block townHall) {
-        Colony colony = new Colony(owner, name, townHall.getLocation());
-        var rnd = ThreadLocalRandom.current();
-        Location spawn = townHall.getLocation().toCenterLocation();
-        for (int i = 0; i < STARTING_CITIZENS; i++) {
-            boolean female = rnd.nextBoolean();
-            colony.colonists.add(new Colonist(UUID.randomUUID(), colony.uniqueName(female), Colonist.randomSkin(female), spawn));
-        }
+        Colony colony = new Colony(owner, name, townHall, 0);
+        for (int i = 0; i < STARTING_CITIZENS; i++) colony.addCitizen();
         return colony;
+    }
+
+    Hut townHall() {
+        return huts.getFirst();
+    }
+
+    Hut hutAt(Block block) {
+        for (Hut h : huts) if (h.block.equals(block)) return h;
+        return null;
+    }
+
+    Hut hut(Hut.Type type) {
+        for (Hut h : huts) if (h.type == type) return h;
+        return null;
+    }
+
+    int capacity() {
+        return STARTING_CITIZENS + huts.stream().filter(h -> h.type == Hut.Type.HOUSE).mapToInt(h -> h.level).sum();
+    }
+
+    private void addCitizen() {
+        var rnd = ThreadLocalRandom.current();
+        boolean female = rnd.nextBoolean();
+        colonists.add(new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female),
+                townHall().block.getLocation().toCenterLocation()));
     }
 
     private String uniqueName(boolean female) {
@@ -57,29 +85,78 @@ final class Colony {
         }
     }
 
-    boolean isTownHall(Block block) {
-        return block.getLocation().equals(townHall);
+    List<Colonist> residents(Hut house) {
+        return colonists.stream().filter(c -> c.home == house).toList();
     }
 
-    boolean isBuilderHut(Block block) {
-        return builder != null && builder.hut.equals(block);
+    /** Gives homeless citizens a bed in a house with room (a level N house sleeps N). */
+    private void assignHomes() {
+        for (Colonist c : colonists) {
+            if (c.home != null) continue;
+            for (Hut h : huts) if (h.type == Hut.Type.HOUSE && residents(h).size() < h.level) { c.home = h; break; }
+        }
     }
 
-    private Builder newBuilder(Block hut) {
+    void addHut(Hut.Type type, Block block) {
+        Hut hut = new Hut(type, block, 0);
+        huts.add(hut);
+        if (type == Hut.Type.BUILDER) {
+            builder = newBuilder(hut);
+            colonists.stream().findFirst().ifPresent(c -> builder.worker = c.id); // everyone else is unemployed
+        }
+    }
+
+    void removeHut(Hut hut) {
+        workOrders.removeIf(w -> w.hut() == hut);
+        if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
+        if (hut.type == Hut.Type.BUILDER) {
+            builder.dropCarried();
+            builder = null;
+        }
+        for (Colonist c : colonists) if (c.home == hut) c.home = null;
+        huts.remove(hut);
+        assignHomes();
+    }
+
+    private Builder newBuilder(Hut hut) {
         Builder b = new Builder(hut);
-        b.onFinish(this::tell);
-        b.protect = block -> block.equals(hut) || isTownHall(block);
+        b.onFinish(done -> {
+            if (done == null) { tell("Your builder finished the build."); return; }
+            done.hut().level = done.level();
+            assignHomes();
+            tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
+        });
+        b.protect = this::isHutBlock;
         return b;
     }
 
-    void addBuilderHut(Block hut) {
-        builder = newBuilder(hut);
-        colonists.stream().findFirst().ifPresent(c -> builder.worker = c.id); // everyone else is unemployed
+    private boolean isHutBlock(Block block) {
+        return hutAt(block) != null;
     }
 
-    void removeBuilderHut() {
-        builder.dropCarried();
-        builder = null;
+    /** The queued or in-progress upgrade of this hut, or null. */
+    Hut.WorkOrder upgradeOf(Hut hut) {
+        if (builder != null && builder.work != null && builder.work.hut() == hut) return builder.work;
+        for (Hut.WorkOrder w : workOrders) if (w.hut() == hut) return w;
+        return null;
+    }
+
+    /** Queues the hut's next level for the builder. @return why it can't, or null when queued. */
+    String requestUpgrade(Hut hut) {
+        int next = hut.level + 1;
+        if (builder == null) return "Place a Builder's Hut first: the builder builds every hut.";
+        if (hut.level >= Hut.MAX_LEVEL) return "The " + hut.type.title + " is at the highest level.";
+        if (upgradeOf(hut) != null) return "That upgrade is already queued.";
+        if (hut.type != Hut.Type.TOWN_HALL && next > 1 && next > townHall().level)
+            return "Upgrade the Town Hall to level " + next + " first.";
+        if (!BuildOrder.exists(hut.structure(style, next))) return "Structure " + hut.structure(style, next) + " not found.";
+        workOrders.add(new Hut.WorkOrder(hut, next));
+        return null;
+    }
+
+    void cancelUpgrade(Hut hut) {
+        workOrders.removeIf(w -> w.hut() == hut);
+        if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
     }
 
     void tell(String message) {
@@ -88,15 +165,32 @@ final class Colony {
     }
 
     void tick() {
-        Location center = townHall.toCenterLocation();
+        if (builder != null && builder.order == null && !workOrders.isEmpty()) startNextWorkOrder();
+        if (++growth >= GROWTH_TICKS) {
+            growth = 0;
+            if (colonists.size() < capacity()) {
+                addCitizen();
+                assignHomes();
+                tell(colonists.getLast().name + " moved into " + name + ".");
+            }
+        }
         for (Colonist c : colonists) {
             if (!c.tick()) continue;
             if (builder != null && c.id.equals(builder.worker)) builder.tick(c);
             else {
                 c.setStatus("Unemployed");
-                c.wander(center);
+                c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
             }
         }
+    }
+
+    private void startNextWorkOrder() {
+        Hut.WorkOrder w = workOrders.removeFirst();
+        String structure = w.hut().structure(style, w.level());
+        // A hut building is anchored on its hut block and turned to match the block's facing.
+        BuildOrder o = BuildOrder.create(structure, w.hut().block.getLocation(), StructureRotation.NONE, w.hut().block);
+        if (o == null) tell("Structure " + structure + " not found; upgrade skipped.");
+        else builder.start(o, w);
     }
 
     void despawn() {
@@ -106,18 +200,29 @@ final class Colony {
     void save(ConfigurationSection s) {
         s.set("name", name);
         s.set("style", style);
-        putLocation(s, "townhall", townHall);
+        for (int i = 0; i < huts.size(); i++) {
+            Hut h = huts.get(i);
+            var hs = s.createSection("huts." + i);
+            hs.set("type", h.type.name());
+            hs.set("level", h.level);
+            putLocation(hs, "block", h.block.getLocation());
+        }
+        for (int i = 0; i < workOrders.size(); i++) {
+            s.set("work-orders." + i + ".hut", huts.indexOf(workOrders.get(i).hut()));
+            s.set("work-orders." + i + ".level", workOrders.get(i).level());
+        }
         if (builder != null) {
             var bs = s.createSection("builder");
-            putLocation(bs, "hut", builder.hut.getLocation());
-            bs.set("level", builder.level);
-            bs.set("upgrading-to", builder.upgradingTo);
             if (builder.worker != null) bs.set("worker", builder.worker.toString());
             builder.carried.forEach((m, n) -> bs.set("carried." + m.name(), n));
             if (builder.order != null) {
                 bs.set("order.structure", builder.order.structure);
                 bs.set("order.rotation", builder.order.rotation.name());
                 putLocation(bs, "order.origin", builder.order.origin);
+                if (builder.work != null) {
+                    bs.set("order.hut", huts.indexOf(builder.work.hut()));
+                    bs.set("order.level", builder.work.level());
+                }
             }
         }
         for (Colonist c : colonists) {
@@ -125,45 +230,82 @@ final class Colony {
             cs.set("name", c.name);
             cs.set("skin", c.skin);
             putLocation(cs, "location", c.location());
+            if (c.home != null) cs.set("home", huts.indexOf(c.home));
         }
     }
 
     /** @return null if the colony's world is not loaded. */
     static Colony load(UUID owner, ConfigurationSection s) {
-        Location townHall = getLocation(s, "townhall");
-        if (townHall == null) return null;
-        Colony colony = new Colony(owner, s.getString("name"), townHall);
+        Colony colony;
+        var hutSections = s.getConfigurationSection("huts");
+        if (hutSections != null) {
+            List<Hut> huts = new ArrayList<>();
+            for (String i : hutSections.getKeys(false)) {
+                var hs = hutSections.getConfigurationSection(i);
+                Location at = getLocation(hs, "block");
+                if (at == null) return null;
+                huts.add(new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level")));
+            }
+            colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
+            colony.huts.addAll(huts.subList(1, huts.size()));
+        } else { // format before huts: a town hall location and a builder section with its hut
+            Location townHall = getLocation(s, "townhall");
+            if (townHall == null) return null;
+            colony = new Colony(owner, s.getString("name"), townHall.getBlock(), 0);
+            Location hut = getLocation(s, "builder.hut");
+            if (hut != null) colony.huts.add(new Hut(Hut.Type.BUILDER, hut.getBlock(), s.getInt("builder.level")));
+        }
         colony.style = s.getString("style", colony.style);
+
         var citizens = s.getConfigurationSection("citizens");
         if (citizens != null) for (String id : citizens.getKeys(false)) {
             var cs = citizens.getConfigurationSection(id);
             Location at = getLocation(cs, "location");
-            if (at == null) at = townHall.toCenterLocation();
-            colony.colonists.add(new Colonist(UUID.fromString(id), cs.getString("name"), cs.getInt("skin"), at));
+            if (at == null) at = colony.townHall().block.getLocation().toCenterLocation();
+            Colonist c = new Colonist(UUID.fromString(id), cs.getString("name"), cs.getInt("skin"), at);
+            if (cs.isInt("home")) c.home = colony.hutByIndex(cs.getInt("home"));
+            colony.colonists.add(c);
         }
+
+        var orders = s.getConfigurationSection("work-orders");
+        if (orders != null) for (String i : orders.getKeys(false)) {
+            Hut h = colony.hutByIndex(orders.getInt(i + ".hut", -1));
+            if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level")));
+        }
+
+        Hut builderHut = colony.hut(Hut.Type.BUILDER);
         var bs = s.getConfigurationSection("builder");
-        Location hut = bs == null ? null : getLocation(bs, "hut");
-        if (hut != null) {
-            colony.builder = colony.newBuilder(hut.getBlock());
-            colony.builder.level = bs.getInt("level");
-            String worker = bs.getString("worker");
-            if (worker != null) colony.builder.worker = UUID.fromString(worker);
-            var carried = bs.getConfigurationSection("carried");
-            if (carried != null) for (String m : carried.getKeys(false)) {
-                Material mat = Material.matchMaterial(m);
-                if (mat != null) colony.builder.carried.put(mat, carried.getInt(m));
-            }
-            Location origin = getLocation(bs, "order.origin");
-            if (origin != null) {
-                String structure = bs.getString("order.structure");
-                BuildOrder order = BuildOrder.create(structure, origin,
-                        StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
-                if (order != null) colony.builder.start(order, bs.getInt("upgrading-to"));
-                else
-                    Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of " + colony.name + " dropped.");
+        if (builderHut != null) {
+            colony.builder = colony.newBuilder(builderHut);
+            if (bs != null) {
+                String worker = bs.getString("worker");
+                if (worker != null) colony.builder.worker = UUID.fromString(worker);
+                var carried = bs.getConfigurationSection("carried");
+                if (carried != null) for (String m : carried.getKeys(false)) {
+                    Material mat = Material.matchMaterial(m);
+                    if (mat != null) colony.builder.carried.put(mat, carried.getInt(m));
+                }
+                Location origin = getLocation(bs, "order.origin");
+                if (origin != null) {
+                    String structure = bs.getString("order.structure");
+                    BuildOrder order = BuildOrder.create(structure, origin,
+                            StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
+                    Hut h = colony.hutByIndex(bs.getInt("order.hut", -1));
+                    int oldUpgrade = bs.getInt("upgrading-to"); // format before huts: upgrades were the builder hut's
+                    Hut.WorkOrder work = h != null ? new Hut.WorkOrder(h, bs.getInt("order.level"))
+                            : oldUpgrade > 0 ? new Hut.WorkOrder(builderHut, oldUpgrade) : null;
+                    if (order != null) colony.builder.start(order, work);
+                    else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of "
+                            + colony.name + " dropped.");
+                }
             }
         }
+        colony.assignHomes();
         return colony;
+    }
+
+    private Hut hutByIndex(int i) {
+        return i >= 0 && i < huts.size() ? huts.get(i) : null;
     }
 
     // Plain fields, not Bukkit's Location serialization: that one drops the value at file load when the world is missing.

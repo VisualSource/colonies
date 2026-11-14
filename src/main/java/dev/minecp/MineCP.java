@@ -2,11 +2,9 @@ package dev.minecp;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -35,15 +33,16 @@ public final class MineCP extends JavaPlugin implements Listener {
     private static final long AUTOSAVE_TICKS = 20 * 60 * 5;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private static final int HUT_RANGE = 64;
-    private NamespacedKey townHallKey, builderHutKey;
+    private NamespacedKey hutKey, legacyTownHallKey, legacyBuilderHutKey;
     private File dataFile;
     private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
     private final Menus menus = new Menus(this);
 
     @Override
     public void onEnable() {
-        townHallKey = new NamespacedKey(this, "town_hall");
-        builderHutKey = new NamespacedKey(this, "builder_hut");
+        hutKey = new NamespacedKey(this, "hut_item");
+        legacyTownHallKey = new NamespacedKey(this, "town_hall");     // items made before hut types
+        legacyBuilderHutKey = new NamespacedKey(this, "builder_hut");
         dataFile = new File(getDataFolder(), "colonies.yml");
         data = YamlConfiguration.loadConfiguration(dataFile);
         var section = data.getConfigurationSection("colonies");
@@ -79,12 +78,16 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut" -> {
+            case "townhall", "builderhut", "house" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
                 }
-                player.getInventory().addItem(args[0].equals("townhall") ? townHallItem() : builderHutItem());
+                player.getInventory().addItem(hutItem(switch (args[0]) {
+                    case "townhall" -> Hut.Type.TOWN_HALL;
+                    case "builderhut" -> Hut.Type.BUILDER;
+                    default -> Hut.Type.HOUSE;
+                }));
             }
             case "build" -> {
                 Colony c = colonies.get(player.getUniqueId());
@@ -108,18 +111,16 @@ public final class MineCP extends JavaPlugin implements Listener {
                     return true;
                 }
                 BuildOrder order = BuildOrder.create(args[1], target.getRelative(0, 1, 0).getLocation(),
-                        BuildOrder.rotationFor(player.getFacing()), c.builder.hut);
+                        BuildOrder.rotationFor(player.getFacing()), null);
                 if (order == null) {
                     player.sendMessage(Component.text("No structure named " + args[1]
                             + ". Save one with a structure block first.", NamedTextColor.RED));
                     return true;
                 }
-                c.builder.start(order, 0);
+                c.builder.start(order, null);
                 save();
-                if (!order.origin.equals(target.getRelative(0, 1, 0).getLocation()))
-                    player.sendMessage("This is a hut building: it is placed around your Builder's Hut.");
                 player.sendMessage("Build of " + args[1] + " queued (" + order.steps.size() + " blocks). "
-                        + "Put materials in the Builder's Hut.");
+                        + "Put materials in the Builder's Hut. Huts are built from their own menus.");
             }
             case "info" -> {
                 Colony c = colonies.get(player.getUniqueId());
@@ -127,82 +128,76 @@ public final class MineCP extends JavaPlugin implements Listener {
                     player.sendMessage("You don't have a colony. Place a Town Hall to found one.");
                     return true;
                 }
-                var th = c.townHall;
+                var th = c.townHall().block;
                 player.sendMessage(Component.text(c.name, NamedTextColor.GOLD));
-                player.sendMessage("Town hall: " + th.getBlockX() + " " + th.getBlockY() + " " + th.getBlockZ());
-                player.sendMessage("Citizens (" + c.colonists.size() + "): "
-                        + String.join(", ", c.colonists.stream().map(x -> x.name).toList()));
-                if (c.builder != null) player.sendMessage("Builder: " + (c.builder.order == null ? "idle"
-                        : "building " + c.builder.order.structure));
+                player.sendMessage("Town hall: " + th.getX() + " " + th.getY() + " " + th.getZ()
+                        + " (right-click it for the colony menu)");
+                player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
             }
             default -> { return false; }
         }
         return true;
     }
 
-    private ItemStack townHallItem() {
-        ItemStack item = new ItemStack(Material.BELL);
+    private ItemStack hutItem(Hut.Type type) {
+        ItemStack item = new ItemStack(type.block);
         item.editMeta(m -> {
-            m.itemName(Component.text("Town Hall", NamedTextColor.GOLD));
-            m.lore(List.of(Component.text("Place to found a colony", NamedTextColor.GRAY)));
-            m.getPersistentDataContainer().set(townHallKey, PersistentDataType.BOOLEAN, true);
+            m.itemName(Component.text(type.title, NamedTextColor.GOLD));
+            m.lore(List.of(Component.text(switch (type) {
+                case TOWN_HALL -> "Place to found a colony";
+                case BUILDER -> "Its chest holds building materials";
+                case HOUSE -> "Room for more citizens";
+            }, NamedTextColor.GRAY)));
+            m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });
         return item;
     }
 
-    private ItemStack builderHutItem() {
-        ItemStack item = new ItemStack(Material.CHEST);
-        item.editMeta(m -> {
-            m.itemName(Component.text("Builder's Hut", NamedTextColor.GOLD));
-            m.lore(List.of(Component.text("Place near your town hall; holds building materials", NamedTextColor.GRAY)));
-            m.getPersistentDataContainer().set(builderHutKey, PersistentDataType.BOOLEAN, true);
-        });
-        return item;
+    private Hut.Type hutType(ItemStack item) {
+        var pdc = item.getPersistentDataContainer();
+        String type = pdc.get(hutKey, PersistentDataType.STRING);
+        if (type != null) return Hut.Type.valueOf(type);
+        return pdc.has(legacyTownHallKey) ? Hut.Type.TOWN_HALL : pdc.has(legacyBuilderHutKey) ? Hut.Type.BUILDER : null;
     }
 
-    /** The colony whose town hall or hut this block is. */
+    /** The colony one of whose huts (town hall included) is this block. */
     private Colony colonyAt(Block block) {
-        for (Colony c : colonies.values()) if (c.isTownHall(block) || c.isBuilderHut(block)) return c;
+        for (Colony c : colonies.values()) if (c.hutAt(block) != null) return c;
         return null;
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
-        var pdc = e.getItemInHand().getPersistentDataContainer();
-        if (pdc.has(builderHutKey)) {
-            placeBuilderHut(e);
-            return;
-        }
-        if (!pdc.has(townHallKey)) return;
-        Player p = e.getPlayer();
-        if (colonies.containsKey(p.getUniqueId())) {
-            e.setCancelled(true);
-            p.sendMessage(Component.text("You already have a colony.", NamedTextColor.RED));
-            return;
-        }
-        Colony c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", e.getBlockPlaced());
-        colonies.put(c.owner, c);
-        save();
-        p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
-    }
-
-    private void placeBuilderHut(BlockPlaceEvent e) {
+        Hut.Type type = hutType(e.getItemInHand());
+        if (type == null) return;
         Player p = e.getPlayer();
         Colony c = colonies.get(p.getUniqueId());
+        if (type == Hut.Type.TOWN_HALL) {
+            if (c != null) {
+                e.setCancelled(true);
+                p.sendMessage(Component.text("You already have a colony.", NamedTextColor.RED));
+                return;
+            }
+            c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", e.getBlockPlaced());
+            colonies.put(c.owner, c);
+            save();
+            p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
+            return;
+        }
+        Block th = c == null ? null : c.townHall().block;
         String problem = c == null ? "You need a colony first."
-                : c.builder != null ? "Your colony already has a Builder's Hut."
-                : !c.townHall.getWorld().equals(e.getBlock().getWorld())
-                        || c.townHall.distance(e.getBlock().getLocation()) > HUT_RANGE
+                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
+                : !th.getWorld().equals(e.getBlock().getWorld())
+                        || th.getLocation().distance(e.getBlock().getLocation()) > HUT_RANGE
                         ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
         if (problem != null) {
             e.setCancelled(true);
             p.sendMessage(Component.text(problem, NamedTextColor.RED));
             return;
         }
-        c.addBuilderHut(e.getBlockPlaced());
+        c.addHut(type, e.getBlockPlaced());
         save();
-        p.sendMessage(Component.text("Builder's Hut placed. Look at the ground and use /colony build <structure>.",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text(type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -216,25 +211,25 @@ public final class MineCP extends JavaPlugin implements Listener {
             return;
         }
         e.setDropItems(false);
-        if (c.isBuilderHut(e.getBlock())) {
-            Inventory chest = c.builder.hut.getState(false) instanceof Container ct ? ct.getInventory() : null;
-            if (chest != null) { // drop contents ourselves, then empty it, so they can never drop twice
-                for (ItemStack item : chest.getContents())
-                    if (item != null) e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation(), item);
-                chest.clear();
+        Hut hut = c.hutAt(e.getBlock());
+        var at = e.getBlock().getLocation();
+        if (hut.type != Hut.Type.TOWN_HALL) {
+            if (hut.block.getState(false) instanceof Container ct) { // drop contents ourselves, then empty it, so they can never drop twice
+                for (ItemStack item : ct.getInventory().getContents()) if (item != null) at.getWorld().dropItemNaturally(at, item);
+                ct.getInventory().clear();
             }
-            c.removeBuilderHut();
+            c.removeHut(hut);
             save();
-            e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation(), builderHutItem());
-            p.sendMessage(Component.text("Builder's Hut removed.", NamedTextColor.YELLOW));
+            at.getWorld().dropItemNaturally(at, hutItem(hut.type));
+            p.sendMessage(Component.text(hut.type.title + " removed.", NamedTextColor.YELLOW));
             return;
         }
-        if (c.builder != null) c.removeBuilderHut();
+        if (c.builder != null) c.removeHut(c.builder.hut); // gives back what the builder carries
         c.despawn();
         colonies.remove(c.owner);
         data.set("colonies." + c.owner, null);
         save();
-        e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation(), townHallItem());
+        at.getWorld().dropItemNaturally(at, hutItem(Hut.Type.TOWN_HALL));
         p.sendMessage(Component.text(c.name + " was disbanded.", NamedTextColor.YELLOW));
     }
 
@@ -252,8 +247,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         if (p.isSneaking()) return;
         e.setCancelled(true);
-        if (c.isBuilderHut(e.getClickedBlock())) menus.builderHut(p, c);
-        else menus.townHall(p, c);
+        menus.hut(p, c, c.hutAt(e.getClickedBlock()));
     }
 
     @EventHandler(ignoreCancelled = true)

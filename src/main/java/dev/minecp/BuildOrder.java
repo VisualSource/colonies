@@ -88,9 +88,7 @@ final class BuildOrder {
      * @return null if no structure has that name.
      */
     static BuildOrder create(String structure, Location origin, StructureRotation rotation, Block hut) {
-        // Names without a namespace are ours: "house" means minecp:house (structure block name "minecp:house").
-        NamespacedKey key = NamespacedKey.fromString(structure.contains(":") ? structure : "minecp:" + structure);
-        var s = key == null ? null : Bukkit.getStructureManager().loadStructure(key);
+        var s = load(structure);
         if (s == null || s.getPalettes().isEmpty()) return null;
         var blocks = s.getPalettes().getFirst().getBlocks();
         Block base = origin.getBlock();
@@ -124,6 +122,16 @@ final class BuildOrder {
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
         return new BuildOrder(structure, base.getLocation(), rotation, clears);
+    }
+
+    static boolean exists(String structure) {
+        return load(structure) != null;
+    }
+
+    private static org.bukkit.structure.Structure load(String structure) {
+        // Names without a namespace are ours: "house" means minecp:house (structure block name "minecp:house").
+        NamespacedKey key = NamespacedKey.fromString(structure.contains(":") ? structure : "minecp:" + structure);
+        return key == null ? null : Bukkit.getStructureManager().loadStructure(key);
     }
 
     /** Same rotation around the origin as vanilla structure placement. */

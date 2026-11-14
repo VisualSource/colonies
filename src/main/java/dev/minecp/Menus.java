@@ -11,7 +11,7 @@ import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
+import org.bukkit.block.Container;
 import org.bukkit.inventory.ItemStack;
 
 import java.time.Duration;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** Dialog screens (vanilla client, Minecraft 1.21.6+) for the town hall and the Builder's Hut. */
+/** Dialog screens (vanilla client, Minecraft 1.21.6+) for the colony's huts. */
 final class Menus {
     private static final ClickCallback.Options ONCE = ClickCallback.Options.builder()
             .uses(1).lifetime(Duration.ofMinutes(10)).build();
@@ -31,53 +31,69 @@ final class Menus {
         this.plugin = plugin;
     }
 
-    void townHall(Player p, Colony c) {
+    /** The menu of any hut: level and upgrade, plus what that kind of hut shows. */
+    void hut(Player p, Colony c, Hut h) {
         List<DialogBody> body = new ArrayList<>();
-        body.add(text(Component.text("Citizens (" + c.colonists.size() + ")", NamedTextColor.GOLD)));
-        for (Colonist x : c.colonists) body.add(text(Component.text(x.name + " — " + x.status())));
-        body.add(text(Component.text(c.builder == null ? "No Builder's Hut yet."
-                : "Builder's Hut: level " + c.builder.level, NamedTextColor.GRAY)));
-        show(p, c.name, body, DialogType.notice());
-    }
-
-    void builderHut(Player p, Colony c) {
-        Builder b = c.builder;
-        if (b == null) return;
-        List<DialogBody> body = new ArrayList<>();
-        body.add(text(Component.text(b.level == 0 ? "Not built yet (level 0)" : "Level " + b.level + " of " + Builder.MAX_LEVEL,
+        if (h.type == Hut.Type.TOWN_HALL) body.add(text(Component.text(c.name, NamedTextColor.GOLD)));
+        body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,
                 NamedTextColor.GOLD)));
-        Colonist worker = c.colonists.stream().filter(x -> x.id.equals(b.worker)).findFirst().orElse(null);
-        body.add(text(Component.text(worker == null ? "No builder." : worker.name + " — " + worker.status())));
-        if (b.order != null) {
+        Hut.WorkOrder up = c.upgradeOf(h);
+        Builder b = c.builder;
+        if (up != null && b != null && b.work == up) {
             int total = b.order.steps.size(), left = (int) b.order.upcoming().stream().filter(s -> !s.done()).count();
-            body.add(text(Component.text("Building " + b.order.structure + ": " + (100 * (total - left) / Math.max(total, 1))
+            body.add(text(Component.text("Building level " + up.level() + ": " + (100 * (total - left) / Math.max(total, 1))
                     + "% (" + left + " blocks left)")));
-            int kinds = b.missing().size();
-            body.add(text(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
-                    : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED)));
+        } else if (up != null)
+            body.add(text(Component.text("Level " + up.level() + " is queued for the builder (#"
+                    + (c.workOrders.indexOf(up) + 1) + ").")));
+
+        switch (h.type) {
+            case TOWN_HALL -> {
+                body.add(text(Component.text("Citizens: " + c.colonists.size() + " of " + c.capacity()
+                        + " (more houses or house levels make room)", NamedTextColor.GOLD)));
+                for (Colonist x : c.colonists)
+                    body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : ""))));
+                if (!c.workOrders.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ",
+                        c.workOrders.stream().map(w -> w.hut().type.title + " " + w.level()).toList()), NamedTextColor.GRAY)));
+            }
+            case BUILDER -> {
+                Colonist worker = b == null ? null : c.colonists.stream().filter(x -> x.id.equals(b.worker)).findFirst().orElse(null);
+                body.add(text(Component.text(worker == null ? "No builder." : worker.name + " — " + worker.status())));
+                if (b != null && b.order != null) {
+                    if (b.work == null) body.add(text(Component.text("Building " + b.order.structure + ".")));
+                    int kinds = b.missing().size();
+                    body.add(text(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
+                            : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED)));
+                }
+            }
+            case HOUSE -> {
+                var residents = c.residents(h);
+                body.add(text(Component.text("Residents: " + residents.size() + " of " + h.level, NamedTextColor.GOLD)));
+                for (Colonist x : residents) body.add(text(Component.text(x.name)));
+            }
         }
 
         List<ActionButton> buttons = new ArrayList<>();
-        if (b.order == null && b.level < Builder.MAX_LEVEL)
-            buttons.add(button(b.level == 0 ? "Build level 1" : "Upgrade to level " + (b.level + 1), p, b, c, player -> {
-                String problem = b.upgrade(c.style);
+        if (up == null && h.level < Hut.MAX_LEVEL)
+            buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, player -> {
+                String problem = c.requestUpgrade(h);
                 if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
                 plugin.save();
-                builderHut(player, c);
+                hut(player, c, h);
             }));
-        if (b.order != null)
-            buttons.add(button("Cancel build", p, b, c, player -> {
-                b.cancel();
+        if (up != null)
+            buttons.add(button("Cancel upgrade", p, c, h, player -> {
+                c.cancelUpgrade(h);
                 plugin.save();
-                builderHut(player, c);
+                hut(player, c, h);
             }));
-        if (b.order != null)
-            buttons.add(button("Materials needed", p, b, c, player -> materials(player, c)));
-        buttons.add(button("Open storage", p, b, c, player -> {
-            Inventory chest = b.chest();
-            if (chest != null) player.openInventory(chest);
-        }));
-        show(p, "Builder's Hut", body, DialogType.multiAction(buttons).columns(1)
+        if (h.type == Hut.Type.BUILDER && b != null && b.order != null)
+            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c)));
+        if (h.block.getState(false) instanceof Container)
+            buttons.add(button("Open storage", p, c, h, player -> {
+                if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
+            }));
+        show(p, h.type.title, body, DialogType.multiAction(buttons).columns(1)
                 .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
     }
 
@@ -93,7 +109,7 @@ final class Menus {
                         .description(DialogBody.plainMessage(Component.text(e.getValue() + " × ")
                                 .append(Component.translatable(e.getKey().translationKey())), 250))
                         .showTooltip(true).build()));
-        List<ActionButton> buttons = List.of(button("Back", p, b, c, player -> builderHut(player, c)));
+        List<ActionButton> buttons = List.of(button("Back", p, c, b.hut, player -> hut(player, c, b.hut)));
         show(p, "Materials needed", body, DialogType.multiAction(buttons).columns(1)
                 .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
     }
@@ -103,11 +119,11 @@ final class Menus {
     }
 
     /** A button whose action runs on the main thread, only for the player it was shown to, while the hut exists. */
-    private ActionButton button(String label, Player shownTo, Builder b, Colony c, Consumer<Player> action) {
+    private ActionButton button(String label, Player shownTo, Colony c, Hut h, Consumer<Player> action) {
         return ActionButton.builder(Component.text(label)).width(200).action(DialogAction.customClick((view, audience) -> {
             if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
             plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (c.builder == b) action.accept(player); // the hut may have been removed while the menu was open
+                if (c.huts.contains(h)) action.accept(player); // the hut may have been removed while the menu was open
             });
         }, ONCE)).build();
     }
