@@ -29,6 +29,7 @@ final class Colony {
     final Location townHall; // block location
     final List<Colonist> colonists = new ArrayList<>();
     Builder builder; // null until a builder's hut is placed
+    String style = "medievaloak"; // structure pack hut buildings come from
 
     Colony(UUID owner, String name, Location townHall) {
         this.owner = owner;
@@ -66,7 +67,7 @@ final class Colony {
 
     private Builder newBuilder(Block hut) {
         Builder b = new Builder(hut);
-        b.onFinish(() -> tell("Your builder finished the build."));
+        b.onFinish(this::tell);
         b.protect = block -> block.equals(hut) || isTownHall(block);
         return b;
     }
@@ -81,7 +82,7 @@ final class Colony {
         builder = null;
     }
 
-    private void tell(String message) {
+    void tell(String message) {
         Player p = Bukkit.getPlayer(owner);
         if (p != null) p.sendMessage(message);
     }
@@ -104,10 +105,13 @@ final class Colony {
 
     void save(ConfigurationSection s) {
         s.set("name", name);
+        s.set("style", style);
         putLocation(s, "townhall", townHall);
         if (builder != null) {
             var bs = s.createSection("builder");
             putLocation(bs, "hut", builder.hut.getLocation());
+            bs.set("level", builder.level);
+            bs.set("upgrading-to", builder.upgradingTo);
             if (builder.worker != null) bs.set("worker", builder.worker.toString());
             builder.carried.forEach((m, n) -> bs.set("carried." + m.name(), n));
             if (builder.order != null) {
@@ -129,6 +133,7 @@ final class Colony {
         Location townHall = getLocation(s, "townhall");
         if (townHall == null) return null;
         Colony colony = new Colony(owner, s.getString("name"), townHall);
+        colony.style = s.getString("style", colony.style);
         var citizens = s.getConfigurationSection("citizens");
         if (citizens != null) for (String id : citizens.getKeys(false)) {
             var cs = citizens.getConfigurationSection(id);
@@ -140,6 +145,7 @@ final class Colony {
         Location hut = bs == null ? null : getLocation(bs, "hut");
         if (hut != null) {
             colony.builder = colony.newBuilder(hut.getBlock());
+            colony.builder.level = bs.getInt("level");
             String worker = bs.getString("worker");
             if (worker != null) colony.builder.worker = UUID.fromString(worker);
             var carried = bs.getConfigurationSection("carried");
@@ -150,9 +156,10 @@ final class Colony {
             Location origin = getLocation(bs, "order.origin");
             if (origin != null) {
                 String structure = bs.getString("order.structure");
-                colony.builder.order = BuildOrder.create(structure, origin,
+                BuildOrder order = BuildOrder.create(structure, origin,
                         StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
-                if (colony.builder.order == null)
+                if (order != null) colony.builder.start(order, bs.getInt("upgrading-to"));
+                else
                     Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of " + colony.name + " dropped.");
             }
         }

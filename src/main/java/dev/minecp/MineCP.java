@@ -16,7 +16,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -35,6 +38,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private NamespacedKey townHallKey, builderHutKey;
     private File dataFile;
     private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
+    private final Menus menus = new Menus(this);
 
     @Override
     public void onEnable() {
@@ -59,7 +63,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         colonies.values().forEach(Colony::despawn);
     }
 
-    private void save() {
+    void save() {
         for (Colony c : colonies.values()) {
             data.set("colonies." + c.owner, null);
             c.save(data.createSection("colonies." + c.owner));
@@ -90,7 +94,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 }
                 if (args.length != 2) return false;
                 if (args[1].equals("cancel")) {
-                    c.builder.order = null;
+                    c.builder.cancel();
                     player.sendMessage("Build cancelled.");
                     return true;
                 }
@@ -110,7 +114,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                             + ". Save one with a structure block first.", NamedTextColor.RED));
                     return true;
                 }
-                c.builder.order = order;
+                c.builder.start(order, 0);
                 save();
                 if (!order.origin.equals(target.getRelative(0, 1, 0).getLocation()))
                     player.sendMessage("This is a hut building: it is placed around your Builder's Hut.");
@@ -232,6 +236,24 @@ public final class MineCP extends JavaPlugin implements Listener {
         save();
         e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation(), townHallItem());
         p.sendMessage(Component.text(c.name + " was disbanded.", NamedTextColor.YELLOW));
+    }
+
+    /** Right-click opens the colony menus; sneak + right-click keeps the normal action (open chest, ring bell). */
+    @EventHandler
+    public void onInteract(PlayerInteractEvent e) {
+        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        Colony c = colonyAt(e.getClickedBlock());
+        if (c == null) return;
+        Player p = e.getPlayer();
+        if (!p.getUniqueId().equals(c.owner)) {
+            e.setCancelled(true);
+            p.sendMessage(Component.text("This belongs to someone else's colony.", NamedTextColor.RED));
+            return;
+        }
+        if (p.isSneaking()) return;
+        e.setCancelled(true);
+        if (c.isBuilderHut(e.getClickedBlock())) menus.builderHut(p, c);
+        else menus.townHall(p, c);
     }
 
     @EventHandler(ignoreCancelled = true)

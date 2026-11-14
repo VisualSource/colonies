@@ -96,6 +96,10 @@ final class Colonist {
         }
     }
 
+    String status() {
+        return status;
+    }
+
     void setStatus(String status) {
         if (status.equals(this.status)) return;
         this.status = status;

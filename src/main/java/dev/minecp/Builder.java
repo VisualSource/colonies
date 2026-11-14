@@ -1,17 +1,22 @@
 package dev.minecp;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
+import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
@@ -20,24 +25,70 @@ final class Builder {
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
     private static final int CARRY_LIMIT = 256;   // items fetched per trip
+    static final int MAX_LEVEL = 5;
+    private static final String HUT_PATH = "fundamentals/builder"; // + level, inside the colony's style pack
 
     final Block hut;
     UUID worker; // colonist id, or null while the hut has no builder
     BuildOrder order;
+    int level = 0;       // 0: just the chest; N: the level N building is finished
+    int upgradingTo = 0; // level the current order builds, 0 if it is some other structure
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // saved with the colony
     private int cooldown = 0;
-    private Runnable onFinish = () -> {};
+    private Consumer<String> onFinish = message -> {};
     Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets hut + town hall
 
     Builder(Block hut) {
         this.hut = hut;
     }
 
-    void onFinish(Runnable r) {
+    void onFinish(Consumer<String> r) {
         onFinish = r;
     }
 
-    private Inventory chest() {
+    /** Queues the hut's next level, anchored on the hut. @return why it can't, or null when queued. */
+    String upgrade(String style) {
+        if (order != null) return "The builder is busy.";
+        if (level >= MAX_LEVEL) return "The Builder's Hut is at the highest level.";
+        String structure = style + "/" + HUT_PATH + (level + 1);
+        BuildOrder o = BuildOrder.create(structure, hut.getLocation(), StructureRotation.NONE, hut);
+        if (o == null) return "Structure " + structure + " not found.";
+        start(o, level + 1);
+        return null;
+    }
+
+    /** @param upgradeLevel the hut level this order builds, or 0 for any other structure */
+    void start(BuildOrder o, int upgradeLevel) {
+        order = o;
+        upgradingTo = upgradeLevel;
+    }
+
+    void cancel() {
+        order = null;
+        upgradingTo = 0;
+    }
+
+    /** Items the rest of the build needs that are neither carried nor in the hut chest. */
+    Map<Material, Integer> missing() {
+        Map<Material, Integer> need = new EnumMap<>(Material.class);
+        if (order == null) return need;
+        for (BuildOrder.Step s : order.upcoming()) {
+            Material m = s.cost();
+            if (m != null && !s.done() && !protect.test(s.block())) need.merge(m, 1, Integer::sum);
+        }
+        Inventory chest = chest();
+        need.replaceAll((m, n) -> n - carried.getOrDefault(m, 0) - (chest == null ? 0 : count(chest, m)));
+        need.values().removeIf(n -> n <= 0);
+        return need;
+    }
+
+    private static int count(Inventory inv, Material m) {
+        int n = 0;
+        for (ItemStack i : inv.getContents()) if (i != null && i.getType() == m) n += i.getAmount();
+        return n;
+    }
+
+    Inventory chest() {
         return hut.getState(false) instanceof Container c ? c.getInventory() : null;
     }
 
@@ -54,8 +105,10 @@ final class Builder {
         BuildOrder.Step step = order.next(protect);
         if (step == null) {
             returnCarried(chest);
-            order = null;
-            onFinish.run();
+            if (upgradingTo > 0) level = upgradingTo;
+            String done = upgradingTo > 0 ? "Your Builder's Hut is now level " + level + "." : "Your builder finished the build.";
+            cancel();
+            onFinish.accept(done);
             return;
         }
 
@@ -80,15 +133,35 @@ final class Builder {
             if (w.walkTo(step.block().getLocation().toCenterLocation(), 3)) return;
             if (d > LONG_REACH) { w.teleportNear(step.block()); return; }
         }
-        work(w, step, chest);
+        if (!work(w, step, chest)) {
+            w.setStatus("Builder: hut chest is full");
+            cooldown = 100; // like the mod: stop until there is room for what it digs up
+        }
     }
 
-    private void work(Colonist w, BuildOrder.Step step, Inventory chest) {
-        place(w, step, chest);
+    /** @return false if nothing was done because the hut chest has no room for what it would dig up. */
+    private boolean work(Colonist w, BuildOrder.Step step, Inventory chest) {
         BuildOrder.Step partner = order.partner(step); // top of a door, head of a bed: never leave half of one
-        if (partner != null && !partner.done() && !protect.test(partner.block())) place(w, partner, chest);
+        if (partner != null && (partner.done() || protect.test(partner.block()))) partner = null;
+        List<ItemStack> drops = new ArrayList<>(step.block().getDrops());
+        if (partner != null) drops.addAll(partner.block().getDrops());
+        if (!fits(chest, drops)) return false;
+        place(w, step, chest);
+        if (partner != null) place(w, partner, chest);
         w.swing();
         cooldown = PLACE_TICKS;
+        return true;
+    }
+
+    /** Whether {@code items} would all fit in {@code chest}, tried on a copy. */
+    private static boolean fits(Inventory chest, List<ItemStack> items) {
+        if (items.isEmpty()) return true;
+        Inventory copy = Bukkit.createInventory(null, chest.getSize());
+        for (int i = 0; i < chest.getSize(); i++) {
+            ItemStack it = chest.getItem(i);
+            if (it != null) copy.setItem(i, it.clone());
+        }
+        return copy.addItem(items.stream().map(ItemStack::clone).toArray(ItemStack[]::new)).isEmpty();
     }
 
     private void place(Colonist w, BuildOrder.Step step, Inventory chest) {
@@ -126,12 +199,16 @@ final class Builder {
         });
     }
 
+    /** Puts leftovers back in the chest; what doesn't fit stays carried (and saved) instead of spilling. */
     private void returnCarried(Inventory chest) {
-        carried.forEach((m, n) -> { if (n > 0) store(chest, java.util.List.of(new ItemStack(m, n))); });
-        carried.clear();
+        carried.replaceAll((m, n) -> n <= 0 ? 0 : chest.addItem(new ItemStack(m, n)).values().stream().mapToInt(ItemStack::getAmount).sum());
+        carried.values().removeIf(n -> n <= 0);
     }
 
-    /** shortcut: drops teleport straight into the hut chest; make the builder carry them back if it matters. */
+    /**
+     * shortcut: drops teleport straight into the hut chest; make the builder carry them back if it matters.
+     * {@link #work} checks they fit first, so the overflow drop is only a safety net.
+     */
     private void store(Inventory chest, Collection<ItemStack> items) {
         Location at = hut.getLocation().toCenterLocation();
         for (ItemStack overflow : chest.addItem(items.toArray(ItemStack[]::new)).values())
