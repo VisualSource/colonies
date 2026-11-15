@@ -24,6 +24,11 @@ abstract class Job {
         this.hut = hut;
     }
 
+    /** How much faster than others this job makes a citizen hungry (the mod: farmer and lumberjack 1.2). */
+    double hungerFactor() {
+        return 1.0;
+    }
+
     /** One tick of work for the worker, whose entities are spawned. */
     abstract void tick(Colonist w);
 
@@ -102,13 +107,11 @@ abstract class Job {
      * 2 blocks out, 2 below to 1 above). A plain distance check missed some of those, so workers walked back and forth.
      */
     boolean atHut(Colonist w) {
-        Block at = w.location().getBlock(), chest = hut.block;
-        int dy = at.getY() - chest.getY();
-        return Math.abs(at.getX() - chest.getX()) <= 2 && Math.abs(at.getZ() - chest.getZ()) <= 2 && dy >= -2 && dy <= 1;
+        return w.isBeside(hut.block);
     }
 
     /** Walks to the hut chest (teleports if no way leads there). */
     void goToHut(Colonist w) {
-        if (w.walkBeside(hut.block) == null) w.teleportNear(hut.block);
+        w.goBeside(hut.block);
     }
 }

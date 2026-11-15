@@ -24,7 +24,7 @@ final class Builder extends Job {
     private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
-    private static final int CARRY_LIMIT = 256;   // items fetched per trip
+    private static final int CARRY_LIMIT = 27 * 64; // items fetched per trip: a citizen's 27-slot inventory, as in the mod
 
     BuildOrder order;
     Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
@@ -140,7 +140,7 @@ final class Builder extends Job {
             if (walkToWorkSpot(w, step.block())) return;
             // No such spot in reach (the middle of a big build): get as close as a path leads; teleport as a last resort.
             if (w.approach(step.block().getLocation().toCenterLocation(), LONG_REACH)) return;
-            if (d > LONG_REACH) { w.teleportNear(step.block()); return; }
+            if (d > LONG_REACH) { w.goBeside(step.block()); return; } // far off: walk closer, teleport only if stuck
         }
         if (!work(w, step, chest)) {
             w.setStatus("Builder: chest full");

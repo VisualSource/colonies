@@ -47,6 +47,11 @@ final class Lumberjack extends Job {
         super(hut);
     }
 
+    @Override
+    double hungerFactor() {
+        return 1.2;
+    }
+
     int radius() {
         return 16 + 8 * Math.max(0, hut.level - 1);
     }
@@ -96,6 +101,7 @@ final class Lumberjack extends Job {
             }
             case CHOP -> {
                 if (!hasTool(onLeaves ? Tool.HOE : Tool.AXE, null)) { state = State.REFETCH; return; } // it broke
+                if (w.location().distance(base.getLocation().toCenterLocation()) > 6) { w.goBeside(base); return; } // back from a meal
                 if (!onLeaves) {
                     while (next < logs.size() && !Tag.LOGS.isTagged(logs.get(next).getType())) next++; // gone already
                     if (next < logs.size()) {

@@ -98,7 +98,7 @@ final class BuildOrder {
         for (int x = minX - 2; x <= maxX + 2; x++) for (int z = minZ - 2; z <= maxZ + 2; z++) {
             if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) continue;
             Block b = world.getHighestBlockAt(x, z, org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES).getRelative(BlockFace.UP);
-            if (b.isPassable() && b.getRelative(BlockFace.UP).isPassable()) spots.add(b);
+            if (Colonist.canStandIn(b)) spots.add(b);
         }
         return spots;
     }

@@ -112,6 +112,7 @@ final class Colony {
             case BUILDER -> jobs.add(builder = newBuilder(hut));
             case LUMBERJACK -> jobs.add(new Lumberjack(hut));
             case FARMER -> jobs.add(new Farmer(hut, this));
+            case COOK -> jobs.add(new Cook(hut));
             default -> {}
         }
     }
@@ -237,12 +238,49 @@ final class Colony {
         for (Colonist c : colonists) {
             if (!c.tick()) continue;
             Job job = jobOf(c);
+            hunger(c, job);
+            if (c.meal != null) { // eating comes before work
+                if (c.meal.tick(this, job)) {
+                    c.hungerNote = c.meal.why;
+                    if (c.meal.why != null) c.foodRetry = FOOD_RETRY_TICKS;
+                    c.meal = null;
+                }
+                continue;
+            }
             if (job != null) job.tick(c);
             else {
                 c.setStatus("Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
             }
         }
+    }
+
+    private static final int HUNGER_TICKS = 20 * 60;          // saturation drops once a minute (as in the mod)
+    private static final int FOOD_RETRY_TICKS = 20 * 60 * 5;  // after finding no food, look again in 5 minutes (the mod's wait)
+
+    /**
+     * Saturation drops once a minute in daytime, at the mod's rate: more for citizens of better houses, times the
+     * job's factor, plus up to half again for the work they do. Hungry citizens go to eat; starving ones are slow.
+     */
+    private void hunger(Colonist c, Job job) {
+        if (++c.hungerTicks >= HUNGER_TICKS) {
+            c.hungerTicks = 0;
+            if (c.location().getWorld().isDayTime()) {
+                double drop = switch (c.home == null ? 0 : c.home.level) {
+                    case 1 -> 0.6; case 2 -> 0.725; case 3 -> 1.0; case 4 -> 1.2; case 5 -> 1.5; default -> 0.3;
+                };
+                if (job != null) drop *= job.hungerFactor() * 1.5; // shortcut: assumes a busy worker; the mod counts actual actions
+                c.saturation = Math.max(0, c.saturation - drop);
+            }
+        }
+        c.setStarving(c.saturation <= 0);
+        if (c.meal == null && c.saturation < Food.LOW_SATURATION && --c.foodRetry <= 0) c.meal = new Meal(c);
+    }
+
+    /** A Cook's Hut that is built and has a cook, where hungry citizens can be served; null if none. */
+    Cook restaurant() {
+        for (Job j : jobs) if (j instanceof Cook cook && cook.hut.level >= 1 && worker(cook) != null) return cook;
+        return null;
     }
 
     private void startNextWorkOrder() {
@@ -255,6 +293,7 @@ final class Colony {
     }
 
     void despawn() {
+        for (Colonist c : colonists) if (c.meal != null) { c.meal.abandon(); c.meal = null; } // food back in its chest
         colonists.forEach(Colonist::despawn);
     }
 
@@ -304,6 +343,7 @@ final class Colony {
             cs.set("skin", c.skin);
             putLocation(cs, "location", c.location());
             if (c.home != null) cs.set("home", huts.indexOf(c.home));
+            cs.set("saturation", c.saturation);
         }
     }
 
@@ -341,6 +381,7 @@ final class Colony {
             if (at == null) at = colony.townHall().block.getLocation().toCenterLocation();
             Colonist c = new Colonist(UUID.fromString(id), cs.getString("name"), cs.getInt("skin"), at);
             if (cs.isInt("home")) c.home = colony.hutByIndex(cs.getInt("home"));
+            c.saturation = cs.getDouble("saturation", Food.MAX_SATURATION);
             colony.colonists.add(c);
         }
 

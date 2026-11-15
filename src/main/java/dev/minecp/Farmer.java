@@ -115,6 +115,11 @@ final class Farmer extends Job {
         return new int[]{usable, total};
     }
 
+    @Override
+    double hungerFactor() {
+        return 1.2;
+    }
+
     private int actionTicks() {
         return Math.max(4, 16 - 2 * hut.level);
     }
@@ -189,7 +194,7 @@ final class Farmer extends Job {
         w.setStatus("Farmer: working");
         Block crop = best.crop();
         if (w.location().distance(crop.getLocation().toCenterLocation()) > REACH) {
-            if (w.walkBeside(crop) == null) w.teleportNear(crop);
+            w.goBeside(crop);
             return;
         }
         switch (best.kind) {

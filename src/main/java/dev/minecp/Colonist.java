@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.Tag;
@@ -56,6 +57,10 @@ final class Colonist {
     final String name;
     final int skin;
     Hut home; // the house the colonist lives in, or null
+    double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
+    Meal meal;              // while it is getting something to eat
+    String hungerNote;      // why its last meal failed, for the menus
+    int foodRetry, hungerTicks;
     private Location last; // where the colonist is, kept while despawned
     private Mannequin body;
     private WanderingTrader legs;
@@ -227,6 +232,30 @@ final class Colonist {
         legs.teleport(spots.getFirst().getLocation().add(0.5, 0, 0.5));
     }
 
+    /** Whether it stands on a spot {@link #walkBeside} would walk to for {@code block} (up to 2 out, 2 below to 1 above). */
+    boolean isBeside(Block block) {
+        Block at = last.getBlock();
+        int dy = at.getY() - block.getY();
+        return Math.abs(at.getX() - block.getX()) <= 2 && Math.abs(at.getZ() - block.getZ()) <= 2 && dy >= -2 && dy <= 1;
+    }
+
+    /**
+     * Walks beside {@code block}. Paths only reach ~48 blocks, so farther away it walks as far toward it as a path
+     * leads and goes on from there; it teleports only when no path gets it any closer.
+     */
+    void goBeside(Block block) {
+        if (walkBeside(block) != null) return;
+        if (approach(block.getLocation().toCenterLocation(), Double.MAX_VALUE)) return;
+        teleportNear(block);
+    }
+
+    /** Starving citizens walk slowly, as in the mod. */
+    void setStarving(boolean starving) {
+        if (legs == null || starving == legs.hasPotionEffect(PotionEffectType.SLOWNESS)) return;
+        if (starving) legs.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false, false));
+        else legs.removePotionEffect(PotionEffectType.SLOWNESS);
+    }
+
     /** Free spots next to {@code block} to reach it from: level with it, or up to 2 below (it sits on a pillar) or 1 above. */
     private static List<Block> spotsBeside(Block block) {
         List<Block> spots = new ArrayList<>();
@@ -269,8 +298,11 @@ final class Colonist {
         return null;
     }
 
-    private static boolean canStandIn(Block b) {
-        return b.isPassable() && b.getRelative(BlockFace.UP).isPassable() && b.getRelative(BlockFace.DOWN).getType().isSolid();
+    /** Room to stand in {@code b}, on solid ground that isn't a fence, wall or gate (1.5 tall: no mob walks there). */
+    static boolean canStandIn(Block b) {
+        Material below = b.getRelative(BlockFace.DOWN).getType();
+        return b.isPassable() && b.getRelative(BlockFace.UP).isPassable() && below.isSolid()
+                && !Tag.FENCES.isTagged(below) && !Tag.WALLS.isTagged(below) && !Tag.FENCE_GATES.isTagged(below);
     }
 
     /** Walks to exactly {@code to}. @return false if no full path leads there. */

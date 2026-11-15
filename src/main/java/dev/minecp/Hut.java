@@ -13,6 +13,7 @@ final class Hut {
         HOUSE("House", Material.CHEST, "fundamentals/residence"),
         LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack"),
         FARMER("Farmer's Hut", Material.CHEST, "agriculture/horticulture/farmer"),
+        COOK("Cook's Hut", Material.CHEST, "fundamentals/cook"),
         FIELD("Field", Material.HAY_BLOCK, null); // MineColonies' scarecrow: marks a farm plot, never built or upgraded
 
         final String title;

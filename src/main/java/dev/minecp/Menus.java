@@ -57,8 +57,11 @@ final class Menus {
             case TOWN_HALL -> {
                 body.add(text(Component.text("Citizens: " + c.colonists.size() + " of " + c.capacity()
                         + " (more houses or house levels make room)", NamedTextColor.GOLD)));
-                for (Colonist x : c.colonists)
-                    body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : ""))));
+                long hungry = c.colonists.stream().filter(x -> x.saturation < Food.LOW_SATURATION).count();
+                long homeless = c.colonists.stream().filter(x -> x.home == null).count();
+                if (hungry > 0 || homeless > 0) body.add(text(Component.text(
+                        (hungry > 0 ? hungry + " hungry" : "") + (hungry > 0 && homeless > 0 ? ", " : "")
+                        + (homeless > 0 ? homeless + " homeless" : ""), NamedTextColor.YELLOW)));
                 if (!c.workOrders.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ",
                         c.workOrders.stream().map(w -> w.hut().type.title + " " + w.level()).toList()), NamedTextColor.GRAY)));
             }
@@ -91,6 +94,17 @@ final class Menus {
                 if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
             }
             case FIELD -> { field(p, c, h); return; }
+            case COOK -> {
+                Job job = c.jobAt(h);
+                Colonist worker = job == null ? null : c.worker(job);
+                body.add(text(Component.text(worker == null ? "No cook: every citizen has a job." : worker.name + " — " + worker.status())));
+                body.add(text(Component.text(h.level == 0 ? "The restaurant opens once level 1 is built."
+                        : "Hungry citizens without food in their hut or house come here to be served. Put food in this chest, "
+                        + "or raw food and fuel: the cook cooks it in the furnaces and smokers nearby.", NamedTextColor.GRAY)));
+                if (job instanceof Cook cook && !cook.waiting.isEmpty())
+                    body.add(text(Component.text("Waiting to be served: " + cook.waiting.size())));
+                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
+            }
             case HOUSE -> {
                 var residents = c.residents(h);
                 body.add(text(Component.text("Residents: " + residents.size() + " of " + h.level, NamedTextColor.GOLD)));
@@ -114,6 +128,8 @@ final class Menus {
             }));
         if (h.type == Hut.Type.BUILDER && b != null && b.order != null)
             buttons.add(button("Materials needed", p, c, h, player -> materials(player, c)));
+        if (h.type == Hut.Type.TOWN_HALL)
+            buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
         if (h.block.getState(false) instanceof Container)
             buttons.add(button("Open storage", p, c, h, player -> {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
@@ -190,6 +206,22 @@ final class Menus {
             if (++runs[0] > 8 || !p.isOnline()) { task.cancel(); return; }
             for (var at : points) p.spawnParticle(Particle.HAPPY_VILLAGER, at, 1, 0, 0, 0, 0);
         }, 0, 10);
+    }
+
+    /** Every citizen with what it is doing, its home and its food, from the town hall menu. */
+    void citizens(Player p, Colony c, Hut townHall) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text("Citizens: " + c.colonists.size() + " of " + c.capacity(), NamedTextColor.GOLD)));
+        for (Colonist x : c.colonists) {
+            String food = x.saturation <= 0 ? ", starving" : x.saturation < Food.LOW_SATURATION ? ", hungry" : "";
+            body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : "") + food
+                    + " (food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION + ")")));
+            if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION)
+                body.add(text(Component.text("   " + x.hungerNote, NamedTextColor.YELLOW)));
+        }
+        List<ActionButton> buttons = List.of(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
+        show(p, "Citizens", body, DialogType.multiAction(buttons).columns(1)
+                .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
     }
 
     /** Everything the current build still needs that is not in the hut chest, with item icons. */

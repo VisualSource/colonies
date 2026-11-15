@@ -78,7 +78,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                 Hut.Type.BUILDER, new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS),
                 Hut.Type.HOUSE, new RecipeChoice.MaterialChoice(Material.TORCH),
                 Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE),
-                Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE));
+                Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE),
+                Hut.Type.COOK, new RecipeChoice.MaterialChoice(Material.APPLE));
         middle.forEach((type, centre) -> {
             NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
             getServer().removeRecipe(key); // a reload would otherwise register it twice
@@ -173,7 +174,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field" -> {
+            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
@@ -184,6 +185,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                     case "lumberjack" -> Hut.Type.LUMBERJACK;
                     case "farmer" -> Hut.Type.FARMER;
                     case "field" -> Hut.Type.FIELD;
+                    case "cook" -> Hut.Type.COOK;
                     default -> Hut.Type.HOUSE;
                 }));
             }
@@ -259,6 +261,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 case LUMBERJACK -> "A citizen cuts and replants trees nearby";
                 case FARMER -> "A citizen works the colony's fields";
                 case FIELD -> "Marks a farm plot; right-click it to pick the crop and size";
+                case COOK -> "A restaurant: its cook cooks and serves food";
             }, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });
