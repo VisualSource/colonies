@@ -2,7 +2,9 @@ package dev.minecp;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.command.Command;
@@ -18,7 +20,13 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
+import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.recipe.CraftingBookCategory;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -33,7 +41,8 @@ public final class MineCP extends JavaPlugin implements Listener {
     private static final long AUTOSAVE_TICKS = 20 * 60 * 5;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private static final int HUT_RANGE = 64;
-    private NamespacedKey hutKey, legacyTownHallKey, legacyBuilderHutKey;
+    private NamespacedKey hutKey, tokenKey, legacyTownHallKey, legacyBuilderHutKey;
+    private final List<NamespacedKey> recipes = new java.util.ArrayList<>();
     private File dataFile;
     private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
     private final Menus menus = new Menus(this);
@@ -41,6 +50,8 @@ public final class MineCP extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         hutKey = new NamespacedKey(this, "hut_item");
+        tokenKey = new NamespacedKey(this, "token");
+        addRecipes();
         legacyTownHallKey = new NamespacedKey(this, "town_hall");     // items made before hut types
         legacyBuilderHutKey = new NamespacedKey(this, "builder_hut");
         dataFile = new File(getDataFolder(), "colonies.yml");
@@ -54,6 +65,77 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tick), 1L, 1L);
         getServer().getScheduler().runTaskTimer(this, this::save, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
+    }
+
+    /**
+     * Hut recipes in MineColonies' shapes (their gold scepter replaced by our Colony Token). Registered here, not in a
+     * data pack, because only plugin recipes can demand an exact item: an ordinary stick never matches the token.
+     */
+    private void addRecipes() {
+        RecipeChoice token = new RecipeChoice.ExactChoice(tokenItem());
+        Map<Hut.Type, RecipeChoice> middle = Map.of(
+                Hut.Type.TOWN_HALL, token,
+                Hut.Type.BUILDER, new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS),
+                Hut.Type.HOUSE, new RecipeChoice.MaterialChoice(Material.TORCH),
+                Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE));
+        middle.forEach((type, centre) -> {
+            NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
+            getServer().removeRecipe(key); // a reload would otherwise register it twice
+            ShapedRecipe r = new ShapedRecipe(key, hutItem(type));
+            r.shape("PTP", "PXP", "PPP");
+            r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
+            r.setIngredient('T', token);
+            r.setIngredient('X', centre);
+            r.setCategory(CraftingBookCategory.BUILDING);
+            getServer().addRecipe(r);
+            recipes.add(key);
+        });
+    }
+
+    /** The token every hut recipe needs; made from a stick with /colony token. Like MineColonies' build tool, it is kept. */
+    private ItemStack tokenItem() {
+        ItemStack item = new ItemStack(Material.STICK);
+        item.editMeta(m -> {
+            m.itemName(Component.text("Colony Token", NamedTextColor.GOLD));
+            m.lore(List.of(Component.text("Crafts colony huts; you keep it", NamedTextColor.GRAY)));
+            m.getPersistentDataContainer().set(tokenKey, PersistentDataType.BOOLEAN, true);
+        });
+        return item;
+    }
+
+    private boolean isToken(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(tokenKey);
+    }
+
+    /** Hut recipes keep their tokens: they go back into the grid (or to the player) after each craft. */
+    @EventHandler(ignoreCancelled = true)
+    public void onCraft(CraftItemEvent e) {
+        if (!(e.getRecipe() instanceof ShapedRecipe r) || !recipes.contains(r.getKey())) return;
+        Player p = (Player) e.getWhoClicked();
+        if (e.isShiftClick()) { // crafts many at once, and the tokens can't be put back in between
+            e.setCancelled(true);
+            p.sendMessage(Component.text("Take colony huts out one at a time.", NamedTextColor.RED));
+            return;
+        }
+        CraftingInventory grid = e.getInventory();
+        List<Integer> tokenSlots = new java.util.ArrayList<>();
+        ItemStack[] matrix = grid.getMatrix();
+        for (int i = 0; i < matrix.length; i++) if (isToken(matrix[i])) tokenSlots.add(i);
+        getServer().getScheduler().runTask(this, () -> { // after vanilla has used up the ingredients
+            boolean open = p.getOpenInventory().getTopInventory().equals(grid);
+            ItemStack[] now = grid.getMatrix();
+            for (int i : tokenSlots) {
+                if (open && (now[i] == null || now[i].isEmpty())) now[i] = tokenItem();
+                else if (open && isToken(now[i])) now[i].add();
+                else p.getInventory().addItem(tokenItem()).values().forEach(o -> p.getWorld().dropItem(p.getLocation(), o));
+            }
+            if (open) grid.setMatrix(now);
+        });
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        e.getPlayer().discoverRecipes(recipes); // show them in the recipe book
     }
 
     @Override
@@ -89,6 +171,17 @@ public final class MineCP extends JavaPlugin implements Listener {
                     case "lumberjack" -> Hut.Type.LUMBERJACK;
                     default -> Hut.Type.HOUSE;
                 }));
+            }
+            case "token" -> {
+                ItemStack hand = player.getInventory().getItemInMainHand();
+                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or tokens already
+                    player.sendMessage(Component.text("Hold a stick to turn it into a Colony Token.", NamedTextColor.RED));
+                    return true;
+                }
+                hand.subtract(); // one is enough: the token is kept when crafting
+                player.getInventory().setItemInMainHand(hand.isEmpty() ? null : hand);
+                player.getInventory().addItem(tokenItem()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
+                player.sendMessage(Component.text("Colony Token made. It's kept when you craft huts.", NamedTextColor.GREEN));
             }
             case "build" -> {
                 Colony c = colonies.get(player.getUniqueId());

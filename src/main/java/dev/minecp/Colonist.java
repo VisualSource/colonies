@@ -11,7 +11,9 @@ import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mannequin;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -108,6 +110,15 @@ final class Colonist {
         if (status.equals(this.status)) return;
         this.status = status;
         if (body != null) body.setDescription(Component.text(status));
+    }
+
+    /** Shows {@code item} (null: nothing) in the colonist's main hand. */
+    void hold(ItemStack item) {
+        if (body != null) body.getEquipment().setItemInMainHand(item);
+    }
+
+    LivingEntity living() {
+        return body;
     }
 
     boolean onGround() {

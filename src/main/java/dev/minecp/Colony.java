@@ -8,8 +8,10 @@ import org.bukkit.block.Block;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -249,6 +251,7 @@ final class Colony {
             var bs = s.createSection("builder");
             if (builder.worker != null) bs.set("worker", builder.worker.toString());
             builder.carried.forEach((m, n) -> bs.set("carried." + m.name(), n));
+            saveTools(bs, builder);
             if (builder.order != null) {
                 bs.set("order.structure", builder.order.structure);
                 bs.set("order.rotation", builder.order.rotation.name());
@@ -264,6 +267,7 @@ final class Colony {
             var js = s.createSection("jobs." + huts.indexOf(j.hut));
             if (j.worker != null) js.set("worker", j.worker.toString());
             j.carried.forEach((m, n) -> js.set("carried." + m.name(), n));
+            saveTools(js, j);
         }
         for (Colonist c : colonists) {
             var cs = s.createSection("citizens." + c.id);
@@ -348,7 +352,15 @@ final class Colony {
         return colony;
     }
 
+    /** Tools keep durability and enchantments, so they are stored as whole items. */
+    private static void saveTools(ConfigurationSection s, Job j) {
+        j.tools.forEach((kind, item) -> s.set("tools." + kind.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
+    }
+
     private static void loadCarried(ConfigurationSection s, Job j) {
+        var tools = s.getConfigurationSection("tools");
+        if (tools != null) for (String kind : tools.getKeys(false))
+            j.tools.put(Tool.valueOf(kind), ItemStack.deserializeBytes(Base64.getDecoder().decode(tools.getString(kind))));
         var carried = s.getConfigurationSection("carried");
         if (carried != null) for (String m : carried.getKeys(false)) {
             Material mat = Material.matchMaterial(m);

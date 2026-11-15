@@ -31,7 +31,7 @@ final class Lumberjack extends Job {
     private static final int LEAVES_PER_SWING = 4;
     private static final BlockFace[] FACES = {BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
 
-    private enum State { FIND, TO_TREE, CHOP, TO_HUT }
+    private enum State { FIND, TO_TREE, CHOP, TO_HUT, REFETCH }
 
     private State state = State.FIND;
     private Block base;           // lowest log of the tree being cut
@@ -59,7 +59,7 @@ final class Lumberjack extends Job {
     @Override
     void tick(Colonist w) {
         if (hut.level < 1) {
-            w.setStatus("Lumberjack: hut not built yet");
+            w.setStatus("Lumberjack: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
             return;
         }
@@ -68,6 +68,7 @@ final class Lumberjack extends Job {
             case FIND -> {
                 if (!carried.isEmpty()) { state = State.TO_HUT; return; } // e.g. after a restart mid-trip
                 if (!w.onGround()) return; // vanilla can't plan a walk mid-air; that is not an unreachable tree
+                if (!getTools(w)) return;
                 if (!findTree()) {
                     unreachable.clear(); // nothing left: give skipped trees another go after the pause
                     note = "No natural trees within " + radius() + " blocks.";
@@ -82,7 +83,7 @@ final class Lumberjack extends Job {
                     return;
                 }
                 note = null;
-                w.setStatus("Lumberjack: walking to a tree");
+                w.setStatus("Lumberjack: working");
                 state = State.TO_TREE;
             }
             case TO_TREE -> {
@@ -91,14 +92,15 @@ final class Lumberjack extends Job {
                     state = State.FIND;
                     return;
                 }
-                w.setStatus("Lumberjack: cutting a tree");
+                w.setStatus("Lumberjack: working");
                 state = State.CHOP;
             }
             case CHOP -> {
+                if (!hasTool(onLeaves ? Tool.HOE : Tool.AXE, null)) { state = State.REFETCH; return; } // it broke
                 if (!onLeaves) {
                     while (next < logs.size() && !Tag.LOGS.isTagged(logs.get(next).getType())) next++; // gone already
                     if (next < logs.size()) {
-                        chop(logs.get(next++));
+                        chop(logs.get(next++), Tool.AXE, w);
                         w.swing();
                         cooldown = chopTicks();
                         return;
@@ -110,7 +112,7 @@ final class Lumberjack extends Job {
                 while (next < leaves.size() && cleared < LEAVES_PER_SWING) {
                     Block leaf = leaves.get(next++);
                     if (!Tag.LEAVES.isTagged(leaf.getType())) continue; // decayed or gone already
-                    chop(leaf);
+                    chop(leaf, Tool.HOE, w);
                     cleared++;
                 }
                 if (cleared > 0) {
@@ -119,25 +121,45 @@ final class Lumberjack extends Job {
                     return;
                 }
                 replant();
-                w.setStatus("Lumberjack: bringing logs to the hut");
+                w.setStatus("Lumberjack: working");
                 state = State.TO_HUT;
             }
             case TO_HUT -> {
                 if (!atHut(w)) { goToHut(w); return; }
                 if (!deliver()) {
-                    w.setStatus("Lumberjack: hut chest is full");
+                    note = "The hut chest is full.";
+                    w.setStatus("Lumberjack: idle");
                     cooldown = 100;
                     return;
                 }
-                w.setStatus("Lumberjack: looking for trees");
+                w.setStatus("Lumberjack: working");
                 state = State.FIND;
+            }
+            case REFETCH -> { // a tool broke mid-tree: get another, then finish the same tree
+                if (atHut(w)) deliver();
+                if (!getTools(w)) return;
+                state = w.walkBeside(base) == null ? State.FIND : State.TO_TREE;
             }
         }
     }
 
-    /** Breaks a log or leaf block, keeping its drops (leaves roll their usual saplings, sticks, apples). */
-    private void chop(Block block) {
-        for (var drop : block.getDrops()) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
+    /** Makes sure it holds an axe (logs) and a hoe (leaves), taking them from the hut chest. @return true if so. */
+    private boolean getTools(Colonist w) {
+        if (hasTool(Tool.AXE, null) && hasTool(Tool.HOE, null)) return true;
+        if (!atHut(w)) { goToHut(w); return false; }
+        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) fetchTool(t, null);
+        List<String> missing = new ArrayList<>();
+        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) missing.add(t.label);
+        if (missing.isEmpty()) return true;
+        note = "Needs " + String.join(" and ", missing) + " in the hut chest.";
+        w.setStatus("Lumberjack: idle");
+        cooldown = 100;
+        return false;
+    }
+
+    /** Breaks a log or leaf block with the tool, keeping its drops (leaves roll their usual saplings, sticks, apples). */
+    private void chop(Block block, Tool tool, Colonist w) {
+        for (var drop : breakWith(tool, block, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
         var data = block.getBlockData();
         var sounds = data.getSoundGroup();
         block.getWorld().playSound(block.getLocation(), sounds.getBreakSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());

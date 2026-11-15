@@ -5,7 +5,7 @@ api-version: '26.3'
 commands:
   colony:
     description: Colony commands.
-    usage: /colony <info | build <structure> | build cancel | townhall | builderhut | house | lumberjack>
+    usage: /colony <info | token | build <structure> | build cancel | townhall | builderhut | house | lumberjack>
 permissions:
   minecp.admin:
     default: op

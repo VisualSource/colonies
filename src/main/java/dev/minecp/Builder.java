@@ -91,6 +91,22 @@ final class Builder extends Job {
             return;
         }
 
+        // Digging out what is in the way needs the right tool (pickaxe, axe, shovel), like a player.
+        Tool tool = step.block().isEmpty() ? null : Tool.forBlock(step.block().getType(), false);
+        if (tool != null && !hasTool(tool, step.block())) {
+            if (!atHut(w)) {
+                w.setStatus("Builder: fetching " + tool.label);
+                goToHut(w);
+                return;
+            }
+            if (!fetchTool(tool, step.block())) {
+                w.setStatus("Builder: needs " + tool.label + " good enough for "
+                        + step.block().getType().name().toLowerCase().replace('_', ' '));
+                cooldown = 100;
+                return;
+            }
+        }
+
         Material need = step.cost();
         if (need != null && carried.getOrDefault(need, 0) == 0) {
             if (!atHut(w)) {
@@ -122,14 +138,21 @@ final class Builder extends Job {
     private boolean work(Colonist w, BuildOrder.Step step, Inventory chest) {
         BuildOrder.Step partner = order.partner(step); // top of a door, head of a bed: never leave half of one
         if (partner != null && (partner.done() || protect.test(partner.block()))) partner = null;
-        List<ItemStack> drops = new ArrayList<>(step.block().getDrops());
-        if (partner != null) drops.addAll(partner.block().getDrops());
+        List<ItemStack> drops = new ArrayList<>(dropsOf(step.block()));
+        if (partner != null) drops.addAll(dropsOf(partner.block()));
         if (!fits(chest, drops)) return false;
         place(w, step, chest);
         if (partner != null) place(w, partner, chest);
         w.swing();
         cooldown = PLACE_TICKS;
         return true;
+    }
+
+    /** What breaking {@code b} with the tool it would be broken with drops. */
+    private Collection<ItemStack> dropsOf(Block b) {
+        Tool kind = Tool.forBlock(b.getType(), false);
+        ItemStack tool = kind == null ? null : tools.get(kind);
+        return tool == null ? b.getDrops() : b.getDrops(tool);
     }
 
     /** Whether {@code items} would all fit in {@code chest}, tried on a copy. */
@@ -146,7 +169,7 @@ final class Builder extends Job {
     private void place(Colonist w, BuildOrder.Step step, Inventory chest) {
         Block b = step.block();
         if (!b.isEmpty()) { // clear whatever is in the way, drops go to the hut
-            store(chest, b.getDrops());
+            store(chest, breakWith(Tool.forBlock(b.getType(), false), b, w));
             b.setType(Material.AIR, false);
         }
         if (!step.isClear()) {
