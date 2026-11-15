@@ -40,7 +40,6 @@ final class Lumberjack extends Job {
     private List<Block> leaves = List.of(); // its natural leaves, cleared after the logs for their saplings
     private int next;             // index into logs, then into leaves
     private boolean onLeaves;
-    String note;                  // why it is idle, for the hut menu
     private final Set<Block> unreachable = new HashSet<>();
     private int cooldown = 0;
 

@@ -62,6 +62,8 @@ FIXED = {
 }
 # Blocks swapped silently: they are markers with no look of their own, so there is nothing to fix.
 SILENT = {"structurize:blocksubstitution", "minecolonies:blockwaypoint", "minecolonies:decorationcontroller"}
+FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
+FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
 COUNT_ONLY ="structurize:blocksolidsubstitution"  # reported as a count, not coordinates
 FAMILY_FALLBACK ={"stairs": "oak_stairs", "slab": "oak_slab", "fence": "oak_fence", "wall": "cobblestone_wall",
@@ -141,7 +143,7 @@ def convert(path, blocks):
         for t_typed in root["tile_entities"][1][1]:
             pos = tuple(t_typed[k][1] for k in ("x", "y", "z"))
             tes[pos] = t_typed
-    out_palette, out_index, out_blocks = [], {}, []
+    out_palette, out_index, out_blocks, out_entities = [], {}, [], []
     notes = collections.defaultdict(list)
     for pos, idx in read_blocks(root["blocks"][1], sx, sy, sz):
         state = palette[idx]
@@ -167,7 +169,15 @@ def convert(path, blocks):
         block = {"pos": (nbt.LIST, (nbt.INT, list(pos))), "state": (nbt.INT, out_index[key])}
         if te_typed and state["Name"].startswith("minecraft:"):  # keep vanilla block entity data (signs, banners)
             block["nbt"] = (nbt.COMPOUND, {k: v for k, v in te_typed.items() if k not in ("x", "y", "z")})
-        if state["Name"].startswith("minecolonies:blockhut"):  # Paper data tag the plugin anchors builds on
+        if state["Name"] == FIELD:
+            # The scarecrow is a hay bale, which can't carry a data tag: mark it with a marker entity instead, which the
+            # plugin reads to register the field (the builder never spawns structure entities).
+            x, y, z = pos
+            out_entities.append({"blockPos": (nbt.LIST, (nbt.INT, [x, y, z])),
+                                 "pos": (nbt.LIST, (nbt.DOUBLE, [x + 0.5, y + 0.5, z + 0.5])),
+                                 "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"),
+                                                        "Tags": (nbt.LIST, (nbt.STRING, [FIELD_TAG]))})})
+        elif state["Name"].startswith("minecolonies:blockhut"):  # Paper data tag the plugin anchors builds on
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {"minecp:hut": (nbt.BYTE, 1)})})
         out_blocks.append(block)
@@ -176,7 +186,7 @@ def convert(path, blocks):
         "size": (nbt.LIST, (nbt.INT, [sx, sy, sz])),
         "palette": (nbt.LIST, (nbt.COMPOUND, out_palette)),
         "blocks": (nbt.LIST, (nbt.COMPOUND, out_blocks)),
-        "entities": (nbt.LIST, (nbt.COMPOUND, [])),
+        "entities": (nbt.LIST, (nbt.COMPOUND, out_entities)),
     }
     entities = len(root["entities"][1][1]) if "entities" in root else 0
     return structure, (sx, sy, sz), notes, entities

@@ -19,9 +19,11 @@ import org.bukkit.block.TileState;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -38,15 +40,30 @@ final class BuildOrder {
             // Compare type only: neighbour updates change states like fence connections after placing.
             return isClear() ? block.isEmpty() : block.getType() == data.getMaterial();
         }
+        /** The tool that turns the block already there into this one in place (shovel: path, hoe: farmland), or null. */
+        Tool convertWith() {
+            Material want = data.getMaterial(), have = block.getType();
+            if (want == Material.DIRT_PATH && FLATTENS.contains(have)) return Tool.SHOVEL;
+            if (want == Material.FARMLAND && TILLS.contains(have)) return Tool.HOE;
+            return null;
+        }
         /** The item this step uses up, or null if it is free. */
         Material cost() {
             if (isClear() || data.getMaterial() == Material.WATER || data.getMaterial() == Material.LAVA) return null;
+            if (convertWith() != null) return null;
+            // Players can't get path or farmland items without Silk Touch: lay dirt, flattened or tilled as it goes down.
+            if (data.getMaterial() == Material.DIRT_PATH || data.getMaterial() == Material.FARMLAND) return Material.DIRT;
             if (twoTall(data) && ((Bisected) data).getHalf() == Bisected.Half.TOP) return null; // paid by the bottom half
             if (data instanceof Bed b && b.getPart() == Bed.Part.HEAD) return null;
             Material m = data.getPlacementMaterial();
             return m.isItem() && !m.isAir() ? m : null;
         }
     }
+
+    /** What a shovel flattens into a path and a hoe tills into farmland, as in vanilla. */
+    private static final Set<Material> FLATTENS = EnumSet.of(Material.GRASS_BLOCK, Material.DIRT, Material.PODZOL,
+            Material.COARSE_DIRT, Material.MYCELIUM, Material.ROOTED_DIRT);
+    private static final Set<Material> TILLS = EnumSet.of(Material.GRASS_BLOCK, Material.DIRT, Material.DIRT_PATH);
 
     final String structure;
     final Location origin;
@@ -63,15 +80,35 @@ final class BuildOrder {
         this.origin = origin;
         this.rotation = rotation;
         this.steps = steps;
-        for (Step s : steps) byBlock.put(s.block, s);
+        int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z0 = Integer.MAX_VALUE, z1 = Integer.MIN_VALUE;
+        for (Step s : steps) {
+            byBlock.put(s.block, s);
+            x0 = Math.min(x0, s.block.getX()); x1 = Math.max(x1, s.block.getX());
+            z0 = Math.min(z0, s.block.getZ()); z1 = Math.max(z1, s.block.getZ());
+        }
+        minX = x0; maxX = x1; minZ = z0; maxZ = z1;
+    }
+
+    final int minX, maxX, minZ, maxZ; // the structure's footprint
+
+    /** Ground spots in a ring 1-2 blocks outside the footprint, where a builder stands to work (like the mod's builders). */
+    List<Block> groundAround() {
+        var world = origin.getWorld();
+        List<Block> spots = new ArrayList<>();
+        for (int x = minX - 2; x <= maxX + 2; x++) for (int z = minZ - 2; z <= maxZ + 2; z++) {
+            if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) continue;
+            Block b = world.getHighestBlockAt(x, z, org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES).getRelative(BlockFace.UP);
+            if (b.isPassable() && b.getRelative(BlockFace.UP).isPassable()) spots.add(b);
+        }
+        return spots;
     }
 
     /** The other half of a door, tall plant or bed, which should be placed together with this one. */
     Step partner(Step step) {
-        if (step.data instanceof Bed bed && bed.getPart() == Bed.Part.FOOT)
-            return byBlock.get(step.block.getRelative(bed.getFacing()));
-        if (twoTall(step.data) && ((Bisected) step.data).getHalf() == Bisected.Half.BOTTOM)
-            return byBlock.get(step.block.getRelative(BlockFace.UP));
+        if (step.data instanceof Bed bed)
+            return byBlock.get(step.block.getRelative(bed.getPart() == Bed.Part.FOOT ? bed.getFacing() : bed.getFacing().getOppositeFace()));
+        if (twoTall(step.data))
+            return byBlock.get(step.block.getRelative(((Bisected) step.data).getHalf() == Bisected.Half.BOTTOM ? BlockFace.UP : BlockFace.DOWN));
         return null;
     }
 
@@ -121,8 +158,20 @@ final class BuildOrder {
         // Bottom up, and blocks that hang on others (torches, doors, carpets) after the solid ones.
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
-        return new BuildOrder(structure, base.getLocation(), rotation, clears);
+        BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, clears);
+        for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows
+            if (!e.getScoreboardTags().contains(FIELD_TAG)) continue;
+            var l = e.getLocation(); // relative to the structure's corner
+            BlockVector at = rotate(new BlockVector(l.getBlockX(), l.getBlockY(), l.getBlockZ()), rotation);
+            order.fields.add(base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ()));
+        }
+        return order;
     }
+
+    /** Tag of the marker entities on a structure's field blocks, written by tools/convert_blueprints.py. */
+    static final String FIELD_TAG = "minecp_field";
+    /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
+    final List<Block> fields = new ArrayList<>();
 
     static boolean exists(String structure) {
         return load(structure) != null;
@@ -161,7 +210,10 @@ final class BuildOrder {
     Step next(Predicate<Block> keep) {
         while (cursor < steps.size() && (steps.get(cursor).done() || keep.test(steps.get(cursor).block)
                 || steps.get(cursor).block.getType().getHardness() < 0)) cursor++;
-        return cursor < steps.size() ? steps.get(cursor) : null;
+        if (cursor >= steps.size()) return null;
+        // A bed head or door top can come first in the order; hand out the half that costs the item, so both go down together.
+        Step s = steps.get(cursor), other = partner(s);
+        return other != null && s.cost() == null && other.cost() != null && !other.done() && !keep.test(other.block) ? other : s;
     }
 
     /** Steps from the current one on, for planning what materials to carry. */

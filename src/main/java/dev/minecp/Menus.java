@@ -18,7 +18,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import io.papermc.paper.dialog.DialogResponseView;
+import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput;
+import org.bukkit.Particle;
+import org.bukkit.block.Block;
 
 /** Dialog screens (vanilla client, Minecraft 1.21.6+) for the colony's huts. */
 final class Menus {
@@ -35,7 +41,7 @@ final class Menus {
     void hut(Player p, Colony c, Hut h) {
         List<DialogBody> body = new ArrayList<>();
         if (h.type == Hut.Type.TOWN_HALL) body.add(text(Component.text(c.name, NamedTextColor.GOLD)));
-        body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,
+        if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,
                 NamedTextColor.GOLD)));
         Hut.WorkOrder up = c.upgradeOf(h);
         Builder b = c.builder;
@@ -65,6 +71,7 @@ final class Menus {
                     body.add(text(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
                             : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED)));
                 }
+                if (b != null && b.note != null) body.add(text(Component.text(b.note, NamedTextColor.YELLOW)));
             }
             case LUMBERJACK -> {
                 Job job = c.jobAt(h);
@@ -74,6 +81,16 @@ final class Menus {
                         : "Cuts natural trees within " + ((Lumberjack) job).radius() + " blocks and replants them.", NamedTextColor.GRAY)));
                 if (job instanceof Lumberjack lj && lj.note != null) body.add(text(Component.text(lj.note, NamedTextColor.YELLOW)));
             }
+            case FARMER -> {
+                Job job = c.jobAt(h);
+                Colonist worker = job == null ? null : c.worker(job);
+                body.add(text(Component.text(worker == null ? "No farmer: every citizen has a job." : worker.name + " — " + worker.status())));
+                body.add(text(Component.text(h.level == 0 ? "The farmer starts once level 1 is built."
+                        : "Works " + c.fieldsOf(job).size() + " of up to " + h.level + " fields (one per level). Seeds to plant go in this chest.",
+                        NamedTextColor.GRAY)));
+                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
+            }
+            case FIELD -> { field(p, c, h); return; }
             case HOUSE -> {
                 var residents = c.residents(h);
                 body.add(text(Component.text("Residents: " + residents.size() + " of " + h.level, NamedTextColor.GOLD)));
@@ -82,7 +99,7 @@ final class Menus {
         }
 
         List<ActionButton> buttons = new ArrayList<>();
-        if (up == null && h.level < Hut.MAX_LEVEL)
+        if (h.type.isBuilding() && up == null && h.level < Hut.MAX_LEVEL)
             buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, player -> {
                 String problem = c.requestUpgrade(h);
                 if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
@@ -103,6 +120,76 @@ final class Menus {
             }));
         show(p, h.type.title, body, DialogType.multiAction(buttons).columns(1)
                 .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
+    }
+
+    private static final String[] SIDES = {"North", "East", "South", "West"};
+
+    /** A field's menu, like the mod's scarecrow screen: the crop to plant and how far the field reaches each way. */
+    void field(Player p, Colony c, Hut h) {
+        outline(p, h);
+        List<DialogBody> body = new ArrayList<>();
+        Job farmer = c.farmerOf(h);
+        Colonist worker = farmer == null ? null : c.worker(farmer);
+        body.add(text(farmer == null
+                ? Component.text("No farmer has room for this field: a Farmer's Hut works one field per level.", NamedTextColor.YELLOW)
+                : Component.text("Worked by " + (worker == null ? "nobody yet (no free citizen)" : worker.name) + ".")));
+        int[] plots = Farmer.plots(h);
+        body.add(text(Component.text(plots[0] + " of " + plots[1] + " plots can be farmed (grass, dirt or farmland with room above, up to 5 blocks above or below this block's level).",
+                plots[0] == 0 ? NamedTextColor.RED : NamedTextColor.WHITE)));
+        body.add(text(Component.text("The field is the ground around this block, shown with particles. Seeds to plant go in the "
+                + "Farmer's Hut chest. Water nearby makes crops grow faster.", NamedTextColor.GRAY)));
+
+        Material seed = Farmer.seedOf(h);
+        List<SingleOptionDialogInput.OptionEntry> crops = new ArrayList<>();
+        crops.add(SingleOptionDialogInput.OptionEntry.create("none", Component.text("Nothing"), seed == null));
+        for (Material s : List.of(Material.WHEAT_SEEDS, Material.CARROT, Material.POTATO, Material.BEETROOT_SEEDS,
+                Material.PUMPKIN_SEEDS, Material.MELON_SEEDS))
+            crops.add(SingleOptionDialogInput.OptionEntry.create(s.name(), Component.translatable(Farmer.produce(s).translationKey()), s == seed));
+        List<DialogInput> inputs = new ArrayList<>();
+        inputs.add(DialogInput.singleOption("crop", Component.text("Crop"), crops).width(200).build());
+        for (int i = 0; i < 4; i++)
+            inputs.add(DialogInput.numberRange(SIDES[i].toLowerCase(), Component.text(SIDES[i]), 0, Farmer.MAX_EXTENT)
+                    .step(1f).initial((float) h.extent[i]).width(200).build());
+
+        List<ActionButton> buttons = List.of(button("Save", p, c, h, (player, view) -> {
+            String crop = view.getText("crop");
+            h.seed = crop == null || crop.equals("none") ? null : Material.matchMaterial(crop);
+            for (int i = 0; i < 4; i++) {
+                Float v = view.getFloat(SIDES[i].toLowerCase());
+                if (v != null) h.extent[i] = Math.clamp(Math.round(v), 0, Farmer.MAX_EXTENT);
+            }
+            plugin.save();
+            field(player, c, h);
+        }));
+        p.showDialog(Dialog.create(f -> f.empty()
+                .base(DialogBase.builder(Component.text("Field")).body(body).inputs(inputs).build())
+                .type(DialogType.multiAction(buttons).columns(1).exitAction(ActionButton.builder(Component.text("Close")).build()).build())));
+    }
+
+    /** Shows the field's edge to the player with particles for a few seconds. */
+    private void outline(Player p, Hut field) {
+        int[] e = field.extent;
+        Block b = field.block;
+        // Points along the outer edges of the border plots, each at its plot's ground (fields follow the terrain).
+        List<org.bukkit.Location> points = new ArrayList<>();
+        for (int dx = -e[3]; dx <= e[1]; dx++) for (int dz = -e[0]; dz <= e[2]; dz++) {
+            boolean w = dx == -e[3], east = dx == e[1], n = dz == -e[0], s = dz == e[2];
+            if (!(w || east || n || s)) continue;
+            Block ground = Farmer.plot(field, dx, dz);
+            double y = (ground == null ? b.getY() - 1 : ground.getY()) + 1.1;
+            double x = b.getX() + dx, z = b.getZ() + dz;
+            for (double t = 0; t < 1; t += 0.5) {
+                if (n) points.add(new org.bukkit.Location(b.getWorld(), x + t, y, z));
+                if (s) points.add(new org.bukkit.Location(b.getWorld(), x + t, y, z + 1));
+                if (w) points.add(new org.bukkit.Location(b.getWorld(), x, y, z + t));
+                if (east) points.add(new org.bukkit.Location(b.getWorld(), x + 1, y, z + t));
+            }
+        }
+        int[] runs = {0};
+        plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
+            if (++runs[0] > 8 || !p.isOnline()) { task.cancel(); return; }
+            for (var at : points) p.spawnParticle(Particle.HAPPY_VILLAGER, at, 1, 0, 0, 0, 0);
+        }, 0, 10);
     }
 
     /** Everything the current build still needs that is not in the hut chest, with item icons. */
@@ -128,10 +215,15 @@ final class Menus {
 
     /** A button whose action runs on the main thread, only for the player it was shown to, while the hut exists. */
     private ActionButton button(String label, Player shownTo, Colony c, Hut h, Consumer<Player> action) {
+        return button(label, shownTo, c, h, (player, view) -> action.accept(player));
+    }
+
+    /** Same, for a dialog with inputs: the action also gets what the player entered. */
+    private ActionButton button(String label, Player shownTo, Colony c, Hut h, BiConsumer<Player, DialogResponseView> action) {
         return ActionButton.builder(Component.text(label)).width(200).action(DialogAction.customClick((view, audience) -> {
             if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
             plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (c.huts.contains(h)) action.accept(player); // the hut may have been removed while the menu was open
+                if (c.huts.contains(h)) action.accept(player, view); // the hut may have been removed while the menu was open
             });
         }, ONCE)).build();
     }

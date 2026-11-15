@@ -111,8 +111,28 @@ final class Colony {
         switch (hut.type) {
             case BUILDER -> jobs.add(builder = newBuilder(hut));
             case LUMBERJACK -> jobs.add(new Lumberjack(hut));
+            case FARMER -> jobs.add(new Farmer(hut, this));
             default -> {}
         }
+    }
+
+    /** The fields a farmer works: farmers, oldest hut first, each take the oldest fields left, one per hut level. */
+    List<Hut> fieldsOf(Job farmer) {
+        List<Hut> fields = huts.stream().filter(h -> h.type == Hut.Type.FIELD).toList();
+        int taken = 0;
+        for (Job j : jobs) {
+            if (!(j instanceof Farmer)) continue;
+            int n = Math.min(j.hut.level, fields.size() - taken);
+            if (j == farmer) return fields.subList(taken, taken + n);
+            taken += n;
+        }
+        return List.of();
+    }
+
+    /** The farmer job working this field, or null if no farmer has room for it. */
+    Job farmerOf(Hut field) {
+        for (Job j : jobs) if (j instanceof Farmer && fieldsOf(j).contains(field)) return j;
+        return null;
     }
 
     Job jobAt(Hut hut) {
@@ -154,7 +174,12 @@ final class Colony {
 
     private Builder newBuilder(Hut hut) {
         Builder b = new Builder(hut);
-        b.onFinish(done -> {
+        b.onFinish((done, order) -> {
+            for (Block f : order.fields) // a field that came with the building (the farmer's scarecrow)
+                if (hutAt(f) == null && f.getType() == Hut.Type.FIELD.block) {
+                    addHut(Hut.Type.FIELD, f);
+                    tell("A field came with the building: right-click its hay bale to choose a crop.");
+                }
             if (done == null) { tell("Your builder finished the build."); return; }
             done.hut().level = done.level();
             assignHomes();
@@ -242,6 +267,10 @@ final class Colony {
             hs.set("type", h.type.name());
             hs.set("level", h.level);
             putLocation(hs, "block", h.block.getLocation());
+            if (h.type == Hut.Type.FIELD) {
+                if (h.seed != null) hs.set("seed", h.seed.name());
+                hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
+            }
         }
         for (int i = 0; i < workOrders.size(); i++) {
             s.set("work-orders." + i + ".hut", huts.indexOf(workOrders.get(i).hut()));
@@ -288,7 +317,11 @@ final class Colony {
                 var hs = hutSections.getConfigurationSection(i);
                 Location at = getLocation(hs, "block");
                 if (at == null) return null;
-                huts.add(new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level")));
+                Hut h = new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level"));
+                h.seed = Material.matchMaterial(hs.getString("seed", ""));
+                List<Integer> extent = hs.getIntegerList("extent");
+                for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
+                huts.add(h);
             }
             colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
             colony.huts.addAll(huts.subList(1, huts.size()));

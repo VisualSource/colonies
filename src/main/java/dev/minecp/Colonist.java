@@ -7,7 +7,10 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.Tag;
+import org.bukkit.block.data.type.Door;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -40,6 +43,7 @@ final class Colonist {
     /** Vanilla default skins, shipped with every client, so no resource pack or skin lookups are needed. */
     private static final String[] SKINS = {"alex", "ari", "efe", "makena", "noor", "kai", "steve", "sunny", "zuri"};
     private static final int FEMALE_SKINS = 5; // the first five above
+    static final String LEGS_TAG = "minecp_legs";
 
     /** A skin index: which default character, and wide or slim arms (index >= SKINS.length means slim). */
     static int randomSkin(boolean female) {
@@ -61,6 +65,7 @@ final class Colonist {
     private int stuckTicks = 0;
     private int wait = 0;
     private double walked = 0;
+    private final List<Block> opened = new ArrayList<>(); // doors it opened, to close behind it
 
     Colonist(UUID id, String name, int skin, Location at) {
         this.id = id;
@@ -85,6 +90,7 @@ final class Colonist {
         body.teleport(to);
         last = to;
         footsteps(from, to);
+        doors(to);
         unstick(to);
         return true;
     }
@@ -96,7 +102,11 @@ final class Colonist {
             stuckFrom = at;
             stuckTicks = 0;
         } else if (++stuckTicks > STUCK_TICKS) {
-            hopAside(null);
+            // Usually a jump it can't make (e.g. up off a path block): put it where it was going; else just step aside.
+            var path = legs.getPathfinder().getCurrentPath();
+            Location next = path == null ? null : path.getNextPoint();
+            if (next != null && canStandIn(next.getBlock())) legs.teleport(next.getBlock().getLocation().add(0.5, 0, 0.5));
+            else hopAside(null);
             stuckFrom = null;
             stuckTicks = 0;
         }
@@ -129,10 +139,49 @@ final class Colonist {
         return legs.getPathfinder().hasPath();
     }
 
-    /** Walks to within {@code reach} blocks of {@code to}. @return false if it cannot get there. */
-    boolean walkTo(Location to, int reach) {
-        PathResult path = legs.getPathfinder().findPath(to, reach);
-        return path != null && path.canReachFinalPoint() && legs.getPathfinder().moveTo(path, WALK_SPEED);
+    /**
+     * Walks as close to {@code to} as any path leads, if that ends within {@code within} blocks of it.
+     * @return false if no path gets that close, or it already stands at the closest point.
+     */
+    boolean approach(Location to, double within) {
+        PathResult path = legs.getPathfinder().findPath(to);
+        Location end = path == null ? null : path.getFinalPoint();
+        if (end == null || end.toCenterLocation().distance(to) > within) return false;
+        if (end.toCenterLocation().distance(to) < 2) { // the path ends in the block's own spot: stop short, beside it
+            Location stop = null;
+            for (Location p : path.getPoints()) if (p.toCenterLocation().distance(to) >= 2) stop = p;
+            if (stop == null) return false; // already beside it
+            path = legs.getPathfinder().findPath(stop.toCenterLocation());
+            if (path == null || !path.canReachFinalPoint()) return false;
+            end = stop;
+        }
+        if (end.toCenterLocation().distanceSquared(legs.getLocation()) < 1.5 * 1.5) return false; // nowhere closer to go
+        return legs.getPathfinder().moveTo(path, WALK_SPEED);
+    }
+
+    /** Opens wooden doors on the way like a villager, and closes them once through. */
+    private void doors(Location at) {
+        PathResult path = legs.getPathfinder().hasPath() ? legs.getPathfinder().getCurrentPath() : null;
+        Location next = path == null ? null : path.getNextPoint();
+        for (Block b : new Block[]{at.getBlock(), next == null ? null : next.getBlock()}) {
+            if (b == null || !Tag.MOB_INTERACTABLE_DOORS.isTagged(b.getType()) || !(b.getBlockData() instanceof Door d) || d.isOpen()) continue;
+            int bottomY = d.getHalf() == Door.Half.TOP ? b.getY() - 1 : b.getY();
+            if (Math.abs(at.getY() - bottomY) > 0.5) continue; // walking past above or below it: opening would drop it
+
+            d.setOpen(true);
+            b.setBlockData(d); // with physics, so the other half follows
+            b.getWorld().playSound(b.getLocation(), Sound.BLOCK_WOODEN_DOOR_OPEN, SoundCategory.BLOCKS, 1, 1);
+            opened.add(b);
+        }
+        opened.removeIf(b -> {
+            if (b.getLocation().toCenterLocation().distanceSquared(at) < 2 * 2 || overlaps(b)) return false;
+            if (b.getBlockData() instanceof Door d && d.isOpen()) {
+                d.setOpen(false);
+                b.setBlockData(d);
+                b.getWorld().playSound(b.getLocation(), Sound.BLOCK_WOODEN_DOOR_CLOSE, SoundCategory.BLOCKS, 1, 1);
+            }
+            return true;
+        });
     }
 
     /** Whether the colonist's body is (partly) inside {@code b}; a mob is 0.6 wide, so it can overlap neighbours. */
@@ -224,7 +273,8 @@ final class Colonist {
         return b.isPassable() && b.getRelative(BlockFace.UP).isPassable() && b.getRelative(BlockFace.DOWN).getType().isSolid();
     }
 
-    private boolean walk(Location to) {
+    /** Walks to exactly {@code to}. @return false if no full path leads there. */
+    boolean walk(Location to) {
         PathResult path = reachablePath(to);
         return path != null && legs.getPathfinder().moveTo(path, WALK_SPEED);
     }
@@ -283,6 +333,7 @@ final class Colonist {
             l.setCollidable(false);
             l.setPersistent(false); // the colony file is the source of truth, not the world save
             l.setDespawnDelay(0);
+            l.addScoreboardTag(LEGS_TAG);
         });
         Bukkit.getMobGoals().removeAllGoals(legs);
         // Paper only fully ticks mobs within ~32 blocks of a player ("entity activation range"); farther
@@ -291,6 +342,7 @@ final class Colonist {
                 false, false, false));
         // Vanilla caps path search by follow range; the trader's default cut paths off ~10 blocks out.
         legs.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(48);
+        legs.getPathfinder().setCanOpenDoors(true); // paths may go through closed wooden doors; doors() opens them
         String skinName = SKINS[skin % SKINS.length];
         boolean slim = skin >= SKINS.length;
         body = world.spawn(last, Mannequin.class, m -> {
@@ -310,6 +362,8 @@ final class Colonist {
     }
 
     void despawn() {
+        for (Block b : opened) if (b.getBlockData() instanceof Door d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
+        opened.clear();
         if (body != null) body.remove();
         if (legs != null) legs.remove();
         body = null;

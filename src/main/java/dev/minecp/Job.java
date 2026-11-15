@@ -18,6 +18,7 @@ abstract class Job {
     UUID worker; // colonist id, or null while nobody has the job
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
     final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
+    String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
 
     Job(Hut hut) {
         this.hut = hut;
@@ -80,20 +81,30 @@ abstract class Job {
     Collection<ItemStack> breakWith(Tool kind, Block block, Colonist w) {
         ItemStack tool = kind == null ? null : tools.get(kind);
         Collection<ItemStack> drops = tool == null ? block.getDrops() : block.getDrops(tool);
-        if (tool != null) {
-            w.hold(tool);
-            ItemStack worn = tool.damage(1, w.living()); // Unbreaking and the break animation included
-            if (worn.isEmpty()) {
-                tools.remove(kind);
-                w.hold(null);
-            } else tools.put(kind, worn);
-        }
+        if (tool != null) wear(kind, w);
         return drops;
     }
 
-    /** Within reach of the hut chest to take or put things. */
+    /** Uses the held tool of this kind once: it shows in the worker's hand, wears down, and is gone when it breaks. */
+    void wear(Tool kind, Colonist w) {
+        ItemStack tool = tools.get(kind);
+        if (tool == null) return;
+        w.hold(tool);
+        ItemStack worn = tool.damage(1, w.living()); // Unbreaking and the break animation included
+        if (worn.isEmpty()) {
+            tools.remove(kind);
+            w.hold(null);
+        } else tools.put(kind, worn);
+    }
+
+    /**
+     * Within reach of the hut chest to take or put things: on any spot {@link Colonist#walkBeside} walks to (up to
+     * 2 blocks out, 2 below to 1 above). A plain distance check missed some of those, so workers walked back and forth.
+     */
     boolean atHut(Colonist w) {
-        return w.location().distance(hut.block.getLocation().toCenterLocation()) <= 3;
+        Block at = w.location().getBlock(), chest = hut.block;
+        int dy = at.getY() - chest.getY();
+        return Math.abs(at.getX() - chest.getX()) <= 2 && Math.abs(at.getZ() - chest.getZ()) <= 2 && dy >= -2 && dy <= 1;
     }
 
     /** Walks to the hut chest (teleports if no way leads there). */

@@ -11,11 +11,17 @@ final class Hut {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall"),
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder"),
         HOUSE("House", Material.CHEST, "fundamentals/residence"),
-        LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack");
+        LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack"),
+        FARMER("Farmer's Hut", Material.CHEST, "agriculture/horticulture/farmer"),
+        FIELD("Field", Material.HAY_BLOCK, null); // MineColonies' scarecrow: marks a farm plot, never built or upgraded
 
         final String title;
         final Material block;
-        final String path; // structure path inside a style pack, + level
+        final String path; // structure path inside a style pack, + level; null for blocks that aren't buildings
+
+        boolean isBuilding() {
+            return path != null;
+        }
 
         Type(String title, Material block, String path) {
             this.title = title;
@@ -30,6 +36,9 @@ final class Hut {
     final Type type;
     final Block block;
     int level;
+    // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.
+    Material seed;
+    final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
 
     Hut(Type type, Block block, int level) {
         this.type = type;

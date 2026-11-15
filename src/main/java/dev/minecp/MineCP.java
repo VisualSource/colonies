@@ -77,7 +77,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                 Hut.Type.TOWN_HALL, token,
                 Hut.Type.BUILDER, new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS),
                 Hut.Type.HOUSE, new RecipeChoice.MaterialChoice(Material.TORCH),
-                Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE));
+                Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE),
+                Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE));
         middle.forEach((type, centre) -> {
             NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
             getServer().removeRecipe(key); // a reload would otherwise register it twice
@@ -90,6 +91,17 @@ public final class MineCP extends JavaPlugin implements Listener {
             getServer().addRecipe(r);
             recipes.add(key);
         });
+        // The field is MineColonies' scarecrow, whose recipe takes no build tool: hay bale or pumpkin on a stick body.
+        NamespacedKey key = new NamespacedKey(this, "field");
+        getServer().removeRecipe(key);
+        ShapedRecipe field = new ShapedRecipe(key, hutItem(Hut.Type.FIELD));
+        field.shape(" H ", "SLS", " S ");
+        field.setIngredient('H', new RecipeChoice.MaterialChoice(Material.HAY_BLOCK, Material.PUMPKIN));
+        field.setIngredient('S', new RecipeChoice.ExactChoice(new ItemStack(Material.STICK))); // plain sticks, never the token
+        field.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
+        field.setCategory(CraftingBookCategory.BUILDING);
+        getServer().addRecipe(field);
+        recipes.add(key);
     }
 
     /** The token every hut recipe needs; made from a stick with /colony token. Like MineColonies' build tool, it is kept. */
@@ -112,15 +124,16 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void onCraft(CraftItemEvent e) {
         if (!(e.getRecipe() instanceof ShapedRecipe r) || !recipes.contains(r.getKey())) return;
         Player p = (Player) e.getWhoClicked();
+        CraftingInventory grid = e.getInventory();
+        List<Integer> tokenSlots = new java.util.ArrayList<>();
+        ItemStack[] matrix = grid.getMatrix();
+        for (int i = 0; i < matrix.length; i++) if (isToken(matrix[i])) tokenSlots.add(i);
+        if (tokenSlots.isEmpty()) return; // the field: no token to keep
         if (e.isShiftClick()) { // crafts many at once, and the tokens can't be put back in between
             e.setCancelled(true);
             p.sendMessage(Component.text("Take colony huts out one at a time.", NamedTextColor.RED));
             return;
         }
-        CraftingInventory grid = e.getInventory();
-        List<Integer> tokenSlots = new java.util.ArrayList<>();
-        ItemStack[] matrix = grid.getMatrix();
-        for (int i = 0; i < matrix.length; i++) if (isToken(matrix[i])) tokenSlots.add(i);
         getServer().getScheduler().runTask(this, () -> { // after vanilla has used up the ingredients
             boolean open = p.getOpenInventory().getTopInventory().equals(grid);
             ItemStack[] now = grid.getMatrix();
@@ -160,7 +173,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut", "house", "lumberjack" -> {
+            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
@@ -169,6 +182,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                     case "townhall" -> Hut.Type.TOWN_HALL;
                     case "builderhut" -> Hut.Type.BUILDER;
                     case "lumberjack" -> Hut.Type.LUMBERJACK;
+                    case "farmer" -> Hut.Type.FARMER;
+                    case "field" -> Hut.Type.FIELD;
                     default -> Hut.Type.HOUSE;
                 }));
             }
@@ -242,6 +257,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                 case BUILDER -> "Its chest holds building materials";
                 case HOUSE -> "Room for more citizens";
                 case LUMBERJACK -> "A citizen cuts and replants trees nearby";
+                case FARMER -> "A citizen works the colony's fields";
+                case FIELD -> "Marks a farm plot; right-click it to pick the crop and size";
             }, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });
@@ -281,8 +298,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         Block th = c == null ? null : c.townHall().block;
         String problem = c == null ? "You need a colony first."
-                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
-                : !th.getWorld().equals(e.getBlock().getWorld())
+                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."                : !th.getWorld().equals(e.getBlock().getWorld())
                         || th.getLocation().distance(e.getBlock().getLocation()) > HUT_RANGE
                         ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
         if (problem != null) {
@@ -292,7 +308,15 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         c.addHut(type, e.getBlockPlaced());
         save();
-        p.sendMessage(Component.text(type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
+        p.sendMessage(Component.text(type == Hut.Type.FIELD
+                ? "Field placed. Right-click it to choose the crop and the size of the field."
+                : type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
+    }
+
+    /** Colonists walk their fields; vanilla would let their jumps trample the farmland. */
+    @EventHandler(ignoreCancelled = true)
+    public void onTrample(org.bukkit.event.entity.EntityInteractEvent e) {
+        if (e.getBlock().getType() == Material.FARMLAND && e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) e.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
