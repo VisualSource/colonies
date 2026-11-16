@@ -68,6 +68,7 @@ final class Colonist {
     private String status = "Unemployed";
     private Location stuckFrom;
     private int stuckTicks = 0;
+    private int unstuck = 0; // times the watchdog moved it on during the current walk
     private int wait = 0;
     private double walked = 0;
     private final List<Block> opened = new ArrayList<>(); // doors it opened, to close behind it
@@ -102,7 +103,7 @@ final class Colonist {
 
     /** Watchdog: walking but not getting anywhere (trapped by a fence, wedged on a corner) for a while -> hop aside. */
     private void unstick(Location at) {
-        if (!legs.getPathfinder().hasPath()) { stuckTicks = 0; return; }
+        if (!legs.getPathfinder().hasPath()) { stuckTicks = 0; unstuck = 0; return; }
         if (stuckFrom == null || stuckFrom.distanceSquared(at) > 0.5 * 0.5) {
             stuckFrom = at;
             stuckTicks = 0;
@@ -110,8 +111,11 @@ final class Colonist {
             // Usually a jump it can't make (e.g. up off a path block): put it where it was going; else just step aside.
             var path = legs.getPathfinder().getCurrentPath();
             Location next = path == null ? null : path.getNextPoint();
-            if (next != null && canStandIn(next.getBlock())) legs.teleport(next.getBlock().getLocation().add(0.5, 0, 0.5));
-            else hopAside(null);
+            // (Not if that is where it stands already: blocked there, it would be put back on the same spot for ever.)
+            // A second time on the same walk, the path itself is no good: drop it and let the job plan a new one.
+            if (++unstuck < 2 && next != null && canStandIn(next.getBlock()) && !next.getBlock().equals(at.getBlock()))
+                legs.teleport(next.getBlock().getLocation().add(0.5, 0, 0.5));
+            else { legs.getPathfinder().stopPathfinding(); hopAside(null); unstuck = 0; }
             stuckFrom = null;
             stuckTicks = 0;
         }
@@ -138,6 +142,10 @@ final class Colonist {
 
     boolean onGround() {
         return legs.isOnGround();
+    }
+
+    void stopWalking() {
+        legs.getPathfinder().stopPathfinding();
     }
 
     boolean isMoving() {
@@ -220,6 +228,12 @@ final class Colonist {
             legs.teleport(b.getRelative(0, dy, 0).getLocation().add(0.5, 0, 0.5));
             return;
         }
+    }
+
+    /** Teleports onto {@code spot} (a block it can stand in). */
+    void teleportTo(Block spot) {
+        legs.getPathfinder().stopPathfinding();
+        legs.teleport(spot.getLocation().add(0.5, 0, 0.5));
     }
 
     /** Teleports onto a free spot near {@code block}, for when nothing walkable leads there. */

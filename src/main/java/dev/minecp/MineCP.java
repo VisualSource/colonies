@@ -79,7 +79,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                 Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE),
                 Hut.Type.COOK, new RecipeChoice.MaterialChoice(Material.APPLE),
                 Hut.Type.WAREHOUSE, new RecipeChoice.MaterialChoice(Material.CHEST),
-                Hut.Type.COURIER, new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS));
+                Hut.Type.COURIER, new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS),
+                Hut.Type.MINER, new RecipeChoice.MaterialChoice(Material.WOODEN_PICKAXE));
         middle.forEach((type, centre) -> {
             NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
             getServer().removeRecipe(key); // a reload would otherwise register it twice
@@ -185,7 +186,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook", "warehouse", "courier" -> {
+            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook", "warehouse", "courier", "miner" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
@@ -199,6 +200,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                     case "cook" -> Hut.Type.COOK;
                     case "warehouse" -> Hut.Type.WAREHOUSE;
                     case "courier" -> Hut.Type.COURIER;
+                    case "miner" -> Hut.Type.MINER;
                     default -> Hut.Type.HOUSE;
                 }));
             }
@@ -284,6 +286,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 case COOK -> "A restaurant: its cook cooks and serves food";
                 case WAREHOUSE -> "The colony's store, which couriers work from";
                 case COURIER -> "A courier carries goods between the warehouse and huts";
+                case MINER -> "A citizen digs a mine below the hut";
             }, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });

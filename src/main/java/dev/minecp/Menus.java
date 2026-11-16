@@ -107,6 +107,21 @@ final class Menus {
                 long couriers = c.jobs.stream().filter(j -> j instanceof Courier && c.worker(j) != null).count();
                 body.add(text(Component.text("Couriers: " + couriers + (couriers == 0 ? " (build a Courier's Hut)" : ""))));
             }
+            case MINER -> {
+                Job job = c.jobAt(h);
+                Colonist worker = job == null ? null : c.worker(job);
+                body.add(text(Component.text(worker == null ? "No miner: every citizen has a job." : worker.name + " — " + worker.status())));
+                if (h.level == 0) body.add(text(Component.text("The miner starts once level 1 is built.", NamedTextColor.GRAY)));
+                else if (job instanceof Miner miner) {
+                    int[] d = miner.depth();
+                    body.add(text(Component.text(d == null ? "Digs a shaft down from the ladder in the hut, then tunnels."
+                            : "Shaft down to y " + d[0] + "; this hut level allows y " + d[1] + ". Mine levels: " + miner.levels.size()
+                            + (d[0] < d[1] ? ". Tunnelling on the deepest level." : ". Digging the shaft.")
+                            + " Upgrade the hut to go deeper.", NamedTextColor.GRAY)));
+                    body.add(text(Component.text("Needs a pickaxe and a shovel, cobblestone and ladders for the shaft, and for the tunnel supports: oak planks, logs, wood, slabs, stairs and fences, torches, plus a fence gate and a sign for each mine level.", NamedTextColor.GRAY)));
+                }
+                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
+            }
             case COURIER -> {
                 Job job = c.jobAt(h);
                 Colonist worker = job == null ? null : c.worker(job);

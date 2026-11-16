@@ -197,7 +197,7 @@ final class BuildOrder {
     }
 
     /** Same rotation around the origin as vanilla structure placement. */
-    private static BlockVector rotate(BlockVector v, StructureRotation r) {
+    static BlockVector rotate(BlockVector v, StructureRotation r) {
         return switch (r) {
             case NONE -> v;
             case CLOCKWISE_90 -> new BlockVector(-v.getBlockZ(), v.getBlockY(), v.getBlockX());

@@ -114,6 +114,7 @@ final class Colony {
             case FARMER -> jobs.add(new Farmer(hut, this));
             case COOK -> jobs.add(new Cook(hut));
             case COURIER -> jobs.add(new Courier(hut, this));
+            case MINER -> jobs.add(new Miner(hut, this));
             default -> {}
         }
     }
@@ -351,6 +352,7 @@ final class Colony {
             if (j.worker != null) js.set("worker", j.worker.toString());
             j.carried.forEach((m, n) -> js.set("carried." + m.name(), n));
             saveTools(js, j);
+            if (j instanceof Miner miner) miner.save(js.createSection("mine"));
         }
         for (Colonist c : colonists) {
             var cs = s.createSection("citizens." + c.id);
@@ -405,6 +407,7 @@ final class Colony {
             String worker = js.getString("worker");
             if (worker != null) j.worker = UUID.fromString(worker);
             loadCarried(js, j);
+            if (j instanceof Miner miner && js.isConfigurationSection("mine")) miner.load(js.getConfigurationSection("mine"));
         }
         var bs = s.getConfigurationSection("builder");
         if (colony.builder != null && bs != null) {
