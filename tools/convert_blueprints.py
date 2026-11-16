@@ -64,6 +64,8 @@ FIXED = {
 SILENT = {"structurize:blocksubstitution", "minecolonies:blockwaypoint", "minecolonies:decorationcontroller"}
 FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
 FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
+RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
+RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
 COUNT_ONLY ="structurize:blocksolidsubstitution"  # reported as a count, not coordinates
 FAMILY_FALLBACK ={"stairs": "oak_stairs", "slab": "oak_slab", "fence": "oak_fence", "wall": "cobblestone_wall",
@@ -180,6 +182,9 @@ def convert(path, blocks):
         elif state["Name"].startswith("minecolonies:blockhut"):  # Paper data tag the plugin anchors builds on
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {"minecp:hut": (nbt.BYTE, 1)})})
+        elif state["Name"] == RACK:  # a chest standing in for the mod's storage rack, tagged for a custom model later
+            block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
+                                           "PublicBukkitValues": (nbt.COMPOUND, {RACK_TAG: (nbt.BYTE, 1)})})
         out_blocks.append(block)
     structure = {
         "DataVersion": (nbt.INT, root.get("mcversion", (nbt.INT, 3955))[1]),  # vanilla upgrades old block names on load

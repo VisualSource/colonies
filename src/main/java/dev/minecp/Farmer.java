@@ -4,7 +4,6 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
-import org.bukkit.block.Container;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -57,11 +56,7 @@ final class Farmer extends Job {
 
     /** The seed the field is planted with, chosen in its menu; null if none. */
     static Material seedOf(Hut field) {
-        if (field.seed != null) return field.seed;
-        // Fields placed before the menu were barrels whose seed chose the crop.
-        if (!(field.block.getState(false) instanceof Container c)) return null;
-        for (ItemStack item : c.getInventory().getContents()) if (item != null && CROPS.containsKey(item.getType())) return item.getType();
-        return null;
+        return field.seed;
     }
 
     private static final int SURFACE_DEPTH = 5; // how far up or down a field follows the ground, as in the mod
@@ -118,6 +113,34 @@ final class Farmer extends Job {
     @Override
     double hungerFactor() {
         return 1.2;
+    }
+
+    private static final int SEED_STOCK = 64; // seeds of each field's crop it keeps in the hut chest
+
+    @Override
+    List<Want> wants() {
+        List<Want> wants = new java.util.ArrayList<>();
+        if (hut.level < 1) return wants;
+        for (Material seed : seeds()) {
+            int have = inChest(i -> i.getType() == seed) + carried.getOrDefault(seed, 0);
+            // Ask once below half, for a full stock: not a courier trip for every few seeds planted.
+            if (have < SEED_STOCK / 2) wants.add(new Want(name(seed), i -> i.getType() == seed, SEED_STOCK - have));
+        }
+        wantTool(wants, Tool.HOE);
+        return wants;
+    }
+
+    /** Hoes and a stock of seeds stay; the harvest goes to the warehouse. */
+    @Override
+    int keep(ItemStack item) {
+        if (Tool.HOE.fits(item, null)) return Integer.MAX_VALUE;
+        return seeds().contains(item.getType()) ? SEED_STOCK : 0;
+    }
+
+    private Set<Material> seeds() {
+        Set<Material> seeds = EnumSet.noneOf(Material.class);
+        for (Hut f : colony.fieldsOf(this)) { Material s = seedOf(f); if (s != null) seeds.add(s); }
+        return seeds;
     }
 
     private int actionTicks() {

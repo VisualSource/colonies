@@ -113,6 +113,7 @@ final class Colony {
             case LUMBERJACK -> jobs.add(new Lumberjack(hut));
             case FARMER -> jobs.add(new Farmer(hut, this));
             case COOK -> jobs.add(new Cook(hut));
+            case COURIER -> jobs.add(new Courier(hut, this));
             default -> {}
         }
     }
@@ -176,6 +177,8 @@ final class Colony {
     private Builder newBuilder(Hut hut) {
         Builder b = new Builder(hut);
         b.onFinish((done, order) -> {
+            // A chest that already stood in a rack spot (kept rather than broken, so nothing in it is lost) becomes a rack.
+            for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
             for (Block f : order.fields) // a field that came with the building (the farmer's scarecrow)
                 if (hutAt(f) == null && f.getType() == Hut.Type.FIELD.block) {
                     addHut(Hut.Type.FIELD, f);
@@ -277,6 +280,17 @@ final class Colony {
         if (c.meal == null && c.saturation < Food.LOW_SATURATION && --c.foodRetry <= 0) c.meal = new Meal(c);
     }
 
+    private Warehouse warehouse;
+
+    /** The colony's built warehouse (level 1 or higher), or null. */
+    Warehouse warehouse() {
+        for (Hut h : huts) if (h.type == Hut.Type.WAREHOUSE && h.level >= 1) {
+            if (warehouse == null || warehouse.hut != h) warehouse = new Warehouse(h, this);
+            return warehouse;
+        }
+        return null;
+    }
+
     /** A Cook's Hut that is built and has a cook, where hungry citizens can be served; null if none. */
     Cook restaurant() {
         for (Job j : jobs) if (j instanceof Cook cook && cook.hut.level >= 1 && worker(cook) != null) return cook;
@@ -319,6 +333,7 @@ final class Colony {
             var bs = s.createSection("builder");
             if (builder.worker != null) bs.set("worker", builder.worker.toString());
             builder.carried.forEach((m, n) -> bs.set("carried." + m.name(), n));
+            if (builder.racks > 0) bs.set("racks", builder.racks);
             saveTools(bs, builder);
             if (builder.order != null) {
                 bs.set("order.structure", builder.order.structure);
@@ -349,29 +364,21 @@ final class Colony {
 
     /** @return null if the colony's world is not loaded. */
     static Colony load(UUID owner, ConfigurationSection s) {
-        Colony colony;
         var hutSections = s.getConfigurationSection("huts");
-        if (hutSections != null) {
-            List<Hut> huts = new ArrayList<>();
-            for (String i : hutSections.getKeys(false)) {
-                var hs = hutSections.getConfigurationSection(i);
-                Location at = getLocation(hs, "block");
-                if (at == null) return null;
-                Hut h = new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level"));
-                h.seed = Material.matchMaterial(hs.getString("seed", ""));
-                List<Integer> extent = hs.getIntegerList("extent");
-                for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
-                huts.add(h);
-            }
-            colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
-            colony.huts.addAll(huts.subList(1, huts.size()));
-        } else { // format before huts: a town hall location and a builder section with its hut
-            Location townHall = getLocation(s, "townhall");
-            if (townHall == null) return null;
-            colony = new Colony(owner, s.getString("name"), townHall.getBlock(), 0);
-            Location hut = getLocation(s, "builder.hut");
-            if (hut != null) colony.huts.add(new Hut(Hut.Type.BUILDER, hut.getBlock(), s.getInt("builder.level")));
+        if (hutSections == null) return null;
+        List<Hut> huts = new ArrayList<>();
+        for (String i : hutSections.getKeys(false)) {
+            var hs = hutSections.getConfigurationSection(i);
+            Location at = getLocation(hs, "block");
+            if (at == null) return null;
+            Hut h = new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level"));
+            h.seed = Material.matchMaterial(hs.getString("seed", ""));
+            List<Integer> extent = hs.getIntegerList("extent");
+            for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
+            huts.add(h);
         }
+        Colony colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
+        colony.huts.addAll(huts.subList(1, huts.size()));
         colony.style = s.getString("style", colony.style);
 
         var citizens = s.getConfigurationSection("citizens");
@@ -399,26 +406,22 @@ final class Colony {
             if (worker != null) j.worker = UUID.fromString(worker);
             loadCarried(js, j);
         }
-        Hut builderHut = colony.hut(Hut.Type.BUILDER);
         var bs = s.getConfigurationSection("builder");
-        if (builderHut != null) {
-            if (bs != null) {
-                String worker = bs.getString("worker");
-                if (worker != null) colony.builder.worker = UUID.fromString(worker);
-                loadCarried(bs, colony.builder);
-                Location origin = getLocation(bs, "order.origin");
-                if (origin != null) {
-                    String structure = bs.getString("order.structure");
-                    BuildOrder order = BuildOrder.create(structure, origin,
-                            StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
-                    Hut h = colony.hutByIndex(bs.getInt("order.hut", -1));
-                    int oldUpgrade = bs.getInt("upgrading-to"); // format before huts: upgrades were the builder hut's
-                    Hut.WorkOrder work = h != null ? new Hut.WorkOrder(h, bs.getInt("order.level"))
-                            : oldUpgrade > 0 ? new Hut.WorkOrder(builderHut, oldUpgrade) : null;
-                    if (order != null) colony.builder.start(order, work);
-                    else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of "
-                            + colony.name + " dropped.");
-                }
+        if (colony.builder != null && bs != null) {
+            String worker = bs.getString("worker");
+            if (worker != null) colony.builder.worker = UUID.fromString(worker);
+            loadCarried(bs, colony.builder);
+            colony.builder.racks = bs.getInt("racks");
+            Location origin = getLocation(bs, "order.origin");
+            if (origin != null) {
+                String structure = bs.getString("order.structure");
+                BuildOrder order = BuildOrder.create(structure, origin,
+                        StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
+                Hut h = colony.hutByIndex(bs.getInt("order.hut", -1));
+                Hut.WorkOrder work = h != null ? new Hut.WorkOrder(h, bs.getInt("order.level")) : null;
+                if (order != null) colony.builder.start(order, work);
+                else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of "
+                        + colony.name + " dropped.");
             }
         }
         colony.assignHomes();
@@ -429,12 +432,14 @@ final class Colony {
     /** Tools keep durability and enchantments, so they are stored as whole items. */
     private static void saveTools(ConfigurationSection s, Job j) {
         j.tools.forEach((kind, item) -> s.set("tools." + kind.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
+        if (!j.load.isEmpty()) s.set("load", j.load.stream().map(i -> Base64.getEncoder().encodeToString(i.serializeAsBytes())).toList());
     }
 
     private static void loadCarried(ConfigurationSection s, Job j) {
         var tools = s.getConfigurationSection("tools");
         if (tools != null) for (String kind : tools.getKeys(false))
             j.tools.put(Tool.valueOf(kind), ItemStack.deserializeBytes(Base64.getDecoder().decode(tools.getString(kind))));
+        for (String item : s.getStringList("load")) j.load.add(ItemStack.deserializeBytes(Base64.getDecoder().decode(item)));
         var carried = s.getConfigurationSection("carried");
         if (carried != null) for (String m : carried.getKeys(false)) {
             Material mat = Material.matchMaterial(m);

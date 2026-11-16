@@ -30,6 +30,31 @@ final class Cook extends Job {
         super(hut);
     }
 
+    private static final int STOCK = 32; // food, raw food and fuel it keeps on hand
+
+    private static boolean isFuel(ItemStack i) {
+        Material m = i.getType();
+        return m.isFuel() && !m.isEdible() && m != Material.LAVA_BUCKET;
+    }
+
+    @Override
+    List<Want> wants() {
+        List<Want> wants = new ArrayList<>();
+        if (hut.level < 1) return wants;
+        // Ask once below half, for a full stock, so couriers come with a load rather than a few at a time.
+        int meals = inChest(Food::isMeal), raw = inChest(i -> Food.cooked().containsKey(i.getType()));
+        if (meals < STOCK / 2) wants.add(new Want("food", Food::isMeal, STOCK - meals));
+        if (raw < STOCK / 2) wants.add(new Want("raw food to cook", i -> Food.cooked().containsKey(i.getType()), STOCK - raw));
+        if (!furnaces.isEmpty() && inChest(Cook::isFuel) < STOCK / 2) wants.add(new Want("fuel", Cook::isFuel, STOCK / 2));
+        return wants;
+    }
+
+    /** Food, raw food and fuel stay; anything else goes to the warehouse. */
+    @Override
+    int keep(ItemStack item) {
+        return Food.isMeal(item) || Food.cooked().containsKey(item.getType()) || isFuel(item) ? Integer.MAX_VALUE : 0;
+    }
+
     @Override
     void tick(Colonist w) {
         if (hut.level < 1) {
@@ -94,7 +119,7 @@ final class Cook extends Job {
         for (ItemStack i : chest.getContents()) {
             if (i == null || i.isEmpty()) continue;
             Material m = i.getType();
-            if (raw ? Food.cooked().containsKey(m) : m.isFuel() && !m.isEdible() && m != Material.LAVA_BUCKET) return i;
+            if (raw ? Food.cooked().containsKey(m) : isFuel(i)) return i;
         }
         return null;
     }

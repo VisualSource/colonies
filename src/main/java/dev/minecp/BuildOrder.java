@@ -16,6 +16,7 @@ import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.util.BlockVector;
 
 import org.bukkit.block.TileState;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,8 +33,11 @@ import java.util.function.Predicate;
  * Progress is not stored: steps whose block is already right are skipped, so a reloaded order resumes by itself.
  */
 final class BuildOrder {
-    /** {@code fill}: a filler spot (barrier in the structure) that is only filled with dirt when not already solid. */
-    record Step(Block block, BlockData data, boolean fill) {
+    /**
+     * {@code fill}: a filler spot (barrier in the structure) that is only filled with dirt when not already solid.
+     * {@code rack}: a chest standing in for the mod's storage rack, tagged with {@link #RACK_MARKER} when placed.
+     */
+    record Step(Block block, BlockData data, boolean fill, boolean rack) {
         boolean isClear() { return data.getMaterial().isAir(); }
         boolean done() {
             if (fill) return block.getType().isSolid();
@@ -46,6 +50,11 @@ final class BuildOrder {
             if (want == Material.DIRT_PATH && FLATTENS.contains(have)) return Tool.SHOVEL;
             if (want == Material.FARMLAND && TILLS.contains(have)) return Tool.HOE;
             return null;
+        }
+        /** The item this step uses up as an item (a Storage Rack for rack spots), or null if it is free. */
+        ItemStack item() {
+            Material m = cost();
+            return m == null ? null : rack ? Rack.item() : new ItemStack(m);
         }
         /** The item this step uses up, or null if it is free. */
         Material cost() {
@@ -74,6 +83,9 @@ final class BuildOrder {
     /** Tag on the chest that marks a structure's hut block, written by tools/convert_blueprints.py. */
     static final NamespacedKey HUT_MARKER = NamespacedKey.fromString("minecp:hut");
     private final Map<Block, Step> byBlock = new HashMap<>();
+    /** Tag on the chests that stand in for the mod's storage racks (written by the converter), for a custom model later. */
+    static final NamespacedKey RACK_MARKER = NamespacedKey.fromString("minecp:rack");
+
 
     private BuildOrder(String structure, Location origin, StructureRotation rotation, List<Step> steps) {
         this.structure = structure;
@@ -151,7 +163,8 @@ final class BuildOrder {
             var world = block.getWorld();
             if (block.getY() < world.getMinHeight() || block.getY() >= world.getMaxHeight()) continue; // can't build there
             boolean fill = data.getMaterial() == Material.BARRIER;
-            Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill);
+            boolean rack = state instanceof TileState ts && ts.getPersistentDataContainer().has(RACK_MARKER);
+            Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill, rack);
             (step.isClear() ? clears : places).add(step);
         }
         clears.sort(Comparator.comparingInt((Step st) -> -st.block.getY())); // top down

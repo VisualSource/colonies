@@ -94,6 +94,28 @@ final class Menus {
                 if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
             }
             case FIELD -> { field(p, c, h); return; }
+            case WAREHOUSE -> {
+                body.add(text(Component.text(h.level == 0 ? "Couriers work from the warehouse once level 1 is built."
+                        : "Stores the colony's goods in its chests. Couriers bring huts what they need from here, and take "
+                        + "what huts don't need (logs, harvest, leftovers) here.", NamedTextColor.GRAY)));
+                Warehouse wh = c.warehouse();
+                if (wh != null && wh.hut == h) {
+                    int[] slots = wh.slots();
+                    body.add(text(Component.text(wh.containers().size() + " chests, " + slots[0] + " of " + slots[1] + " slots used.",
+                            slots[0] >= slots[1] ? NamedTextColor.RED : NamedTextColor.WHITE)));
+                }
+                long couriers = c.jobs.stream().filter(j -> j instanceof Courier && c.worker(j) != null).count();
+                body.add(text(Component.text("Couriers: " + couriers + (couriers == 0 ? " (build a Courier's Hut)" : ""))));
+            }
+            case COURIER -> {
+                Job job = c.jobAt(h);
+                Colonist worker = job == null ? null : c.worker(job);
+                body.add(text(Component.text(worker == null ? "No courier: every citizen has a job." : worker.name + " — " + worker.status())));
+                body.add(text(Component.text(h.level == 0 ? "The courier starts once level 1 is built."
+                        : "Carries " + (h.level >= Hut.MAX_LEVEL ? "any amount" : "up to " + (1 << (h.level - 1)) + (h.level == 1 ? " stack" : " stacks"))
+                        + " per trip between the warehouse and the huts (more with each level).", NamedTextColor.GRAY)));
+                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
+            }
             case COOK -> {
                 Job job = c.jobAt(h);
                 Colonist worker = job == null ? null : c.worker(job);
@@ -229,12 +251,12 @@ final class Menus {
         Builder b = c.builder;
         if (b == null) return;
         List<DialogBody> body = new ArrayList<>();
-        Map<Material, Integer> missing = b.missing();
+        Map<ItemStack, Integer> missing = b.missing();
         if (missing.isEmpty()) body.add(text(Component.text("Nothing: all materials are in the hut.", NamedTextColor.GREEN)));
-        missing.entrySet().stream().sorted(Map.Entry.<Material, Integer>comparingByValue().reversed())
-                .forEach(e -> body.add(DialogBody.item(new ItemStack(e.getKey()))
+        missing.entrySet().stream().sorted(Map.Entry.<ItemStack, Integer>comparingByValue().reversed())
+                .forEach(e -> body.add(DialogBody.item(e.getKey())
                         .description(DialogBody.plainMessage(Component.text(e.getValue() + " × ")
-                                .append(Component.translatable(e.getKey().translationKey())), 250))
+                                .append(e.getKey().effectiveName()), 250))
                         .showTooltip(true).build()));
         List<ActionButton> buttons = List.of(button("Back", p, c, b.hut, player -> hut(player, c, b.hut)));
         show(p, "Materials needed", body, DialogType.multiAction(buttons).columns(1)

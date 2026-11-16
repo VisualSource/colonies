@@ -41,7 +41,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private static final long AUTOSAVE_TICKS = 20 * 60 * 5;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private static final int HUT_RANGE = 64;
-    private NamespacedKey hutKey, tokenKey, legacyTownHallKey, legacyBuilderHutKey;
+    private NamespacedKey hutKey, tokenKey;
     private final List<NamespacedKey> recipes = new java.util.ArrayList<>();
     private File dataFile;
     private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
@@ -52,8 +52,6 @@ public final class MineCP extends JavaPlugin implements Listener {
         hutKey = new NamespacedKey(this, "hut_item");
         tokenKey = new NamespacedKey(this, "token");
         addRecipes();
-        legacyTownHallKey = new NamespacedKey(this, "town_hall");     // items made before hut types
-        legacyBuilderHutKey = new NamespacedKey(this, "builder_hut");
         dataFile = new File(getDataFolder(), "colonies.yml");
         data = YamlConfiguration.loadConfiguration(dataFile);
         var section = data.getConfigurationSection("colonies");
@@ -79,7 +77,9 @@ public final class MineCP extends JavaPlugin implements Listener {
                 Hut.Type.HOUSE, new RecipeChoice.MaterialChoice(Material.TORCH),
                 Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE),
                 Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE),
-                Hut.Type.COOK, new RecipeChoice.MaterialChoice(Material.APPLE));
+                Hut.Type.COOK, new RecipeChoice.MaterialChoice(Material.APPLE),
+                Hut.Type.WAREHOUSE, new RecipeChoice.MaterialChoice(Material.CHEST),
+                Hut.Type.COURIER, new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS));
         middle.forEach((type, centre) -> {
             NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
             getServer().removeRecipe(key); // a reload would otherwise register it twice
@@ -92,6 +92,17 @@ public final class MineCP extends JavaPlugin implements Listener {
             getServer().addRecipe(r);
             recipes.add(key);
         });
+        // MineColonies' storage rack: planks, iron nuggets, and the build tool (our token) in the middle.
+        NamespacedKey rackKey = new NamespacedKey(this, "rack");
+        getServer().removeRecipe(rackKey);
+        ShapedRecipe rack = new ShapedRecipe(rackKey, Rack.item());
+        rack.shape("PPP", "ITI", "PPP");
+        rack.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
+        rack.setIngredient('I', new RecipeChoice.MaterialChoice(Material.IRON_NUGGET));
+        rack.setIngredient('T', token);
+        rack.setCategory(CraftingBookCategory.BUILDING);
+        getServer().addRecipe(rack);
+        recipes.add(rackKey);
         // The field is MineColonies' scarecrow, whose recipe takes no build tool: hay bale or pumpkin on a stick body.
         NamespacedKey key = new NamespacedKey(this, "field");
         getServer().removeRecipe(key);
@@ -174,7 +185,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player) || args.length == 0) return false;
         switch (args[0]) {
-            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook" -> {
+            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook", "warehouse", "courier" -> {
                 if (!player.hasPermission("minecp.admin")) {
                     player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
                     return true;
@@ -186,8 +197,17 @@ public final class MineCP extends JavaPlugin implements Listener {
                     case "farmer" -> Hut.Type.FARMER;
                     case "field" -> Hut.Type.FIELD;
                     case "cook" -> Hut.Type.COOK;
+                    case "warehouse" -> Hut.Type.WAREHOUSE;
+                    case "courier" -> Hut.Type.COURIER;
                     default -> Hut.Type.HOUSE;
                 }));
+            }
+            case "rack" -> {
+                if (!player.hasPermission("minecp.admin")) {
+                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
+                    return true;
+                }
+                player.getInventory().addItem(Rack.item().asQuantity(16));
             }
             case "token" -> {
                 ItemStack hand = player.getInventory().getItemInMainHand();
@@ -262,6 +282,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                 case FARMER -> "A citizen works the colony's fields";
                 case FIELD -> "Marks a farm plot; right-click it to pick the crop and size";
                 case COOK -> "A restaurant: its cook cooks and serves food";
+                case WAREHOUSE -> "The colony's store, which couriers work from";
+                case COURIER -> "A courier carries goods between the warehouse and huts";
             }, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });
@@ -269,10 +291,8 @@ public final class MineCP extends JavaPlugin implements Listener {
     }
 
     private Hut.Type hutType(ItemStack item) {
-        var pdc = item.getPersistentDataContainer();
-        String type = pdc.get(hutKey, PersistentDataType.STRING);
-        if (type != null) return Hut.Type.valueOf(type);
-        return pdc.has(legacyTownHallKey) ? Hut.Type.TOWN_HALL : pdc.has(legacyBuilderHutKey) ? Hut.Type.BUILDER : null;
+        String type = item.getPersistentDataContainer().get(hutKey, PersistentDataType.STRING);
+        return type == null ? null : Hut.Type.valueOf(type);
     }
 
     /** The colony one of whose huts (town hall included) is this block. */
@@ -283,6 +303,7 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
+        if (Rack.is(e.getItemInHand())) { Rack.tag(e.getBlockPlaced()); return; } // item data doesn't carry over to the block
         Hut.Type type = hutType(e.getItemInHand());
         if (type == null) return;
         Player p = e.getPlayer();
@@ -301,7 +322,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         Block th = c == null ? null : c.townHall().block;
         String problem = c == null ? "You need a colony first."
-                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."                : !th.getWorld().equals(e.getBlock().getWorld())
+                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
+                : type == Hut.Type.WAREHOUSE && c.hut(Hut.Type.WAREHOUSE) != null ? "Your colony already has a Warehouse."                : !th.getWorld().equals(e.getBlock().getWorld())
                         || th.getLocation().distance(e.getBlock().getLocation()) > HUT_RANGE
                         ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
         if (problem != null) {
@@ -320,6 +342,15 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onTrample(org.bukkit.event.entity.EntityInteractEvent e) {
         if (e.getBlock().getType() == Material.FARMLAND && e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) e.setCancelled(true);
+    }
+
+    /** A rack drops as a Storage Rack, not a plain chest (its contents spill as usual). */
+    @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.HIGH)
+    public void onBreakRack(BlockBreakEvent e) {
+        if (!Rack.is(e.getBlock()) || colonyAt(e.getBlock()) != null || !e.isDropItems()) return;
+        e.setDropItems(false);
+        if (e.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE)
+            e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation().toCenterLocation(), Rack.item());
     }
 
     @EventHandler(ignoreCancelled = true)

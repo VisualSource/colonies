@@ -7,10 +7,13 @@ import org.bukkit.block.Container;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /** A job at a worker hut: one colonist works it, using the hut's chest. */
 abstract class Job {
@@ -19,6 +22,33 @@ abstract class Job {
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
     final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
     String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
+    final List<ItemStack> load = new ArrayList<>(); // whole items in hand (a courier's delivery); saved with the colony
+
+    /** Something the hut wants a courier to bring to its chest: items matching {@code test}, {@code amount} more. */
+    record Want(String label, Predicate<ItemStack> test, int amount) {}
+
+    /** What this hut wants delivered from the warehouse. */
+    List<Want> wants() {
+        return List.of();
+    }
+
+    /** How many of this item the hut keeps in its chest; a courier takes the rest to the warehouse. */
+    int keep(ItemStack item) {
+        return Integer.MAX_VALUE;
+    }
+
+    /** How many items matching {@code test} the hut chest holds. */
+    int inChest(Predicate<ItemStack> test) {
+        Inventory chest = chest();
+        int n = 0;
+        if (chest != null) for (ItemStack i : chest.getContents()) if (i != null && test.test(i)) n += i.getAmount();
+        return n;
+    }
+
+    /** A want for one tool of this kind, unless the worker holds one or the chest has one. */
+    void wantTool(List<Want> wants, Tool kind) {
+        if (!hasTool(kind, null) && inChest(i -> kind.fits(i, null)) == 0) wants.add(new Want(kind.label, i -> kind.fits(i, null), 1));
+    }
 
     Job(Hut hut) {
         this.hut = hut;
@@ -52,6 +82,8 @@ abstract class Job {
         carried.clear();
         tools.values().forEach(t -> at.getWorld().dropItemNaturally(at, t));
         tools.clear();
+        load.forEach(i -> at.getWorld().dropItemNaturally(at, i));
+        load.clear();
     }
 
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */

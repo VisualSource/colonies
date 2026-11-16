@@ -52,6 +52,20 @@ final class Lumberjack extends Job {
         return 1.2;
     }
 
+    @Override
+    List<Want> wants() {
+        List<Want> wants = new ArrayList<>();
+        wantTool(wants, Tool.AXE);
+        wantTool(wants, Tool.HOE);
+        return wants;
+    }
+
+    /** Its tools stay; the wood, saplings and apples go to the warehouse. */
+    @Override
+    int keep(org.bukkit.inventory.ItemStack item) {
+        return Tool.AXE.fits(item, null) || Tool.HOE.fits(item, null) ? Integer.MAX_VALUE : 0;
+    }
+
     int radius() {
         return 16 + 8 * Math.max(0, hut.level - 1);
     }
