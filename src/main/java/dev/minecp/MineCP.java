@@ -216,6 +216,7 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     /** Saves one colony: its state is read here, on the main thread; the file is written on the writer thread. */
     void save(Colony c) {
+        if (colonies.get(c.owner) != c) return; // disbanded while one of its menus was still open: don't bring its file back
         YamlConfiguration yaml = new YamlConfiguration();
         c.save(yaml);
         String text = yaml.saveToString();
