@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structure Viewer</title>
+<!--
+  Views the converted structure .nbt files layer by layer, highlights the blocks the converter replaced (read from its
+  report, e.g. docs/structures/medievaloak.md), and edits them. Open this file straight from disk in Chrome, Edge or
+  Firefox; nothing is uploaded anywhere. Edited files are downloaded: put them in world/generated/minecp/structure/,
+  which takes priority over the data pack (see the report's "Fixing a building by hand").
+-->
+<style>
+  :root {
+    --bg: #f5f5f2; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #dcdcd5;
+    --accent: #d2691e; --edited: #2e8b57; --sel: #1f6feb; --air: #ebebe6; --void: #f5f5f2; --btn: #efefea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161618; --panel: #1f1f23; --text: #e8e8e5; --muted: #9b9b96; --line: #34343a;
+      --accent: #f28c38; --edited: #4cc38a; --sel: #58a6ff; --air: #29292e; --void: #161618; --btn: #2b2b31;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  label.file, button { background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  label.file input { display: none; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #status { color: var(--muted); margin-left: auto; }
+  main { display: grid; grid-template-columns: 260px 1fr 340px; height: calc(100vh - 53px); }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; height: auto; } }
+  aside, section { overflow: auto; padding: 12px 16px; }
+  aside { border-right: 1px solid var(--line); }
+  #side { border-left: 1px solid var(--line); border-right: 0; }
+  input[type=text], input[type=search] { width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: 13px ui-monospace, monospace; }
+  ul { list-style: none; margin: 8px 0; padding: 0; }
+  #list li { padding: 4px 6px; border-radius: 5px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 13px; }
+  #list li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  #list li > span:last-child { flex: none; }
+  #list li:hover { background: var(--btn); }
+  #list li.on { background: var(--sel); color: #fff; }
+  .badge { font-size: 11px; padding: 0 6px; border-radius: 9px; background: var(--accent); color: #fff; white-space: nowrap; }
+  .badge.edited { background: var(--edited); }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #canvasWrap { position: relative; margin-top: 10px; }
+  canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+  #tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; max-width: 360px; display: none; z-index: 5; }
+  code { font: 12px ui-monospace, monospace; overflow-wrap: anywhere; }
+  h2 { font-size: 14px; margin: 14px 0 6px; }
+  .group { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 8px 0; background: var(--panel); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; max-height: 120px; overflow: auto; }
+  .chip { font: 11px ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; background: var(--btn); }
+  .chip.edited { border-color: var(--edited); color: var(--edited); }
+  .legend li { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .sw { width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--line); flex: none; }
+  .warn { color: var(--accent); }
+  .err { color: #d9534f; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Structure Viewer</h1>
+  <label class="file" title="The data pack's data/minecp/structure folder (or any folder of .nbt files)">Open structures folder<input id="dirInput" type="file" webkitdirectory multiple></label>
+  <label class="file" title="docs/structures/&lt;style&gt;.md, written by tools/convert_blueprints.py">Open report (.md)<input id="reportInput" type="file" accept=".md,.txt"></label>
+  <label class="file" title="tools/blocks-26.3.json: block names and properties, for checking edits">Open block list (.json)<input id="blocksInput" type="file" accept=".json"></label>
+  <button id="download" class="primary" disabled>Download edited .nbt</button>
+  <span id="status">Open a folder of structure .nbt files to start.</span>
+</header>
+<main>
+  <aside>
+    <input id="filter" type="search" placeholder="Filter structures">
+    <label class="row muted" style="margin-top:6px"><input id="onlyReplaced" type="checkbox"> Only with replaced blocks</label>
+    <ul id="list"></ul>
+  </aside>
+  <section>
+    <div id="title" class="muted">No structure open.</div>
+    <div class="row" id="layerRow" style="margin-top:8px; display:none">
+      <button id="down" title="Layer below">▼</button>
+      <input id="layer" type="range" min="0" max="0" value="0" style="flex:1; min-width:160px">
+      <button id="up" title="Layer above">▲</button>
+      <span id="layerLabel"></span>
+      <label class="row muted"><input id="ghost" type="checkbox" checked> Show layer below through air</label>
+      <label class="row muted"><input id="filler" type="checkbox"> Highlight foundation filler</label>
+    </div>
+    <div class="muted" id="axes" style="display:none; margin-top:4px">x → east, z ↓ south. Orange outline: replaced by the converter. Green: edited. Blue: selected.</div>
+    <div id="canvasWrap"><canvas id="grid" width="0" height="0"></canvas></div>
+    <h2 id="legendTitle" style="display:none">Blocks on this layer</h2>
+    <ul class="legend" id="legend"></ul>
+  </section>
+  <aside id="side">
+    <h2>Selected block</h2>
+    <div id="selected" class="muted">Click a block in the grid.</div>
+    <h2>Replaced by the converter</h2>
+    <div id="groups" class="muted">Open the report to see what was replaced.</div>
+  </aside>
+</main>
+<div id="tip"></div>
+<datalist id="blockNames"></datalist>
+
+<script>
+/* nbt-start: NBT reading/writing, block states and the converter report. Pure functions, tested by tools/test_structure_viewer.mjs. */
+const TAG = { END: 0, BYTE: 1, SHORT: 2, INT: 3, LONG: 4, FLOAT: 5, DOUBLE: 6, BYTE_ARRAY: 7, STRING: 8, LIST: 9, COMPOUND: 10, INT_ARRAY: 11, LONG_ARRAY: 12 };
+
+/** Reads uncompressed NBT. Compounds are Maps of name -> {t, v} (Maps keep key order); lists are {et, items}. */
+function readNbt(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), dec = new TextDecoder();
+  let i = 0;
+  const str = () => { const n = dv.getUint16(i); i += 2; const s = dec.decode(u8.subarray(i, i + n)); i += n; return s; };
+  function payload(t) {
+    let v;
+    switch (t) {
+      case TAG.BYTE: v = dv.getInt8(i); i += 1; return v;
+      case TAG.SHORT: v = dv.getInt16(i); i += 2; return v;
+      case TAG.INT: v = dv.getInt32(i); i += 4; return v;
+      case TAG.LONG: v = dv.getBigInt64(i); i += 8; return v;
+      case TAG.FLOAT: v = dv.getFloat32(i); i += 4; return v;
+      case TAG.DOUBLE: v = dv.getFloat64(i); i += 8; return v;
+      case TAG.BYTE_ARRAY: { const n = dv.getInt32(i); i += 4; v = new Int8Array(u8.slice(i, i + n).buffer); i += n; return v; }
+      case TAG.STRING: return str();
+      case TAG.LIST: {
+        const et = dv.getInt8(i), n = dv.getInt32(i + 1); i += 5;
+        const items = [];
+        for (let k = 0; k < n; k++) items.push(payload(et));
+        return { et, items };
+      }
+      case TAG.COMPOUND: {
+        const out = new Map();
+        for (;;) {
+          const ct = dv.getInt8(i); i += 1;
+          if (ct === TAG.END) return out;
+          const name = str();
+          out.set(name, { t: ct, v: payload(ct) });
+        }
+      }
+      case TAG.INT_ARRAY: { const n = dv.getInt32(i); i += 4; v = []; for (let k = 0; k < n; k++, i += 4) v.push(dv.getInt32(i)); return v; }
+      case TAG.LONG_ARRAY: { const n = dv.getInt32(i); i += 4; v = []; for (let k = 0; k < n; k++, i += 8) v.push(dv.getBigInt64(i)); return v; }
+      default: throw new Error(`bad NBT tag type ${t} at byte ${i}`);
+    }
+  }
+  if (dv.getInt8(0) !== TAG.COMPOUND) throw new Error("not an NBT file (root is not a compound)");
+  i = 1;
+  const name = str();
+  return { name, root: payload(TAG.COMPOUND) };
+}
+
+/** Writes {name, root} back as uncompressed NBT, with the same tag types it was read with. */
+function writeNbt({ name, root }) {
+  let buf = new Uint8Array(1 << 16), dv = new DataView(buf.buffer), i = 0;
+  const enc = new TextEncoder();
+  const need = n => {
+    if (i + n <= buf.length) return;
+    let size = buf.length * 2;
+    while (size < i + n) size *= 2;
+    const nb = new Uint8Array(size); nb.set(buf); buf = nb; dv = new DataView(buf.buffer);
+  };
+  const str = s => { const b = enc.encode(s); need(2 + b.length); dv.setUint16(i, b.length); i += 2; buf.set(b, i); i += b.length; };
+  function payload(t, v) {
+    switch (t) {
+      case TAG.BYTE: need(1); dv.setInt8(i, v); i += 1; break;
+      case TAG.SHORT: need(2); dv.setInt16(i, v); i += 2; break;
+      case TAG.INT: need(4); dv.setInt32(i, v); i += 4; break;
+      case TAG.LONG: need(8); dv.setBigInt64(i, v); i += 8; break;
+      case TAG.FLOAT: need(4); dv.setFloat32(i, v); i += 4; break;
+      case TAG.DOUBLE: need(8); dv.setFloat64(i, v); i += 8; break;
+      case TAG.BYTE_ARRAY: need(4 + v.length); dv.setInt32(i, v.length); i += 4; buf.set(new Uint8Array(v.buffer, v.byteOffset, v.length), i); i += v.length; break;
+      case TAG.STRING: str(v); break;
+      case TAG.LIST:
+        need(5); dv.setInt8(i, v.items.length ? v.et : TAG.END); dv.setInt32(i + 1, v.items.length); i += 5;
+        for (const item of v.items) payload(v.et, item);
+        break;
+      case TAG.COMPOUND:
+        for (const [k, c] of v) { need(1); dv.setInt8(i, c.t); i += 1; str(k); payload(c.t, c.v); }
+        need(1); dv.setInt8(i, TAG.END); i += 1;
+        break;
+      case TAG.INT_ARRAY: need(4 + 4 * v.length); dv.setInt32(i, v.length); i += 4; for (const x of v) { dv.setInt32(i, x); i += 4; } break;
+      case TAG.LONG_ARRAY: need(4 + 8 * v.length); dv.setInt32(i, v.length); i += 4; for (const x of v) { dv.setBigInt64(i, x); i += 8; } break;
+      default: throw new Error(`bad NBT tag type ${t}`);
+    }
+  }
+  need(1); dv.setInt8(i, TAG.COMPOUND); i += 1;
+  str(name);
+  payload(TAG.COMPOUND, root);
+  return buf.slice(0, i);
+}
+
+/** A palette entry as "minecraft:oak_stairs[facing=north,half=bottom]". */
+function stateString(entry) {
+  const props = entry.get("Properties")?.v;
+  const name = entry.get("Name").v;
+  return props && props.size ? `${name}[${[...props].map(([k, c]) => `${k}=${c.v}`).join(",")}]` : name;
+}
+
+/** "oak_stairs[facing=north]" -> {name: "minecraft:oak_stairs", props: [["facing","north"]]}; null if it isn't a block state. */
+function parseState(s) {
+  const m = /^\s*(?:([a-z0-9_.-]+):)?([a-z0-9_./-]+)\s*(?:\[([^\]]*)\])?\s*$/i.exec(s);
+  if (!m) return null;
+  const props = [];
+  for (const part of (m[3] || "").split(",").map(p => p.trim()).filter(Boolean)) {
+    const kv = /^([a-z0-9_]+)\s*=\s*([a-z0-9_]+)$/i.exec(part);
+    if (!kv) return null;
+    props.push([kv[1].toLowerCase(), kv[2].toLowerCase()]);
+  }
+  return { name: `${(m[1] || "minecraft").toLowerCase()}:${m[2].toLowerCase()}`, props, hasProps: m[3] !== undefined };
+}
+
+/**
+ * Reads the converter's report: "## <style>/<path>" headings, then "- **Nx** <note>: `x y z` ..." lines.
+ * Returns Map of lower-case structure key -> [{count, note, from, to, positions: [[x,y,z]...]}].
+ */
+function parseReport(text) {
+  const out = new Map();
+  let cur = null;
+  for (const line of text.split(/\r?\n/)) {
+    let m = /^## (\S+\/\S+)\s*$/.exec(line);
+    if (m) { cur = []; out.set(m[1].toLowerCase(), cur); continue; }
+    if (!cur) continue;
+    m = /^- \*\*(\d+)x\*\* (.*?)(?:: (`.*))?$/.exec(line);
+    if (!m) continue;
+    const positions = [...(m[3] || "").matchAll(/`(-?\d+) (-?\d+) (-?\d+)`/g)].map(p => [+p[1], +p[2], +p[3]]);
+    const arrow = m[2].indexOf(" -> ");
+    const to = arrow < 0 ? null : (/^(minecraft:[a-z0-9_]+|structure void)/.exec(m[2].slice(arrow + 4)) || [null, null])[1];
+    cur.push({ count: +m[1], note: m[2], from: arrow < 0 ? m[2] : m[2].slice(0, arrow), to, positions });
+  }
+  return out;
+}
+
+/** Drops properties the block doesn't have, as the converter does (blocks: the block list JSON, or null to keep all). */
+function keepProps(name, props, blocks) {
+  if (!blocks) return props;
+  const allowed = blocks[name]?.properties || {};
+  return props.filter(([k, v]) => (allowed[k] || []).includes(v));
+}
+/* nbt-end */
+
+// ---- page state ---------------------------------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const files = [];            // {path, file}: every .nbt in the opened folder, path relative to it, lower case, no .nbt
+let report = null;           // parseReport result, or null
+let blockList = null;        // {"minecraft:x": {properties: {...}}}, or null
+const opened = new Map();    // path -> structure model (kept so edits survive switching structures)
+let cur = null;              // the structure on screen
+let selected = null;         // [x, y, z]
+const posKey = (x, y, z) => `${x},${y},${z}`;
+
+async function gunzip(u8) {
+  if (u8[0] !== 0x1f || u8[1] !== 0x8b) return u8;
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+}
+async function gzip(u8) {
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
+}
+
+/** The report entry for a file path: the folder opened may be the data pack, data/minecp/structure, or a style folder. */
+function reportKey(path) {
+  if (!report) return null;
+  for (const k of report.keys()) if (k === path || k.endsWith("/" + path) || path.endsWith("/" + k)) return k;
+  return null;
+}
+function groupsOf(path) {
+  const k = reportKey(path);
+  return k ? report.get(k) : [];
+}
+
+async function open(path) {
+  if (!opened.has(path)) {
+    const entry = files.find(f => f.path === path);
+    try {
+      const nbt = readNbt(await gunzip(new Uint8Array(await entry.file.arrayBuffer())));
+      const root = nbt.root;
+      // Structure blocks write "palette"; files with random variants have "palettes", of which the first is used.
+      const palette = root.get("palette")?.v.items ?? root.get("palettes")?.v.items[0]?.items;
+      if (!palette || !root.get("blocks") || !root.get("size")) throw new Error("no palette, blocks or size: not a structure file");
+      const blocks = root.get("blocks").v.items;
+      const byPos = new Map();
+      for (const b of blocks) { const [x, y, z] = b.get("pos").v.items; byPos.set(posKey(x, y, z), b); }
+      const original = new Map();
+      for (const [k, b] of byPos) original.set(k, stateString(palette[b.get("state").v]));
+      opened.set(path, { path, file: entry.file, nbt, palette, blocks, byPos, original, size: root.get("size").v.items, edited: new Set(), dirty: false });
+    } catch (e) {
+      setStatus(`Could not read ${entry.file.name}: ${e.message}`, true);
+      return;
+    }
+  }
+  cur = opened.get(path);
+  selected = null;
+  const [, sy] = cur.size;
+  $("layer").max = sy - 1;
+  $("layer").value = Math.min(+$("layer").value, sy - 1);
+  for (const id of ["layerRow", "axes", "legendTitle"]) $(id).style.display = "";
+  render();
+}
+
+/** The palette entry at a position, or null for structure void. */
+function entryAt(s, x, y, z) {
+  const b = s.byPos.get(posKey(x, y, z));
+  return b ? s.palette[b.get("state").v] : null;
+}
+
+/** Sets the block at a position (name "minecraft:structure_void" removes it). @return an error message, or null. */
+function setBlock(s, pos, name, props) {
+  const k = posKey(...pos);
+  let b = s.byPos.get(k);
+  if (name === "minecraft:structure_void") {
+    if (b) { s.blocks.splice(s.blocks.indexOf(b), 1); s.byPos.delete(k); }
+  } else {
+    if (blockList && !blockList[name]) return `${name} isn't in the block list.`;
+    props = keepProps(name, props, blockList);
+    let idx = s.palette.findIndex(e => e.get("Name").v === name && samePropsAs(e, props));
+    if (idx < 0) {
+      const entry = new Map([["Name", { t: TAG.STRING, v: name }]]);
+      if (props.length) entry.set("Properties", { t: TAG.COMPOUND, v: new Map(props.map(([pk, pv]) => [pk, { t: TAG.STRING, v: pv }])) });
+      idx = s.palette.push(entry) - 1;
+    }
+    if (!b) {
+      b = new Map([["pos", { t: TAG.LIST, v: { et: TAG.INT, items: [...pos] } }], ["state", { t: TAG.INT, v: idx }]]);
+      s.blocks.push(b); s.byPos.set(k, b);
+    } else {
+      // A different block can't keep the old one's block entity data (chest contents, sign text, the plugin's tags).
+      if (s.palette[b.get("state").v].get("Name").v !== name) b.delete("nbt");
+      b.get("state").v = idx;
+    }
+  }
+  const now = entryAt(s, ...pos);
+  if ((now ? stateString(now) : undefined) === s.original.get(k)) s.edited.delete(k); else s.edited.add(k);
+  s.dirty = true;
+  return null;
+}
+function samePropsAs(entry, props) {
+  const have = entry.get("Properties")?.v || new Map();
+  return have.size === props.length && props.every(([k, v]) => have.get(k)?.v === v);
+}
+function propsOf(entry) {
+  return entry?.get("Properties") ? [...entry.get("Properties").v].map(([k, c]) => [k, c.v]) : [];
+}
+/** Marker tags the plugin relies on (hut block, storage rack), if the block entity carries one. */
+function pluginTag(s, pos) {
+  const tags = s.byPos.get(posKey(...pos))?.get("nbt")?.v.get("PublicBukkitValues")?.v;
+  return tags ? [...tags.keys()].find(k => k.startsWith("minecp:")) : null;
+}
+
+// ---- colours ------------------------------------------------------------------------------------------------------
+const DYES = { light_blue: "#5fb6dd", light_gray: "#a2a29b", white: "#e9ecec", orange: "#f07613", magenta: "#bd44b3", yellow: "#f8c627",
+  lime: "#70b919", pink: "#ed8dac", gray: "#3e4447", cyan: "#158991", purple: "#792aac", blue: "#35399d", brown: "#724728",
+  green: "#546d1b", red: "#a12722", black: "#141519" };
+const COLOURS = [
+  [/glass/, "#bfe3ef"], [/barrier/, "#d9534f"], [/water/, "#3f76e4"], [/lava/, "#e2622b"], [/dark_oak/, "#4a3220"],
+  [/spruce/, "#6b4f2f"], [/birch/, "#d6c58f"], [/jungle/, "#a2734c"], [/acacia/, "#a9583a"], [/mangrove/, "#773634"],
+  [/cherry/, "#e2b2a8"], [/bamboo/, "#c9b558"], [/crimson/, "#7b3a51"], [/warped/, "#2f7f78"], [/leaves|vine|fern|bush/, "#4a7f32"],
+  [/grass_block|moss/, "#6a9a3e"], [/hay/, "#c9a536"], [/chest|barrel|crafting|bookshelf|lectern|composter|loom|smoker|furnace/, "#8a5e2c"],
+  [/torch|lantern|lamp|glowstone|campfire|candle/, "#f2c14e"], [/oak/, "#a5834f"], [/dirt|farmland|path|podzol|mud/, "#7a5a3a"],
+  [/sandstone|sand/, "#dccf9a"], [/terracotta/, "#a0644a"], [/stone_brick/, "#7f7f7f"], [/brick/, "#9a4d3d"], [/cobble/, "#7d7d7d"],
+  [/deepslate|blackstone|basalt/, "#4a4a50"], [/andesite/, "#8a8b8b"], [/diorite|quartz|calcite/, "#e6e3dc"], [/granite/, "#9a6b57"],
+  [/stone/, "#8f8f8f"], [/iron|anvil|chain/, "#c8c8c8"], [/gold/, "#e8c33d"], [/bed|wool|carpet|banner|concrete/, "#d8d8d8"],
+];
+const colourCache = new Map();
+function colourOf(name) {
+  if (colourCache.has(name)) return colourCache.get(name);
+  const short = name.split(":")[1] || name;
+  let c = null;
+  for (const [dye, hex] of Object.entries(DYES)) if (short.startsWith(dye + "_") && !c) c = hex;
+  for (const [re, hex] of COLOURS) if (!c && re.test(short)) c = hex;
+  if (!c) { let h = 0; for (const ch of short) h = (h * 31 + ch.charCodeAt(0)) >>> 0; c = `hsl(${h % 360} 45% 55%)`; }
+  colourCache.set(name, c);
+  return c;
+}
+
+// ---- drawing ------------------------------------------------------------------------------------------------------
+let cell = 20;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function replacedSet(s) {
+  const set = new Map(); // posKey -> group
+  for (const g of groupsOf(s.path)) for (const p of positionsOf(s, g)) set.set(posKey(...p), g);
+  return set;
+}
+/** A group's positions; the report lists foundation filler only as a count, so those come from the structure itself. */
+function positionsOf(s, g) {
+  if (g.positions.length || !g.to || g.to === "structure void") return g.positions;
+  if (!g.cache) {
+    g.cache = [];
+    for (const [k, b] of s.byPos) if (s.original.get(k)?.split("[")[0] === g.to) g.cache.push(k.split(",").map(Number));
+  }
+  return g.cache;
+}
+const isFiller = g => g.to === "minecraft:barrier";
+
+function render() {
+  const s = cur;
+  if (!s) return;
+  const [sx, sy, sz] = s.size, y = +$("layer").value;
+  const groups = groupsOf(s.path);
+  const replaced = replacedSet(s);
+  const count = groups.filter(g => !isFiller(g)).reduce((n, g) => n + g.count, 0);
+  $("title").innerHTML = `<b>${esc(reportKey(s.path) || s.path)}</b> <span class="muted">· ${sx}×${sy}×${sz} · ${s.blocks.length} blocks`
+    + (report ? ` · ${count} replaced` : "") + (s.edited.size ? ` · <span style="color:var(--edited)">${s.edited.size} edited</span>` : "") + "</span>";
+  $("layerLabel").textContent = `y ${y} of ${sy - 1}`;
+  $("download").disabled = !s.dirty;
+
+  const wrap = $("canvasWrap");
+  cell = Math.max(6, Math.min(40, Math.floor((wrap.clientWidth - 2) / sx), Math.floor((window.innerHeight - 220) / sz)));
+  const cv = $("grid"), ctx = cv.getContext("2d"), dpr = window.devicePixelRatio || 1;
+  cv.width = sx * cell * dpr; cv.height = sz * cell * dpr;
+  cv.style.width = sx * cell + "px"; cv.style.height = sz * cell + "px";
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = css("--void"); ctx.fillRect(0, 0, sx * cell, sz * cell);
+  const legend = new Map();
+  for (let x = 0; x < sx; x++) for (let z = 0; z < sz; z++) {
+    const e = entryAt(s, x, y, z), px = x * cell, pz = z * cell;
+    const name = e?.get("Name").v;
+    if (!e) { // structure void: the builder leaves the world as it is
+      ctx.fillStyle = css("--line"); ctx.fillRect(px + cell / 2 - 1, pz + cell / 2 - 1, 2, 2);
+    } else if (name === "minecraft:air" || name === "minecraft:cave_air") {
+      ctx.fillStyle = css("--air"); ctx.fillRect(px, pz, cell, cell);
+      const below = $("ghost").checked && y > 0 ? entryAt(s, x, y - 1, z) : null;
+      const bn = below?.get("Name").v;
+      if (bn && bn !== "minecraft:air") { ctx.globalAlpha = 0.28; ctx.fillStyle = colourOf(bn); ctx.fillRect(px, pz, cell, cell); ctx.globalAlpha = 1; }
+    } else {
+      ctx.fillStyle = colourOf(name); ctx.fillRect(px, pz, cell, cell);
+      if (cell >= 10) { ctx.strokeStyle = "rgba(0,0,0,.18)"; ctx.lineWidth = 1; ctx.strokeRect(px + .5, pz + .5, cell - 1, cell - 1); }
+      legend.set(name, (legend.get(name) || 0) + 1);
+    }
+    const k = posKey(x, y, z), g = replaced.get(k);
+    const mark = s.edited.has(k) ? css("--edited") : g && (!isFiller(g) || $("filler").checked) ? css("--accent") : null;
+    if (mark) { ctx.strokeStyle = mark; ctx.lineWidth = Math.max(2, cell / 8); ctx.strokeRect(px + 1.5, pz + 1.5, cell - 3, cell - 3); }
+  }
+  if (selected && selected[1] === y) {
+    ctx.strokeStyle = css("--sel"); ctx.lineWidth = 3;
+    ctx.strokeRect(selected[0] * cell + 1.5, selected[2] * cell + 1.5, cell - 3, cell - 3);
+  }
+  $("legend").innerHTML = [...legend].sort((a, b) => b[1] - a[1])
+    .map(([n, c]) => `<li><span class="sw" style="background:${colourOf(n)}"></span><code>${esc(n.replace("minecraft:", ""))}</code><span class="muted">${c}</span></li>`).join("");
+  renderSelected();
+  renderGroups();
+  renderList();
+}
+
+function renderSelected() {
+  const s = cur, box = $("selected");
+  if (!s || !selected) { box.className = "muted"; box.textContent = "Click a block in the grid."; return; }
+  box.className = "";
+  const k = posKey(...selected), e = entryAt(s, ...selected), g = replacedSet(s).get(k), tag = pluginTag(s, selected);
+  const nowState = e ? stateString(e) : "minecraft:structure_void";
+  const was = s.original.get(k) ?? "minecraft:structure_void";
+  box.innerHTML = `<div><b>${selected.join(" ")}</b> <span class="muted">(x y z from the structure's corner)</span></div>
+    <div style="margin-top:4px"><code>${esc(nowState)}</code></div>
+    ${s.edited.has(k) ? `<div class="muted">Was <code>${esc(was)}</code></div>` : ""}
+    ${g ? `<div class="warn" style="margin-top:4px">Converter: ${esc(g.note)}</div>` : ""}
+    ${tag ? `<div class="warn" style="margin-top:4px">Carries the plugin's <code>${esc(tag)}</code> tag: changing it to another block drops the tag.</div>` : ""}
+    <input id="stateInput" type="text" list="blockNames" value="${esc(nowState)}" style="margin-top:8px">
+    <div class="row" style="margin-top:6px">
+      <button id="apply">Apply</button>
+      <button id="revert" ${s.edited.has(k) ? "" : "disabled"}>Revert</button>
+      <button id="void" title="Leave whatever is in the world here">Structure void</button>
+    </div>
+    <div id="selErr" class="err"></div>`;
+  const apply = text => {
+    const st = parseState(text);
+    if (!st) { $("selErr").textContent = "Write a block state like minecraft:oak_stairs[facing=north,half=bottom]."; return; }
+    const err = setBlock(s, selected, st.name, st.props);
+    if (err) { $("selErr").textContent = err; return; }
+    render();
+  };
+  $("apply").onclick = () => apply($("stateInput").value);
+  $("stateInput").onkeydown = ev => { if (ev.key === "Enter") apply($("stateInput").value); };
+  $("revert").onclick = () => apply(was);
+  $("void").onclick = () => apply("minecraft:structure_void");
+}
+
+function renderGroups() {
+  const s = cur, box = $("groups");
+  if (!report) { box.className = "muted"; box.textContent = "Open the report to see what was replaced."; return; }
+  const groups = groupsOf(s.path);
+  if (!reportKey(s.path)) { box.className = "muted"; box.textContent = "This structure isn't in the report."; return; }
+  if (!groups.length) { box.className = "muted"; box.textContent = "Nothing was replaced in this structure."; return; }
+  box.className = "";
+  box.innerHTML = groups.map((g, gi) => {
+    const pos = positionsOf(s, g);
+    const chips = isFiller(g) ? `<div class="muted" style="margin-top:4px">Shown with "Highlight foundation filler". Keep these: they mark where the builder fills ground.</div>`
+      : `<div class="chips">${pos.map(p => `<span class="chip ${s.edited.has(posKey(...p)) ? "edited" : ""}" data-p="${p.join(",")}">${p.join(" ")}</span>`).join("")}</div>`;
+    const edit = isFiller(g) || !pos.length ? "" : `<div class="row" style="margin-top:6px">
+        <input type="text" list="blockNames" data-g="${gi}" placeholder="New block for all ${pos.length}, e.g. minecraft:white_terracotta" style="flex:1">
+        <button data-apply="${gi}">Apply to all</button></div>
+        <div class="muted" style="font-size:12px">Without [properties], each block keeps its own (stairs keep their facing).</div>
+        <div class="err" data-err="${gi}"></div>`;
+    return `<div class="group"><div><span class="badge">${g.count}×</span> <code>${esc(g.note)}</code></div>${chips}${edit}</div>`;
+  }).join("");
+  box.querySelectorAll(".chip").forEach(c => c.onclick = () => select(c.dataset.p.split(",").map(Number)));
+  box.querySelectorAll("button[data-apply]").forEach(btn => btn.onclick = () => {
+    const gi = +btn.dataset.apply, g = groups[gi];
+    const st = parseState(box.querySelector(`input[data-g="${gi}"]`).value);
+    const err = box.querySelector(`[data-err="${gi}"]`);
+    if (!st) { err.textContent = "Write a block name like minecraft:white_terracotta."; return; }
+    for (const p of positionsOf(s, g)) {
+      const e = setBlock(s, p, st.name, st.hasProps ? st.props : propsOf(entryAt(s, ...p)));
+      if (e) { err.textContent = e; return; }
+    }
+    render();
+  });
+}
+
+function renderList() {
+  const filter = $("filter").value.toLowerCase(), only = $("onlyReplaced").checked;
+  $("list").innerHTML = files.filter(f => (!filter || f.path.includes(filter)))
+    .map(f => {
+      const n = groupsOf(f.path).filter(g => !isFiller(g)).reduce((a, g) => a + g.count, 0);
+      const s = opened.get(f.path);
+      return { f, n, edited: s?.dirty };
+    })
+    .filter(r => !only || r.n || r.edited)
+    .map(({ f, n, edited }) => `<li data-path="${esc(f.path)}" title="${esc(f.path)}" class="${cur?.path === f.path ? "on" : ""}"><span>&lrm;${esc(f.path)}&lrm;</span>
+      <span>${edited ? `<span class="badge edited">edited</span> ` : ""}${n ? `<span class="badge">${n}</span>` : ""}</span></li>`).join("");
+  $("list").querySelectorAll("li").forEach(li => li.onclick = () => open(li.dataset.path));
+}
+
+function select(p) {
+  selected = p;
+  $("layer").value = p[1];
+  render();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+function setStatus(text, bad) {
+  $("status").textContent = text;
+  $("status").className = bad ? "err" : "";
+}
+function fillNames() {
+  const names = blockList ? Object.keys(blockList) : [...new Set(cur ? cur.palette.map(e => e.get("Name").v) : [])];
+  $("blockNames").innerHTML = names.concat("minecraft:structure_void").map(n => `<option value="${esc(n)}">`).join("");
+}
+
+// ---- events -------------------------------------------------------------------------------------------------------
+$("dirInput").onchange = ev => {
+  files.length = 0; opened.clear(); cur = null; selected = null;
+  for (const f of ev.target.files) {
+    if (!f.name.endsWith(".nbt")) continue;
+    const rel = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+    const inside = rel.includes("/") ? rel.slice(rel.indexOf("/") + 1) : rel; // drop the opened folder's own name
+    files.push({ path: inside.slice(0, -4).toLowerCase(), file: f });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  setStatus(`${files.length} structures loaded.` + (report ? "" : " Open the report to see replaced blocks."));
+  renderList();
+  if (files.length) open(files[0].path);
+};
+$("reportInput").onchange = async ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  report = parseReport(await f.text());
+  $("onlyReplaced").checked = true;
+  setStatus(`Report loaded: ${report.size} structures.`);
+  render(); renderList();
+};
+$("blocksInput").onchange = async ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  try { blockList = JSON.parse(await f.text()); } catch (e) { setStatus("That isn't the block list JSON.", true); return; }
+  fillNames();
+  setStatus(`Block list loaded: ${Object.keys(blockList).length} blocks. Edits are now checked against it.`);
+};
+$("download").onclick = async () => {
+  const s = cur;
+  const bytes = await gzip(writeNbt(s.nbt));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  a.download = s.file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  s.dirty = false;
+  const key = reportKey(s.path) || s.path;
+  setStatus(`Downloaded ${s.file.name}. Put it at world/generated/minecp/structure/${key}.nbt`);
+  render();
+};
+$("layer").oninput = () => render();
+$("up").onclick = () => { $("layer").value = +$("layer").value + 1; render(); };
+$("down").onclick = () => { $("layer").value = +$("layer").value - 1; render(); };
+$("ghost").onchange = $("filler").onchange = () => render();
+$("filter").oninput = $("onlyReplaced").onchange = () => renderList();
+window.addEventListener("resize", () => render());
+window.addEventListener("beforeunload", ev => { if ([...opened.values()].some(s => s.dirty)) ev.preventDefault(); });
+
+const cellAt = ev => {
+  const r = $("grid").getBoundingClientRect();
+  const x = Math.floor((ev.clientX - r.left) / cell), z = Math.floor((ev.clientY - r.top) / cell);
+  return cur && x >= 0 && z >= 0 && x < cur.size[0] && z < cur.size[2] ? [x, +$("layer").value, z] : null;
+};
+$("grid").onmousemove = ev => {
+  const p = cellAt(ev), tip = $("tip");
+  if (!p) { tip.style.display = "none"; return; }
+  const e = entryAt(cur, ...p), g = replacedSet(cur).get(posKey(...p));
+  tip.innerHTML = `<b>${p.join(" ")}</b><br><code>${esc(e ? stateString(e) : "structure void")}</code>` + (g ? `<br><span class="warn">${esc(g.note)}</span>` : "");
+  tip.style.display = "block";
+  tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 370) + "px";
+  tip.style.top = ev.clientY + 14 + "px";
+};
+$("grid").onmouseleave = () => { $("tip").style.display = "none"; };
+$("grid").onclick = ev => { const p = cellAt(ev); if (p) { selected = p; fillNames(); render(); } };
+</script>
+</body>
+</html>
