@@ -64,11 +64,25 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - [ ] Raider-damage enchantment
   - [ ] Mercenaries hired from the town hall
   - [ ] Raid commands (start a raid, raid info, can a raider spawn, kill raiders)
-  - Can't be ported cleanly: custom raider models and textures. Decided stand-in: plain vanilla mobs (not the Mannequin and hidden mob pair citizens use), dressed in culture gear and picked to match the biome (for example husks for Egyptians, drowned for drowned pirates). Which mob plays each raider is still to be chosen.
+  - Can't be ported cleanly: custom raider models and textures. Decided stand-in: plain vanilla mobs (not the Mannequin and hidden mob pair citizens use), dressed in culture gear and picked to match the biome. The gear is leather armour with custom attributes and a culture texture from the resource pack (the `equippable` component's `asset_id`); it can drop as loot, as raider gear does in the mod
+  - Mob for each raider (proposed, not tried in game yet):
+    - Barbarians: melee zombie, archer skeleton, chief vindicator
+    - Egyptians: mummy husk, archer mummy skeleton, pharaoh husk
+    - Amazons: spearman zombie with a vanilla spear, archer skeleton, chief vindicator
+    - Norsemen: melee vindicator, archer stray, chief vindicator
+    - Pirates: melee zombie, archer skeleton, captain vindicator
+    - Drowned pirates: drowned in every role (tridents for ranged), the captain in captain gear
 - [ ] Guards (see Worker huts)
 - [ ] Research (university)
 - [ ] Quests
 - [ ] Visitors and the tavern
+- [~] Requests: huts list what they want (`Job.wants`) and couriers fill it from the warehouse
+  - No request objects with a state (open, in progress, done, cancelled)
+  - Players can't see or fill requests (no request screen, no clipboard)
+  - Crafters can't fill requests by crafting; no request priorities
+- [ ] Colony connections (`core/colony/managers/ColonyConnectionManager.java`, `api/colony/connections/`): colony signs and gate houses link two colonies, with a diplomacy status of allies, neutral or hostile
+- [ ] PvP: players attacking a colony, with the guards they bring (`core/colony/pvp/AttackingPlayer.java`)
+- [ ] Commands: the mod's `/mc colony ...` and `/mc citizens ...` (MineCP's `/colony` has give-item, `build`, `info` and `movement` subcommands)
 - [ ] Supply camp and supply ship starts
 - [ ] Colony flag and banner
 - [ ] Advancements (the mod's `data/minecolonies/advancements/`; its recipe-unlock advancements are left out)
@@ -99,7 +113,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Builder: upgrades huts from converted blueprints, uses tools, materials and storage racks
   - Not checked: does the mod only let a builder build huts up to its own level?
   - No decoration or free builds from a build tool; `/colony build` is the stand-in
-  - No removal or repair work orders
+  - No removal, repair or move work orders
   - Hut rotation comes from the build tool (for hut blocks placed by hand: the block's facing)
 - [~] Blueprints: medieval oak converted to vanilla structures (`tools/convert_blueprints.py`)
   - Other styles not converted
@@ -135,6 +149,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [ ] Stash (a chest couriers empty to the warehouse): stand-in is a tagged chest
 - [ ] Post box (players order items from the warehouse): stand-in is a tagged chest or barrel
 - [ ] Waypoint (helps citizens' pathing)
+- [ ] Decoration controller (`core/blocks/BlockDecorationController.java`: marks a placed decoration so builders can upgrade or repair it)
 - [ ] Colony sign
 - [ ] Colony banner and wall banner (the colony flag): stand-ins are normal vanilla banners and wall banners
 - [~] Construction tape (marks a build site): no block; four thin yellow block-display bars along the footprint at the hut block's floor, while the hut is unbuilt or has an upgrade queued or under way (the build tool's preview shows them too). They are straight at one height, where the mod's tape follows the ground
@@ -199,6 +214,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
   - No request screen
   - No sorting (the mod sorts from level 3)
   - No limit on couriers per warehouse level
+  - No minimum stock setting (`MinimumStockModule`: items a hut keeps topped up)
   - Builder chest is emptied to the warehouse while no build is running
 - [~] Miner
   - Climbs and slides down the shaft's ladder like any citizen route (vanilla ladder physics, about 4 blocks a second up)
@@ -219,6 +235,8 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [ ] Stable
 - [ ] Crafters (need recipes taught, as in the mod's request system): sawmill, stonemason, stone smeltery, smeltery, blacksmith, fletcher, dyer, glassblower, concrete mixer, crusher, sifter, mechanic, alchemist, enchanter, baker
 - [ ] Nether worker
+  - Expedition log (`ExpeditionLogModule`, unlocked by research)
+- [ ] Hut settings (`SettingsModule`, `core/colony/buildings/modules/settings/`): hiring mode and each hut's own settings
 - [ ] Guards: guard tower, barracks and barracks tower, archery, combat academy, gate house
   - Guard types: knight, ranger, druid, cavalry, huscarl, marksman (not checked which ones research unlocks)
   - Patrol and follow modes, guard tasks, guard gear by building level, training at the archery and combat academy
