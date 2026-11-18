@@ -8,7 +8,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No citizen skills or levels (in the mod they change work speed and quality)
   - No citizen inventory; workers use a simple carried list
   - No chat interactions or requests above citizens' heads; reasons are shown in the hut menus instead
-  - Movement: our own route search (`Route`, from the mod's pathfinding rules and costs: ladders up and down, drops up to 10 blocks at dy³, jumps +2, doors +2, path blocks cheaper, wading in shallow water, the mod's node limit by distance), followed by steering the legs mob directly; ladders are climbed and slid with vanilla physics; when stuck it searches again, then teleports 5 steps ahead (the mod's order). `/colony movement old` switches a citizen back to vanilla pathing for comparison
+  - Movement: our own route search (`Route`, from the mod's pathfinding rules and costs: ladders up and down, drops up to 10 blocks at dy³, jumps +2, doors +2, path blocks cheaper, wading in shallow water, the mod's node limit by distance), followed by steering the legs mob directly; ladders are climbed and slid with vanilla physics; when stuck it searches again, then teleports 5 steps ahead (the mod's order); `/colony movement` lists each citizen's teleports, stuck events and search times
     - The search runs on the main thread (like vanilla's), not on a worker thread as in the mod: a warm 70-block detour takes ~7 ms, short trips ~1 ms
     - No swimming or diving (citizens wade only), no rails, no vines unless tagged climbable, fence gates are not opened
     - Heuristic weight fixed at 2 (the mod starts at 2 and tunes it per citizen); path blocks cost 1/2 (the mod: 1/6)

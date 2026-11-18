@@ -1,6 +1,5 @@
 package dev.minecp;
 
-import com.destroystokyo.paper.entity.Pathfinder.PathResult;
 import io.papermc.paper.datacomponent.item.ResolvableProfile;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -13,7 +12,6 @@ import org.bukkit.SoundCategory;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.data.type.Door;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.LivingEntity;
@@ -34,8 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * A colony citizen: a visible Mannequin body that copies the position of a hidden "legs" mob every tick.
- * The legs mob is moved along our own routes ({@link Route}) by steering its MoveControl ({@link Nms}); the old
- * vanilla pathfinding through Paper's Pathfinder API stays behind {@code /colony movement old} for comparison.
+ * The legs mob is moved along our own routes ({@link Route}) by steering its MoveControl ({@link Nms}).
  * Entities are not saved by the world; they are spawned from colony data whenever the chunk is loaded.
  */
 final class Colonist {
@@ -44,7 +41,6 @@ final class Colonist {
     private static final int WANDER_RADIUS = 12;
     private static final int CLIMB_TICKS = 200;     // a ladder climb that takes longer than this has failed
     private static final double CLIMB_SPEED = 0.4;  // MoveControl speed on and off ladders
-    private static final int LADDER_RANGE = 12; // how far around it looks for a ladder to another floor
     private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
     /** Vanilla default skins, shipped with every client, so no resource pack or skin lookups are needed. */
@@ -74,16 +70,12 @@ final class Colonist {
     private Block bed;       // head of the bed it is asleep in
     boolean bedtime;         // on its way to bed or asleep (the mod keeps a citizen in its sleep state once there)
     private String status = "Unemployed";
-    private Location stuckFrom;
-    private int stuckTicks = 0;
-    private int unstuck = 0; // times the watchdog moved it on during the current walk
     private int wait = 0;
-    boolean newMovement = true; // our own routes (Route) instead of vanilla's; /colony movement old switches back
-    private Climb climb;            // new movement: on a ladder
+    private Climb climb;            // on a ladder
     private Location approachTo;   // approach(): the target it is closing in on, its best distance so far, and
     private double approachBest;   // how many partial paths since then got it no closer
     private int approachFails;
-    // New movement: the route being followed, where it is on it, and what it was searched for (to search again).
+    // the route being followed, where it is on it, and what it was searched for (to search again).
     private List<Route.Step> route;
     private int routeAt, climbResume = -1;
     private int[] routeTo;
@@ -130,13 +122,11 @@ final class Colonist {
         doors(to);
         if (climb != null) climbTick(to);
         else if (route != null) followTick(to);
-        else ladders(to);
-        unstick(to);
         return true;
     }
 
     /**
-     * New movement, each tick: steer toward the next step of the route (vanilla's MoveControl jumps up steps by
+     * Each tick: steer toward the next step of the route (vanilla's MoveControl jumps up steps by
      * itself), hand ladders to the climb, and when it stops getting anywhere search again, then teleport ahead.
      */
     private void followTick(Location at) {
@@ -176,7 +166,7 @@ final class Colonist {
         routeAt = ahead;
     }
 
-    /** New movement: searches from here. Null if it stands nowhere a route can start. */
+    /** searches from here. Null if it stands nowhere a route can start. */
     private Route.Result plan(int gx, int gy, int gz, Route.Goal goal) {
         Location at = legs.getLocation();
         long t = System.nanoTime();
@@ -187,7 +177,6 @@ final class Colonist {
     }
 
     private void follow(Route.Result r, int gx, int gy, int gz, Route.Goal goal) {
-        legs.getPathfinder().stopPathfinding();
         climb = null;
         climbResume = -1;
         route = r.steps().isEmpty() ? null : new ArrayList<>(r.steps());
@@ -212,12 +201,11 @@ final class Colonist {
         return (x, y, z) -> Math.abs(x - bx) <= 2 && Math.abs(z - bz) <= 2 && y - by >= -2 && y - by <= 1 && !(x == bx && z == bz);
     }
 
-    /** A ladder climb in progress (new movement): up or down the column at {@code col} to stand on {@code to}. */
+    /** A ladder climb in progress : up or down the column at {@code col} to stand on {@code to}. */
     private record Climb(Block col, Block to, boolean up, int[] ticks) {}
 
     /** Climbs or slides along a ladder with vanilla physics, then steps off onto {@code to}. */
     private void startClimb(Block col, Block to) {
-        legs.getPathfinder().stopPathfinding();
         climb = new Climb(col, to, to.getY() > legs.getLocation().getBlockY(), new int[1]);
     }
 
@@ -260,46 +248,6 @@ final class Colonist {
         }
     }
 
-    /**
-     * Vanilla paths drop straight down a ladder shaft, but a mob on a ladder brushing the wall climbs back up and
-     * spins at the top. Once it reaches the shaft, put it at the bottom, as the miner does on its ladder.
-     */
-    private void ladders(Location at) {
-        PathResult path = legs.getPathfinder().hasPath() ? legs.getPathfinder().getCurrentPath() : null;
-        Location next = path == null ? null : path.getNextPoint();
-        if (next == null || next.getBlockY() >= at.getBlockY()) return;
-        double dx = next.getBlockX() + 0.5 - at.getX(), dz = next.getBlockZ() + 0.5 - at.getZ();
-        if (dx * dx + dz * dz > 1.2 * 1.2) return; // not at the shaft yet
-        Block bottom = next.getBlock();
-        boolean shaft = false;
-        for (int y = bottom.getY(); y <= at.getBlockY(); y++)
-            shaft |= Tag.CLIMBABLE.isTagged(bottom.getWorld().getBlockAt(bottom.getX(), y, bottom.getZ()).getType());
-        if (!shaft) return;
-        if (newMovement) startClimb(bottom, bottom); // slides down, then the job asks for a new path
-        else warp(bottom.getLocation().add(0.5, 0, 0.5)); // keeps its path; it stands on this point now
-    }
-
-    /** Watchdog: walking but not getting anywhere (trapped by a fence, wedged on a corner) for a while -> hop aside. */
-    private void unstick(Location at) {
-        if (!legs.getPathfinder().hasPath()) { stuckTicks = 0; unstuck = 0; return; }
-        if (stuckFrom == null || stuckFrom.distanceSquared(at) > 0.5 * 0.5) {
-            stuckFrom = at;
-            stuckTicks = 0;
-        } else if (++stuckTicks > STUCK_TICKS) {
-            stats.stuck++;
-            // Usually a jump it can't make (e.g. up off a path block): put it where it was going; else just step aside.
-            var path = legs.getPathfinder().getCurrentPath();
-            Location next = path == null ? null : path.getNextPoint();
-            // (Not if that is where it stands already: blocked there, it would be put back on the same spot for ever.)
-            // A second time on the same walk, the path itself is no good: drop it and let the job plan a new one.
-            if (++unstuck < 2 && next != null && canStandIn(next.getBlock()) && !next.getBlock().equals(at.getBlock()))
-                warp(next.getBlock().getLocation().add(0.5, 0, 0.5));
-            else { legs.getPathfinder().stopPathfinding(); hopAside(null); unstuck = 0; }
-            stuckFrom = null;
-            stuckTicks = 0;
-        }
-    }
-
     String status() {
         return status;
     }
@@ -326,11 +274,10 @@ final class Colonist {
     void stopWalking() {
         climb = null;
         route = null;
-        legs.getPathfinder().stopPathfinding();
     }
 
     boolean isMoving() {
-        return climb != null || route != null || legs.getPathfinder().hasPath();
+        return climb != null || route != null;
     }
 
     /**
@@ -344,43 +291,26 @@ final class Colonist {
         if (!to.equals(approachTo)) { approachTo = to.clone(); approachBest = now; approachFails = 0; }
         else if (now < approachBest - 0.5) { approachBest = now; approachFails = 0; }
         else if (++approachFails >= 3) return false;
-        if (newMovement) {
-            Block b = to.getBlock();
-            Route.Goal goal = besideGoal(b);
-            Route.Result r = plan(b.getX(), b.getY(), b.getZ(), goal);
-            if (r == null || r.steps().isEmpty()) return false; // nowhere to start, or already as close as it gets
-            Route.Step end = r.steps().getLast();
-            Location e = new Location(to.getWorld(), end.x() + 0.5, end.h(), end.z() + 0.5);
-            if (e.distance(to) > within || e.distanceSquared(legs.getLocation()) < 1.5 * 1.5) return false;
-            follow(r, b.getX(), b.getY(), b.getZ(), goal);
-            return true;
-        }
-        PathResult path = findPath(to);
-        Location end = path == null ? null : path.getFinalPoint();
-        if (end == null || end.toCenterLocation().distance(to) > within) return false;
-        if (end.toCenterLocation().distance(to) < 2) { // the path ends in the block's own spot: stop short, beside it
-            Location stop = null;
-            for (Location p : path.getPoints()) if (p.toCenterLocation().distance(to) >= 2) stop = p;
-            if (stop == null) return false; // already beside it
-            path = findPath(stop.toCenterLocation());
-            if (path == null || !path.canReachFinalPoint()) return false;
-            end = stop;
-        }
-        if (end.toCenterLocation().distanceSquared(legs.getLocation()) < 1.5 * 1.5) return false; // nowhere closer to go
-        return legs.getPathfinder().moveTo(path, WALK_SPEED);
+        Block b = to.getBlock();
+        Route.Goal goal = besideGoal(b);
+        Route.Result r = plan(b.getX(), b.getY(), b.getZ(), goal);
+        if (r == null || r.steps().isEmpty()) return false; // nowhere to start, or already as close as it gets
+        Route.Step end = r.steps().getLast();
+        Location e = new Location(to.getWorld(), end.x() + 0.5, end.h(), end.z() + 0.5);
+        if (e.distance(to) > within || e.distanceSquared(legs.getLocation()) < 1.5 * 1.5) return false;
+        follow(r, b.getX(), b.getY(), b.getZ(), goal);
+        return true;
     }
 
     /** Opens wooden doors on the way like a villager, and closes them once through. */
     private void doors(Location at) {
-        PathResult path = legs.getPathfinder().hasPath() ? legs.getPathfinder().getCurrentPath() : null;
-        Location next = path == null ? null : path.getNextPoint();
-        Block step1 = null, step2 = null; // new movement: the next two steps (the mod checks 2 ahead)
+        Block step1 = null, step2 = null; // the next two steps (the mod checks 2 ahead)
         if (route != null && routeAt < route.size()) {
             Route.Step s = route.get(routeAt);
             step1 = at.getWorld().getBlockAt(s.x(), s.y(), s.z());
             if (routeAt + 1 < route.size()) { s = route.get(routeAt + 1); step2 = at.getWorld().getBlockAt(s.x(), s.y(), s.z()); }
         }
-        for (Block b : new Block[]{at.getBlock(), next == null ? null : next.getBlock(), step1, step2}) {
+        for (Block b : new Block[]{at.getBlock(), step1, step2}) {
             if (b == null || !Tag.MOB_INTERACTABLE_DOORS.isTagged(b.getType()) || !(b.getBlockData() instanceof Door d) || d.isOpen()) continue;
             int bottomY = d.getHalf() == Door.Half.TOP ? b.getY() - 1 : b.getY();
             if (Math.abs(at.getY() - bottomY) > 0.5) continue; // walking past above or below it: opening would drop it
@@ -497,58 +427,8 @@ final class Colonist {
      */
     void goBeside(Block block) {
         if (walkBeside(block) != null) return;
-        if (!newMovement && viaLadder(block)) return; // our routes climb ladders themselves
         if (approach(block.getLocation().toCenterLocation(), Double.MAX_VALUE)) return;
         teleportNear(block);
-    }
-
-    /**
-     * No vanilla path climbs a ladder, so when {@code target} is on another floor, walks to a ladder on its own
-     * floor and, once there, goes to where that ladder meets the target's floor (as the miner does on its ladder).
-     * @return false if no reachable ladder brings it closer to the target's floor.
-     */
-    private boolean viaLadder(Block target) {
-        Block here = legs.getLocation().getBlock();
-        if (Math.abs(target.getY() - here.getY()) < 2) return false;
-        record Ladder(Block col, Block near, Block far) {}
-        List<Ladder> ladders = new ArrayList<>();
-        for (int dx = -LADDER_RANGE; dx <= LADDER_RANGE; dx++) for (int dz = -LADDER_RANGE; dz <= LADDER_RANGE; dz++) {
-            Block col = here.getRelative(dx, 0, dz);
-            int dy = -1; // the shaft passes this floor: a ladder here, or just below (standing at its top)
-            while (dy <= 1 && !Tag.CLIMBABLE.isTagged(col.getRelative(0, dy, 0).getType())) dy++;
-            if (dy > 1) continue;
-            int bottom = col.getY() + dy, top = bottom;
-            while (Tag.CLIMBABLE.isTagged(col.getWorld().getBlockAt(col.getX(), bottom - 1, col.getZ()).getType())) bottom--;
-            while (Tag.CLIMBABLE.isTagged(col.getWorld().getBlockAt(col.getX(), top + 1, col.getZ()).getType())) top++;
-            int farY = Math.clamp(target.getY(), bottom, top + 1);
-            if (Math.abs(farY - target.getY()) >= Math.abs(here.getY() - target.getY())) continue; // gets it no closer
-            Block near = shaftSpot(col.getWorld().getBlockAt(col.getX(), here.getY(), col.getZ()));
-            Block far = shaftSpot(col.getWorld().getBlockAt(col.getX(), farY, col.getZ()));
-            if (near != null && far != null) ladders.add(new Ladder(col, near, far));
-        }
-        ladders.sort(Comparator.comparingDouble(l -> l.near().getLocation().distanceSquared(here.getLocation())));
-        int tries = 0;
-        for (Ladder l : ladders) {
-            Block n = l.near();
-            if (n.equals(here)) { // on the spot itself: from a neighbouring block a fence or corner can be in the way
-                if (newMovement) startClimb(l.col(), l.far());
-                else teleportTo(l.far());
-                return true;
-            }
-            if (++tries > 4) break; // each try is a path search
-            if (walk(n.getLocation().add(0.5, 0, 0.5))) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Where to stand to use the shaft at {@code at}: on the ladder itself if it stands on something, else right beside
-     * it (not diagonally: the climb steers straight between the two, and a corner block or fence would be in the way).
-     */
-    private static Block shaftSpot(Block at) {
-        if (canStandIn(at)) return at;
-        for (BlockFace f : SIDES) if (canStandIn(at.getRelative(f))) return at.getRelative(f);
-        return null;
     }
 
     /** Starving citizens walk slowly, as in the mod. */
@@ -609,17 +489,13 @@ final class Colonist {
 
     /** Walks to exactly {@code to}. @return false if no full path leads there. */
     boolean walk(Location to) {
-        if (newMovement) {
-            Block b = to.getBlock();
-            int bx = b.getX(), by = b.getY(), bz = b.getZ();
-            Route.Goal goal = (x, y, z) -> x == bx && y == by && z == bz;
-            Route.Result r = plan(bx, by, bz, goal);
-            if (r == null || !r.reached()) return false;
-            follow(r, bx, by, bz, goal);
-            return true;
-        }
-        PathResult path = reachablePath(to);
-        return path != null && legs.getPathfinder().moveTo(path, WALK_SPEED);
+        Block b = to.getBlock();
+        int bx = b.getX(), by = b.getY(), bz = b.getZ();
+        Route.Goal goal = (x, y, z) -> x == bx && y == by && z == bz;
+        Route.Result r = plan(bx, by, bz, goal);
+        if (r == null || !r.reached()) return false;
+        follow(r, bx, by, bz, goal);
+        return true;
     }
 
     /**
@@ -627,41 +503,18 @@ final class Colonist {
      * @return the spot it is walking to, or null if none can be reached.
      */
     Location walkBeside(Block block) {
-        if (newMovement) { // one search for any spot beside it, instead of one per spot
-            Route.Goal goal = besideGoal(block);
-            Route.Result r = plan(block.getX(), block.getY(), block.getZ(), goal);
-            if (r == null || !r.reached()) return null;
-            follow(r, block.getX(), block.getY(), block.getZ(), goal);
-            Route.Step end = r.steps().isEmpty() ? null : r.steps().getLast();
-            return end == null ? legs.getLocation() : new Location(block.getWorld(), end.x() + 0.5, end.h(), end.z() + 0.5);
-        }
-        int tries = 0;
-        for (Block b : spotsBeside(block)) {
-            if (++tries > 12) break; // each try is a path search; enough to get around one obstacle
-            PathResult path = reachablePath(b.getLocation().toCenterLocation());
-            if (path != null && legs.getPathfinder().moveTo(path, WALK_SPEED)) return b.getLocation().toCenterLocation();
-        }
-        return null;
+        Route.Goal goal = besideGoal(block);
+        Route.Result r = plan(block.getX(), block.getY(), block.getZ(), goal);
+        if (r == null || !r.reached()) return null;
+        follow(r, block.getX(), block.getY(), block.getZ(), goal);
+        Route.Step end = r.steps().isEmpty() ? null : r.steps().getLast();
+        return end == null ? legs.getLocation() : new Location(block.getWorld(), end.x() + 0.5, end.h(), end.z() + 0.5);
     }
 
     /** Teleports the legs while walking (not into bed): counted, it's what better movement should make rare. */
     private void warp(Location to) {
         stats.teleports++;
         legs.teleport(to);
-    }
-
-    private PathResult findPath(Location to) {
-        long t = System.nanoTime();
-        PathResult path = legs.getPathfinder().findPath(to);
-        stats.searches++;
-        stats.searchNanos += System.nanoTime() - t;
-        return path;
-    }
-
-    /** Vanilla returns partial paths that stop short of unreachable targets; treat those as no path. */
-    private PathResult reachablePath(Location to) {
-        PathResult path = findPath(to);
-        return path != null && path.canReachFinalPoint() ? path : null;
     }
 
     private boolean near(Location to) {
@@ -705,9 +558,6 @@ final class Colonist {
         // away the legs would freeze mid-walk. Any potion effect makes Paper keep an entity active.
         legs.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, PotionEffect.INFINITE_DURATION, 0,
                 false, false, false));
-        // Vanilla caps path search by follow range; the trader's default cut paths off ~10 blocks out.
-        legs.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(48);
-        legs.getPathfinder().setCanOpenDoors(true); // paths may go through closed wooden doors; doors() opens them
         String skinName = SKINS[skin % SKINS.length];
         boolean slim = skin >= SKINS.length;
         body = world.spawn(last, Mannequin.class, m -> {
