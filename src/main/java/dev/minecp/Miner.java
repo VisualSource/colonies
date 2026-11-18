@@ -175,7 +175,7 @@ final class Miner extends Job {
         if (ladder == null || ladder.getType() != Material.LADDER) {
             if (!findLadder()) { idle(w, "No ladder found in the Miner's Hut building."); return; }
         }
-        if (delivering || carriedTotal() >= DELIVER_AT) {
+        if (delivering || carriedTotal() >= DELIVER_AT && loot() >= DELIVER_AT) {
             delivering = true;
             if (!atHut(w)) { w.setStatus("Miner: working"); goToHut(w); return; }
             if (!deliverLoot()) { idle(w, "The hut chest is full."); return; }
@@ -363,14 +363,16 @@ final class Miner extends Job {
     private int tries;   // walks toward {@link #target} that didn't get it within reach
 
     /**
-     * Gets within reach of {@code b}: walks to a free spot near it, or, since our pathing can't climb the shaft's
-     * ladder the way the mod's miner does, goes down (or up) it by teleporting to that spot.
+     * Gets within reach of {@code b}: walks to a free spot near it (the shaft's ladder included, as the mod's miner).
      * @return true if it is within reach now.
      */
     private boolean near(Colonist w, Block b) {
         if (!b.equals(target)) tries = 0;
         target = b;
-        if (w.location().distance(b.getLocation().toCenterLocation()) <= REACH) { tries = 0; return true; }
+        // From the middle of the block it stands in, as the spots below are measured: from its feet, a spot just
+        // within reach read as out of reach, and it walked to where it already stood, over and over.
+        double from = w.location().getBlock().getLocation().toCenterLocation().distance(b.getLocation().toCenterLocation());
+        if (from <= REACH) { tries = 0; return true; }
         List<Block> spots = new ArrayList<>();
         for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) for (int dy = -3; dy <= 3; dy++) {
             Block s = b.getRelative(dx, dy, dz);
@@ -378,61 +380,12 @@ final class Miner extends Job {
         }
         spots.sort(java.util.Comparator.comparingDouble(s -> s.getLocation().distanceSquared(b.getLocation())));
         cooldown = 10;
-        if (!spots.isEmpty() && inMine(w.location().getBlockY()) != inMine(spots.getFirst().getY())) {
-            climb(w, spots.getFirst());
-            return false;
-        }
         // Mine supports and fences make paths that look walkable but aren't: after a few tries, go there directly.
         if (++tries <= 3) for (int i = 0; i < Math.min(3, spots.size()); i++) if (w.walk(spots.get(i).getLocation().add(0.5, 0, 0.5))) return false;
         if (!spots.isEmpty()) { w.teleportTo(spots.getFirst()); return false; }
-        if (w.location().distance(b.getLocation().toCenterLocation()) <= FAR_REACH) return true; // nowhere nearer to stand
+        if (from <= FAR_REACH) return true; // nowhere nearer to stand
         w.goBeside(b);
         return false;
-    }
-
-    /** Below the hut, in the shaft or a mine level. */
-    private boolean inMine(int y) {
-        return ladder != null && y < ladder.getY() - 1;
-    }
-
-    /**
-     * Takes the ladder to {@code to}'s side of the hut floor. Our pathing can't climb, so it walks to the ladder,
-     * then moves along the ladder column in one go: to the ladder at {@code to}'s height going down, or to the
-     * floor beside the ladder's top going up. From there it walks on.
-     */
-    private void climb(Colonist w, Block to) {
-        boolean up = !inMine(to.getY());
-        Block foot = up ? ladderAt(w.location().getBlockY()) : top();
-        cooldown = 10;
-        if (!w.isBeside(foot)) { w.goBeside(foot); return; }
-        Block onLadder = ladderAt(to.getY());
-        w.teleportTo(up ? top() : onLadder.isPassable() && onLadder.getRelative(BlockFace.UP).isPassable() ? onLadder : to);
-    }
-
-    /** Where it steps off at the top of the ladder: the nearest spot to stand beside it at the hut floor. */
-    private Block top() {
-        Block best = null;
-        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = -1; dy <= 2; dy++) {
-            Block s = ladder.getRelative(dx, dy, dz);
-            if (inMine(s.getY()) || (s.getX() == ladder.getX() && s.getZ() == ladder.getZ()) || !Colonist.canStandIn(s)) continue;
-            if (best == null || s.getLocation().distanceSquared(ladder.getLocation()) < best.getLocation().distanceSquared(ladder.getLocation())) best = s;
-        }
-        return best != null ? best : ladder.getRelative(facing.getOppositeFace()).getRelative(BlockFace.UP);
-    }
-
-    /** At night or in the rain: up the ladder before heading home. */
-    @Override
-    boolean leaveWork(Colonist w) {
-        if (!inMine(w.location().getBlockY())) return true;
-        if (--cooldown <= 0 && !w.isMoving()) climb(w, top());
-        return false;
-    }
-
-    /** Back to the hut chest: from down the mine, up the ladder first. */
-    @Override
-    void goToHut(Colonist w) {
-        if (inMine(w.location().getBlockY())) { climb(w, top()); return; }
-        super.goToHut(w);
     }
 
     /** Digs {@code b} out with the right tool, keeping the drops. */
@@ -514,6 +467,9 @@ final class Miner extends Job {
         Map<ItemStack, Integer> out = new LinkedHashMap<>();
         if (!hasTool(Tool.PICKAXE, null) && inChest(i -> fits(Tool.PICKAXE, i, null)) == 0) out.put(new ItemStack(Material.WOODEN_PICKAXE), 1);
         if (!hasTool(Tool.SHOVEL, null) && inChest(i -> fits(Tool.SHOVEL, i, null)) == 0) out.put(new ItemStack(Material.WOODEN_SHOVEL), 1);
+        Tool t = neededTool; // another tool a block calls for, as the mod requests it (an axe for a level's wooden posts)
+        if (t != null && !hasTool(t, null) && inChest(i -> fits(t, i, null)) == 0)
+            out.put(new ItemStack(switch (t) { case AXE -> Material.WOODEN_AXE; case HOE -> Material.WOODEN_HOE; case SHOVEL -> Material.WOODEN_SHOVEL; default -> Material.WOODEN_PICKAXE; }), 1);
         Map<Material, Integer> need = needs();
         need.merge(Material.COBBLESTONE, COBBLE_STOCK, Math::max);
         need.merge(Material.LADDER, LADDER_STOCK, Math::max);
@@ -529,12 +485,27 @@ final class Miner extends Job {
     }
 
     /** Drops off what it dug up; keeps its cobblestone, ladders and what the current structure needs. */
-    private boolean deliverLoot() {
-        Inventory chest = chest();
-        if (chest == null) return false;
+    /** What it keeps when it delivers: what the current work still needs, plus its stock of cobblestone and ladders. */
+    private Map<Material, Integer> keep() {
         Map<Material, Integer> keep = needs();
         keep.merge(Material.COBBLESTONE, COBBLE_STOCK, Integer::sum);
         keep.merge(Material.LADDER, LADDER_STOCK, Integer::sum);
+        return keep;
+    }
+
+    /**
+     * How much of what it carries it would hand in. Only this counts toward going back to deliver: counting the
+     * supplies it keeps too sent it back up after every block once a mine level needed a lot of cobblestone.
+     */
+    private int loot() {
+        Map<Material, Integer> keep = keep();
+        return carried.entrySet().stream().mapToInt(e -> Math.max(0, e.getValue() - keep.getOrDefault(e.getKey(), 0))).sum();
+    }
+
+    private boolean deliverLoot() {
+        Inventory chest = chest();
+        if (chest == null) return false;
+        Map<Material, Integer> keep = keep();
         boolean all = true;
         for (var e : new ArrayList<>(carried.entrySet())) {
             int give = e.getValue() - keep.getOrDefault(e.getKey(), 0);

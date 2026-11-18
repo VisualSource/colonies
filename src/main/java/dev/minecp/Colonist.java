@@ -11,6 +11,7 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.Tag;
 import org.bukkit.World;
+import org.bukkit.block.data.Openable;
 import org.bukkit.block.data.type.Door;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -39,7 +40,7 @@ final class Colonist {
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
     private static final int WANDER_RADIUS = 12;
-    private static final int CLIMB_TICKS = 200;     // a ladder climb that takes longer than this has failed
+    private static final int CLIMB_TICKS = 100;     // a ladder climb taking longer than this, plus 10 a block, has failed
     private static final double CLIMB_SPEED = 0.4;  // MoveControl speed on and off ladders
     private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
@@ -60,6 +61,11 @@ final class Colonist {
     final int skin;
     Hut home; // the house the colonist lives in, or null
     double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
+    static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
+    double health = MAX_HEALTH;               // saved with the colony
+    int hurtTicks;   // ticks since a mob or player last hurt it are still counted down: no healing meanwhile
+    int fleeTicks;   // running away: no work until it runs out
+    int healTicks;
     Meal meal;              // while it is getting something to eat
     String hungerNote;      // why its last meal failed, for the menus
     int foodRetry, hungerTicks;
@@ -137,6 +143,7 @@ final class Colonist {
             if (s.ladder() || Math.abs(at.getX() - s.x() - 0.5) >= 0.5 || Math.abs(at.getZ() - s.z() - 0.5) >= 0.5
                     || Math.abs(at.getY() - s.h()) >= 1) break;
             routeAt++;
+            replans = 0; // getting somewhere
         }
         if (routeAt >= route.size()) { route = null; Nms.halt(legs); return; }
         Route.Step s = route.get(routeAt);
@@ -150,7 +157,12 @@ final class Colonist {
             startClimb(w.getBlockAt(s.x(), s.y(), s.z()), w.getBlockAt(off.x(), off.y(), off.z()));
             return;
         }
-        if (routeIdle % 10 == 0 && !Route.standable(at.getWorld(), s)) { replan(); return; } // the world changed
+        if (routeIdle % 10 == 0 && !Route.standable(at.getWorld(), s)) { // the world changed (a miner digs its own floor)
+            stats.stuck++;
+            if (++replans > 2) { route = null; replans = 0; return; } // still blocked: let the job decide again
+            replan();
+            return;
+        }
         Nms.drive(legs, s.x() + 0.5, s.h(), s.z() + 0.5, WALK_SPEED);
         if (routeFrom == null || routeFrom.distanceSquared(at) > 0.5 * 0.5) { routeFrom = at; routeIdle = 0; return; }
         if (++routeIdle <= STUCK_TICKS) return;
@@ -219,7 +231,7 @@ final class Colonist {
             climb = null; // off the ladder on the other floor
             return;
         }
-        if (++c.ticks()[0] > CLIMB_TICKS) { // physics let it down (open top, no wall): finish as before
+        if (++c.ticks()[0] > CLIMB_TICKS + 10 * Math.abs(c.to().getY() - c.col().getY())) { // vanilla climbs 4 a second // physics let it down (open top, no wall): finish as before
             climb = null;
             teleportTo(c.to());
             return;
@@ -302,7 +314,7 @@ final class Colonist {
         return true;
     }
 
-    /** Opens wooden doors on the way like a villager, and closes them once through. */
+    /** Opens wooden doors and fence gates on the way, and closes them once through. */
     private void doors(Location at) {
         Block step1 = null, step2 = null; // the next two steps (the mod checks 2 ahead)
         if (route != null && routeAt < route.size()) {
@@ -311,25 +323,63 @@ final class Colonist {
             if (routeAt + 1 < route.size()) { s = route.get(routeAt + 1); step2 = at.getWorld().getBlockAt(s.x(), s.y(), s.z()); }
         }
         for (Block b : new Block[]{at.getBlock(), step1, step2}) {
-            if (b == null || !Tag.MOB_INTERACTABLE_DOORS.isTagged(b.getType()) || !(b.getBlockData() instanceof Door d) || d.isOpen()) continue;
-            int bottomY = d.getHalf() == Door.Half.TOP ? b.getY() - 1 : b.getY();
+            if (b == null || !(b.getBlockData() instanceof Openable o) || o.isOpen() || !toggles(b)) continue;
+            int bottomY = o instanceof Door d && d.getHalf() == Door.Half.TOP ? b.getY() - 1 : b.getY();
             if (Math.abs(at.getY() - bottomY) > 0.5) continue; // walking past above or below it: opening would drop it
             if (b.getLocation().toCenterLocation().distanceSquared(at) > 2.5 * 2.5) continue; // the mod opens within 2
 
-            d.setOpen(true);
-            b.setBlockData(d); // with physics, so the other half follows
-            b.getWorld().playSound(b.getLocation(), Sound.BLOCK_WOODEN_DOOR_OPEN, SoundCategory.BLOCKS, 1, 1);
+            o.setOpen(true);
+            b.setBlockData(o); // with physics, so a door's other half follows
+            b.getWorld().playSound(b.getLocation(), o instanceof Door ? Sound.BLOCK_WOODEN_DOOR_OPEN : Sound.BLOCK_FENCE_GATE_OPEN, SoundCategory.BLOCKS, 1, 1);
             opened.add(b);
         }
         opened.removeIf(b -> {
             if (b.getLocation().toCenterLocation().distanceSquared(at) < 2 * 2 || overlaps(b)) return false;
-            if (b.getBlockData() instanceof Door d && d.isOpen()) {
-                d.setOpen(false);
-                b.setBlockData(d);
-                b.getWorld().playSound(b.getLocation(), Sound.BLOCK_WOODEN_DOOR_CLOSE, SoundCategory.BLOCKS, 1, 1);
+            if (toggles(b) && b.getBlockData() instanceof Openable o && o.isOpen()) {
+                o.setOpen(false);
+                b.setBlockData(o);
+                b.getWorld().playSound(b.getLocation(), o instanceof Door ? Sound.BLOCK_WOODEN_DOOR_CLOSE : Sound.BLOCK_FENCE_GATE_CLOSE, SoundCategory.BLOCKS, 1, 1);
             }
             return true;
         });
+    }
+
+    /** What citizens open and close on their way, as the mod's citizens do: wooden doors and fence gates. */
+    private static boolean toggles(Block b) {
+        return Tag.MOB_INTERACTABLE_DOORS.isTagged(b.getType()) || Tag.FENCE_GATES.isTagged(b.getType());
+    }
+
+    /** Whether {@code e} is this citizen's body or legs. */
+    boolean owns(org.bukkit.entity.Entity e) {
+        return e != null && (e.equals(body) || e.equals(legs));
+    }
+
+    /** The hurt flash and sound a player would make. */
+    void showHurt() {
+        if (body == null) return;
+        body.playHurtAnimation(0);
+        body.getWorld().playSound(body.getLocation(), Sound.ENTITY_PLAYER_HURT, SoundCategory.NEUTRAL, 1, 1);
+    }
+
+    /**
+     * Runs {@code distance} blocks away from {@code from} (the mod: 15 from an attacker, 5 from a hurting block),
+     * trying straight away first, then a little to either side.
+     */
+    void flee(Location from, int distance) {
+        Location at = legs.getLocation();
+        org.bukkit.util.Vector away = at.toVector().subtract(from.toVector()).setY(0);
+        if (away.lengthSquared() < 0.01) away = new org.bukkit.util.Vector(ThreadLocalRandom.current().nextDouble(-1, 1), 0, ThreadLocalRandom.current().nextDouble(-1, 1));
+        away.normalize().multiply(distance);
+        for (double turn : new double[]{0, 0.5, -0.5, 1, -1}) {
+            Block b = at.clone().add(away.clone().rotateAroundY(turn)).getBlock();
+            for (int dy = 4; dy >= -4; dy--) {
+                Block s = b.getRelative(0, dy, 0);
+                if (canStandIn(s) && walk(s.getLocation().add(0.5, 0, 0.5))) {
+                    fleeTicks = distance * 10; // about the time it takes to get there
+                    return;
+                }
+            }
+        }
     }
 
     /** Whether the colonist's body is (partly) inside {@code b}; a mob is 0.6 wide, so it can overlap neighbours. */
@@ -493,7 +543,7 @@ final class Colonist {
         int bx = b.getX(), by = b.getY(), bz = b.getZ();
         Route.Goal goal = (x, y, z) -> x == bx && y == by && z == bz;
         Route.Result r = plan(bx, by, bz, goal);
-        if (r == null || !r.reached()) return false;
+        if (r == null || !r.reached() || r.steps().isEmpty()) return false; // no way there, or already there
         follow(r, bx, by, bz, goal);
         return true;
     }
@@ -547,7 +597,7 @@ final class Colonist {
         legs = world.spawn(last, WanderingTrader.class, l -> {
             l.setVisibleByDefault(false);
             l.setSilent(true);
-            l.setInvulnerable(true);
+            l.setInvulnerable(false); // hits on it hurt the citizen (Colony.hurt); the hits themselves are cancelled
             l.setCollidable(false);
             l.setPersistent(false); // the colony file is the source of truth, not the world save
             l.setDespawnDelay(0);
@@ -567,7 +617,7 @@ final class Colonist {
             m.setProfile(ResolvableProfile.resolvableProfile().skinPatch(p -> p
                     .body(Key.key("entity/player/" + (slim ? "slim/" : "wide/") + skinName))
                     .model(slim ? SkinModel.SLIM : SkinModel.CLASSIC)).build());
-            m.setInvulnerable(true);
+            m.setInvulnerable(false);
             m.setCollidable(false);
             m.setGravity(false); // position comes from the legs every tick
             m.setPersistent(false);

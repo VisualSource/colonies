@@ -445,11 +445,55 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onExplode(EntityExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null);
+        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onExplode(BlockExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null);
+        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null);
+    }
+
+    /** Hits on a citizen's body or legs hurt the citizen instead (Colony.hurt). */
+    @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
+    public void onDamage(org.bukkit.event.entity.EntityDamageEvent e) {
+        for (Colony c : colonies.values()) {
+            Colonist w = c.colonistOf(e.getEntity());
+            if (w != null) { c.hurt(w, e); return; }
+        }
+    }
+
+    private Colony graveColony(Block b) {
+        for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
+        return null;
+    }
+
+    /** Right-click a grave to take what is in it; breaking it drops everything. */
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOW)
+    public void onGraveClick(PlayerInteractEvent e) {
+        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        Colony c = graveColony(e.getClickedBlock());
+        if (c == null) return;
+        e.setCancelled(true);
+        Grave g = c.graveAt(e.getClickedBlock());
+        if (!e.getPlayer().getUniqueId().equals(c.owner)) {
+            e.getPlayer().sendMessage(Component.text("This grave belongs to someone else's colony.", NamedTextColor.RED));
+            return;
+        }
+        e.getPlayer().openInventory(g.items);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onGraveBreak(BlockBreakEvent e) {
+        Colony c = graveColony(e.getBlock());
+        if (c == null) return;
+        if (!e.getPlayer().getUniqueId().equals(c.owner)) {
+            e.setCancelled(true);
+            e.getPlayer().sendMessage(Component.text("This grave belongs to someone else's colony.", NamedTextColor.RED));
+            return;
+        }
+        Grave g = c.graveAt(e.getBlock());
+        e.setDropItems(false);
+        g.dropAll();
+        c.graves.remove(g);
     }
 }

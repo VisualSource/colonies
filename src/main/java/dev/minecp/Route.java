@@ -43,6 +43,15 @@ final class Route {
     private static final double STEP_UP = 0.6;        // what the legs step up without jumping
     private static final int MAX_NODES = 8000;        // the mod's MAX_NODES
     private static final double HEURISTIC = 2;
+    /** Where a search may start, nearest first: the feet block, a block up or down, then the 8 around at each height. */
+    private static final int[][] START_OFFSETS;
+    static {
+        List<int[]> o = new ArrayList<>();
+        for (int dy : new int[]{0, 1, -1}) o.add(new int[]{0, dy, 0});
+        for (int dy : new int[]{0, 1, -1}) for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++)
+            if (dx != 0 || dz != 0) o.add(new int[]{dx, dy, dz});
+        START_OFFSETS = o.toArray(new int[0][]);
+    }
 
     private static final Set<Material> DANGER = EnumSet.of(Material.FIRE, Material.SOUL_FIRE, Material.LAVA,
             Material.MAGMA_BLOCK, Material.CAMPFIRE, Material.SOUL_CAMPFIRE, Material.SWEET_BERRY_BUSH,
@@ -85,12 +94,12 @@ final class Route {
             minZ = Math.min(minZ, b.getMinZ()); maxZ = Math.max(maxZ, b.getMaxZ());
         }
         boolean wide = maxX - minX >= 0.85 && maxZ - minZ >= 0.85;
-        // Doors, gates and trapdoors: open ones are walked through; closed wooden doors too (Colonist opens them).
+        // Doors, gates and trapdoors: open ones are walked through; closed wooden doors and gates too (Colonist opens them).
         if (d instanceof Door door) {
             boolean wooden = Tag.MOB_INTERACTABLE_DOORS.isTagged(m);
             return new Info(door.isOpen() || wooden, 0, false, false, false, false, !door.isOpen(), false, false);
         }
-        if (d instanceof Gate gate) return new Info(gate.isOpen(), 0, false, false, false, false, false, false, false);
+        if (d instanceof Gate gate) return new Info(true, 0, false, false, false, false, !gate.isOpen(), false, false); // opened on the way
         if (d instanceof TrapDoor t && t.isOpen()) return new Info(true, 0, false, false, false, false, false, false, false);
         if (climb) return new Info(true, 0, false, false, danger, true, false, false, false);
         boolean empty = top == 0;
@@ -145,10 +154,12 @@ final class Route {
     }
 
     private static Result search(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal) {
+        // Where it stands, or (inside a block: a new citizen at its hut block, a chest it was pushed into) the next spot.
         Node start = null;
-        for (int dy : new int[]{0, 1, -1}) {
-            double h = stand(w, sx, sy + dy, sz);
-            if (!Double.isNaN(h)) { start = new Node(sx, sy + dy, sz, h, info(w, sx, sy + dy, sz).climb); break; }
+        for (int[] d : START_OFFSETS) {
+            int x = sx + d[0], y = sy + d[1], z = sz + d[2];
+            double h = stand(w, x, y, z);
+            if (!Double.isNaN(h)) { start = new Node(x, y, z, h, info(w, x, y, z).climb); break; }
         }
         if (start == null) return null;
         int d = Math.abs(gx - sx) + Math.abs(gy - sy) + Math.abs(gz - sz);

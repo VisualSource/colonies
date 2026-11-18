@@ -254,7 +254,8 @@ final class Menus {
         for (Colonist x : c.colonists) {
             String food = x.saturation <= 0 ? ", starving" : x.saturation < Food.LOW_SATURATION ? ", hungry" : "";
             body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : "") + food
-                    + " (food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION + ")")));
+                    + " (health " + (int) Math.ceil(x.health) + "/" + (int) Colonist.MAX_HEALTH
+                    + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION + ")")));
             if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION)
                 body.add(text(Component.text("   " + x.hungerNote, NamedTextColor.YELLOW)));
         }

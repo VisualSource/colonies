@@ -115,6 +115,18 @@ abstract class Job {
         return kind.label + (max == Integer.MAX_VALUE ? "" : " (" + Tool.tierName(max) + " or lower until the hut is upgraded)");
     }
 
+    /** Everything the worker carries, tools included, taken off it (it died: it all goes into its grave). */
+    List<ItemStack> takeCarried() {
+        List<ItemStack> all = new ArrayList<>();
+        carried.forEach((m, n) -> { for (int left = n; left > 0; left -= m.getMaxStackSize()) all.add(new ItemStack(m, Math.min(left, m.getMaxStackSize()))); });
+        carried.clear();
+        all.addAll(tools.values());
+        tools.clear();
+        all.addAll(load);
+        load.clear();
+        return all;
+    }
+
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */
     boolean hasTool(Tool kind, Block block) {
         return fits(kind, tools.get(kind), block);
@@ -127,17 +139,17 @@ abstract class Job {
     boolean fetchTool(Tool kind, Block block) {
         Inventory chest = chest();
         if (chest == null) return false;
-        for (int i = 0; i < chest.getSize(); i++) {
-            ItemStack item = chest.getItem(i);
-            if (!fits(kind, item, block)) continue;
-            ItemStack old = tools.put(kind, item.asOne());
-            item.subtract();
-            chest.setItem(i, item.isEmpty() ? null : item);
-            if (old != null) for (ItemStack overflow : chest.addItem(old).values())
-                hut.block.getWorld().dropItemNaturally(hut.block.getLocation().toCenterLocation(), overflow);
-            return true;
-        }
-        return false;
+        int best = -1; // the mod takes the lowest tier that will do, keeping better tools for harder blocks
+        for (int i = 0; i < chest.getSize(); i++)
+            if (fits(kind, chest.getItem(i), block) && (best < 0 || Tool.tier(chest.getItem(i)) < Tool.tier(chest.getItem(best)))) best = i;
+        if (best < 0) return false;
+        ItemStack item = chest.getItem(best);
+        ItemStack old = tools.put(kind, item.asOne());
+        item.subtract();
+        chest.setItem(best, item.isEmpty() ? null : item);
+        if (old != null) for (ItemStack overflow : chest.addItem(old).values())
+            hut.block.getWorld().dropItemNaturally(hut.block.getLocation().toCenterLocation(), overflow);
+        return true;
     }
 
     /**

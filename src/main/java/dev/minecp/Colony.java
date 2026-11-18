@@ -38,6 +38,7 @@ final class Colony {
     final List<Colonist> colonists = new ArrayList<>();
     final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
     final List<Job> jobs = new ArrayList<>(); // one per worker hut
+    final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
     Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     static final String DEFAULT_STYLE = "medievaloak";
     String style = DEFAULT_STYLE; // structure pack hut buildings come from
@@ -279,10 +280,13 @@ final class Colony {
         if (dayTime && !isDay) day++; // a new colony day each morning, as in the mod
         isDay = dayTime;
         boolean raining = townHall().block.getWorld().hasStorm();
-        for (Colonist c : colonists) {
+        if (growth % 20 == 0) graves.removeIf(g -> !g.decay(20));
+        for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             Job job = jobOf(c);
             hunger(c, job);
+            heal(c);
+            if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
             if (time > NIGHT - 2000 && (c.bedtime || shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
                 c.bedtime = true;
@@ -307,6 +311,92 @@ final class Colony {
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
             }
         }
+    }
+
+    // ---- health and death (the mod's EntityCitizen hurt/die and checkHeal, GraveManager) -----------------------
+
+    private static final int HEAL_TICKS = 100;     // the mod's HEAL_CITIZENS_AFTER
+    private static final double MAX_HIT = 0.2;     // a hit takes at most this share of max health, as in the mod
+
+    /** Every 5 seconds, unless a mob or player hurt it lately: more when well fed, as the mod's checkHeal. */
+    private void heal(Colonist c) {
+        if (c.hurtTicks > 0) c.hurtTicks--;
+        if (++c.healTicks < HEAL_TICKS) return;
+        c.healTicks = 0;
+        if (c.health >= Colonist.MAX_HEALTH || c.hurtTicks > 0) return;
+        double amount = c.saturation >= Food.MAX_SATURATION ? 2
+                : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : 1;
+        c.health = Math.min(Colonist.MAX_HEALTH, c.health + amount);
+    }
+
+    /** The citizen whose body or legs {@code e} is, or null. */
+    Colonist colonistOf(org.bukkit.entity.Entity e) {
+        for (Colonist c : colonists) if (c.owns(e)) return c;
+        return null;
+    }
+
+    Grave graveAt(Block b) {
+        for (Grave g : graves) if (g.block.equals(b)) return g;
+        return null;
+    }
+
+    /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
+    void hurt(Colonist c, org.bukkit.event.entity.EntityDamageEvent e) {
+        e.setCancelled(true);
+        var cause = e.getCause();
+        if (cause == org.bukkit.event.entity.EntityDamageEvent.DamageCause.SUFFOCATION) { c.hopAside(null); return; } // the mod teleports it out
+        org.bukkit.entity.Entity source = e instanceof org.bukkit.event.entity.EntityDamageByEntityEvent by ? by.getDamager() : null;
+        if (source instanceof org.bukkit.entity.Projectile p && p.getShooter() instanceof org.bukkit.entity.Entity shooter) source = shooter;
+        if (source != null && colonistOf(source) != null) return;
+        // Only the owner hurts its citizens properly (the mod: players need the HURT_CITIZEN permission for more than 1).
+        if (source instanceof Player p && !p.getUniqueId().equals(owner) && e.getDamage() > 1) return;
+        double damage = cause == org.bukkit.event.entity.EntityDamageEvent.DamageCause.VOID || cause == org.bukkit.event.entity.EntityDamageEvent.DamageCause.KILL
+                ? c.health : Math.min(e.getDamage(), Colonist.MAX_HEALTH * MAX_HIT);
+        if (damage <= 0) return;
+        c.health -= damage;
+        c.showHurt();
+        if (c.health <= 0) { die(c, cause, source); return; }
+        if (source instanceof org.bukkit.entity.LivingEntity) {
+            c.hurtTicks = HEAL_TICKS;
+            c.flee(source.getLocation(), 15);
+        } else if (cause != org.bukkit.event.entity.EntityDamageEvent.DamageCause.FALL && c.fleeTicks == 0) c.flee(c.location(), 5);
+    }
+
+    /** The mod's death: a message to the owner, a grave with what it carried, and its job and home freed. */
+    void die(Colonist c, org.bukkit.event.entity.EntityDamageEvent.DamageCause cause, org.bukkit.entity.Entity source) {
+        Job job = jobOf(c);
+        if (c.meal != null) { c.meal.abandon(); c.meal = null; }
+        List<ItemStack> items = job != null ? job.takeCarried() : List.of();
+        Location at = c.location();
+        c.despawn();
+        colonists.remove(c);
+        assignJobs();
+        at.getWorld().playSound(at, org.bukkit.Sound.ENTITY_PLAYER_DEATH, org.bukkit.SoundCategory.NEUTRAL, 1, 1);
+        at.getWorld().spawnParticle(org.bukkit.Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
+        Block spot = Grave.spot(at.getBlock());
+        String where = " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ();
+        if (spot == null) {
+            items.forEach(i -> at.getWorld().dropItemNaturally(at, i));
+            tell(c.name + " " + deathCause(cause, source) + where + ". No grave could be made there.");
+            return;
+        }
+        spot.setType(Grave.BLOCK);
+        graves.add(new Grave(spot, c.name, job != null ? job.hut.type.title.replace("'s Hut", "").replace(" Hut", "") : null, items));
+        tell(c.name + " " + deathCause(cause, source) + where + ". Their grave is at "
+                + spot.getX() + " " + spot.getY() + " " + spot.getZ() + ".");
+    }
+
+    private static String deathCause(org.bukkit.event.entity.EntityDamageEvent.DamageCause cause, org.bukkit.entity.Entity source) {
+        if (source != null) return "was killed by " + (source instanceof Player p ? p.getName() : source.getName());
+        return switch (cause) {
+            case FALL -> "fell to their death";
+            case DROWNING -> "drowned";
+            case LAVA -> "died in lava";
+            case FIRE, FIRE_TICK, CAMPFIRE, HOT_FLOOR -> "burned to death";
+            case STARVATION -> "starved";
+            case VOID -> "fell out of the world";
+            default -> "died";
+        };
     }
 
     // ---- day and night (the mod's CitizenAI, EntityAISleep and CitizenSleepHandler) ----------------------------
@@ -427,6 +517,16 @@ final class Colony {
         s.set("name", name);
         s.set("style", style);
         s.set("day", day);
+        for (int i = 0; i < graves.size(); i++) {
+            Grave g = graves.get(i);
+            var gs = s.createSection("graves." + i);
+            putLocation(gs, "block", g.block.getLocation());
+            gs.set("name", g.name);
+            gs.set("job", g.job);
+            gs.set("timer", g.timer);
+            gs.set("decayed", g.decayed);
+            gs.set("items", java.util.Arrays.stream(g.items.getContents()).filter(java.util.Objects::nonNull).toList());
+        }
         for (int i = 0; i < huts.size(); i++) {
             Hut h = huts.get(i);
             var hs = s.createSection("huts." + i);
@@ -478,6 +578,7 @@ final class Colony {
             putLocation(cs, "location", c.location());
             if (c.home != null) cs.set("home", huts.indexOf(c.home));
             cs.set("saturation", c.saturation);
+            cs.set("health", c.health);
         }
     }
 
@@ -504,6 +605,18 @@ final class Colony {
         colony.huts.addAll(huts.subList(1, huts.size()));
         colony.style = s.getString("style", colony.style);
         colony.day = s.getInt("day");
+        var graveSections = s.getConfigurationSection("graves");
+        if (graveSections != null) for (String i : graveSections.getKeys(false)) {
+            var gs = graveSections.getConfigurationSection(i);
+            Location at = getLocation(gs, "block");
+            if (at == null) continue;
+            List<ItemStack> items = new ArrayList<>();
+            for (Object o : gs.getList("items", List.of())) if (o instanceof ItemStack it) items.add(it);
+            Grave g = new Grave(at.getBlock(), gs.getString("name"), gs.getString("job"), items);
+            g.timer = gs.getInt("timer", Grave.DECAY_TICKS);
+            g.decayed = gs.getBoolean("decayed");
+            colony.graves.add(g);
+        }
 
         var citizens = s.getConfigurationSection("citizens");
         if (citizens != null) for (String id : citizens.getKeys(false)) {
@@ -513,6 +626,7 @@ final class Colony {
             Colonist c = new Colonist(UUID.fromString(id), cs.getString("name"), cs.getInt("skin"), at);
             if (cs.isInt("home")) c.home = colony.hutByIndex(cs.getInt("home"));
             c.saturation = cs.getDouble("saturation", Food.MAX_SATURATION);
+            c.health = cs.getDouble("health", Colonist.MAX_HEALTH);
             colony.colonists.add(c);
         }
 

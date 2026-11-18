@@ -218,7 +218,7 @@ final class Builder extends Job {
         spots.removeIf(s -> s.getLocation().toCenterLocation().distance(at) > LONG_REACH);
         spots.sort(Comparator.comparingDouble(s -> s.getLocation().toCenterLocation().distanceSquared(at)));
         for (int i = 0; i < Math.min(6, spots.size()); i++) { // each try is a path search
-            if (w.walk(spots.get(i).getLocation().add(0.5, 0, 0.5))) {
+            if (w.location().getBlock().equals(spots.get(i)) || w.walk(spots.get(i).getLocation().add(0.5, 0, 0.5))) { // there, or on the way
                 workFrom = spots.get(i);
                 return true;
             }
