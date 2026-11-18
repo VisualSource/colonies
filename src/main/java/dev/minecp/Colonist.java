@@ -17,6 +17,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mannequin;
+import org.bukkit.entity.Pose;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.potion.PotionEffect;
@@ -39,6 +40,7 @@ final class Colonist {
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
     private static final int WANDER_RADIUS = 12;
+    private static final int LADDER_RANGE = 12; // how far around it looks for a ladder to another floor
     private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
     /** Vanilla default skins, shipped with every client, so no resource pack or skin lookups are needed. */
@@ -65,6 +67,8 @@ final class Colonist {
     private Mannequin body;
     private WanderingTrader legs;
     private Location target; // wander destination
+    private Block bed;       // head of the bed it is asleep in
+    boolean bedtime;         // on its way to bed or asleep (the mod keeps a citizen in its sleep state once there)
     private String status = "Unemployed";
     private Location stuckFrom;
     private int stuckTicks = 0;
@@ -91,14 +95,36 @@ final class Colonist {
             if (!entitiesTicking(last)) return false;
             spawn();
         }
+        if (bed != null) { // lying still: keep the body on the bed (respawning resets its pose)
+            if (body.getPose() != Pose.SLEEPING) lieDown();
+            return true;
+        }
         Location to = legs.getLocation();
         Location from = body.getLocation();
         body.teleport(to);
         last = to;
         footsteps(from, to);
         doors(to);
+        ladders(to);
         unstick(to);
         return true;
+    }
+
+    /**
+     * Vanilla paths drop straight down a ladder shaft, but a mob on a ladder brushing the wall climbs back up and
+     * spins at the top. Once it reaches the shaft, put it at the bottom, as the miner does on its ladder.
+     */
+    private void ladders(Location at) {
+        PathResult path = legs.getPathfinder().hasPath() ? legs.getPathfinder().getCurrentPath() : null;
+        Location next = path == null ? null : path.getNextPoint();
+        if (next == null || next.getBlockY() >= at.getBlockY()) return;
+        double dx = next.getBlockX() + 0.5 - at.getX(), dz = next.getBlockZ() + 0.5 - at.getZ();
+        if (dx * dx + dz * dz > 1.2 * 1.2) return; // not at the shaft yet
+        Block bottom = next.getBlock();
+        boolean shaft = false;
+        for (int y = bottom.getY(); y <= at.getBlockY(); y++)
+            shaft |= Tag.CLIMBABLE.isTagged(bottom.getWorld().getBlockAt(bottom.getX(), y, bottom.getZ()).getType());
+        if (shaft) legs.teleport(bottom.getLocation().add(0.5, 0, 0.5)); // keeps its path; it stands on this point now
     }
 
     /** Watchdog: walking but not getting anywhere (trapped by a fence, wedged on a corner) for a while -> hop aside. */
@@ -230,6 +256,57 @@ final class Colonist {
         }
     }
 
+    /** The head half of the bed it sleeps in, or null while awake. */
+    Block bed() {
+        return bed;
+    }
+
+    /** Lies down in the bed whose head half is {@code head}. */
+    void sleepIn(Block head) {
+        bed = head;
+        legs.getPathfinder().stopPathfinding();
+        hold(null);
+        lieDown();
+    }
+
+    private void lieDown() {
+        Location at = bed.getLocation().add(0.5, 0.6875, 0.5); // where vanilla puts a sleeper: on the pillow block
+        legs.teleport(at);
+        body.teleport(at);
+        body.setPose(Pose.SLEEPING, true);
+        // The client lays a sleeper out along its bed only if it knows the bed (yaw alone drifts with the body's
+        // last movement); the API can't set that, so start vanilla sleep on the server entity.
+        sleepHandle("startSleeping", bed);
+        last = at;
+    }
+
+    /**
+     * Calls a vanilla LivingEntity sleep method on the body; it also marks the bed occupied or free.
+     * shortcut: reflection on Mojang-mapped names (Paper's runtime), replace if Paper adds a sleeping-position API.
+     */
+    private void sleepHandle(String method, Block at) {
+        try {
+            Object handle = body.getClass().getMethod("getHandle").invoke(body);
+            if (at == null) { handle.getClass().getMethod(method).invoke(handle); return; }
+            Class<?> pos = Class.forName("net.minecraft.core.BlockPos");
+            handle.getClass().getMethod(method, pos)
+                    .invoke(handle, pos.getConstructor(int.class, int.class, int.class).newInstance(at.getX(), at.getY(), at.getZ()));
+        } catch (ReflectiveOperationException e) {
+            Bukkit.getLogger().warning("[MineCP] can't call " + method + " on a colonist: " + e);
+        }
+    }
+
+    /** Gets up and steps out beside the bed. */
+    void wake() {
+        if (bed == null) return;
+        Block head = bed;
+        bed = null;
+        if (body == null) return;
+        body.setPose(Pose.STANDING, false);
+        sleepHandle("stopSleeping", null);
+        teleportNear(head);
+    }
+
     /** Teleports onto {@code spot} (a block it can stand in). */
     void teleportTo(Block spot) {
         legs.getPathfinder().stopPathfinding();
@@ -259,8 +336,56 @@ final class Colonist {
      */
     void goBeside(Block block) {
         if (walkBeside(block) != null) return;
+        if (viaLadder(block)) return;
         if (approach(block.getLocation().toCenterLocation(), Double.MAX_VALUE)) return;
         teleportNear(block);
+    }
+
+    /**
+     * No vanilla path climbs a ladder, so when {@code target} is on another floor, walks to a ladder on its own
+     * floor and, once there, goes to where that ladder meets the target's floor (as the miner does on its ladder).
+     * @return false if no reachable ladder brings it closer to the target's floor.
+     */
+    private boolean viaLadder(Block target) {
+        Block here = legs.getLocation().getBlock();
+        if (Math.abs(target.getY() - here.getY()) < 2) return false;
+        record Ladder(Block near, Block far) {}
+        List<Ladder> ladders = new ArrayList<>();
+        for (int dx = -LADDER_RANGE; dx <= LADDER_RANGE; dx++) for (int dz = -LADDER_RANGE; dz <= LADDER_RANGE; dz++) {
+            Block col = here.getRelative(dx, 0, dz);
+            int dy = -1; // the shaft passes this floor: a ladder here, or just below (standing at its top)
+            while (dy <= 1 && !Tag.CLIMBABLE.isTagged(col.getRelative(0, dy, 0).getType())) dy++;
+            if (dy > 1) continue;
+            int bottom = col.getY() + dy, top = bottom;
+            while (Tag.CLIMBABLE.isTagged(col.getWorld().getBlockAt(col.getX(), bottom - 1, col.getZ()).getType())) bottom--;
+            while (Tag.CLIMBABLE.isTagged(col.getWorld().getBlockAt(col.getX(), top + 1, col.getZ()).getType())) top++;
+            int farY = Math.clamp(target.getY(), bottom, top + 1);
+            if (Math.abs(farY - target.getY()) >= Math.abs(here.getY() - target.getY())) continue; // gets it no closer
+            Block near = shaftSpot(col.getWorld().getBlockAt(col.getX(), here.getY(), col.getZ()));
+            Block far = shaftSpot(col.getWorld().getBlockAt(col.getX(), farY, col.getZ()));
+            if (near != null && far != null) ladders.add(new Ladder(near, far));
+        }
+        ladders.sort(Comparator.comparingDouble(l -> l.near().getLocation().distanceSquared(here.getLocation())));
+        int tries = 0;
+        for (Ladder l : ladders) {
+            Block n = l.near();
+            if (n.getY() == here.getY() && Math.abs(n.getX() - here.getX()) <= 1 && Math.abs(n.getZ() - here.getZ()) <= 1) {
+                teleportTo(l.far());
+                return true;
+            }
+            if (++tries > 4) break; // each try is a path search
+            if (walk(n.getLocation().add(0.5, 0, 0.5))) return true;
+        }
+        return false;
+    }
+
+    /** Where to stand to use the shaft at {@code at}: on the ladder itself if it stands on something, else beside it. */
+    private static Block shaftSpot(Block at) {
+        if (canStandIn(at)) return at;
+        for (BlockFace f : new BlockFace[]{BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST,
+                BlockFace.NORTH_EAST, BlockFace.SOUTH_EAST, BlockFace.SOUTH_WEST, BlockFace.NORTH_WEST})
+            if (canStandIn(at.getRelative(f))) return at.getRelative(f);
+        return null;
     }
 
     /** Starving citizens walk slowly, as in the mod. */
@@ -410,6 +535,7 @@ final class Colonist {
     void despawn() {
         for (Block b : opened) if (b.getBlockData() instanceof Door d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();
+        if (body != null && bed != null) sleepHandle("stopSleeping", null); // else the bed stays marked occupied
         if (body != null) body.remove();
         if (legs != null) legs.remove();
         body = null;

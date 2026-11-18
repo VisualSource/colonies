@@ -62,6 +62,16 @@ abstract class Job {
     /** One tick of work for the worker, whose entities are spawned. */
     abstract void tick(Colonist w);
 
+    /** Called each tick while work stops (night, rain). @return false while it is still getting out of its work place. */
+    boolean leaveWork(Colonist w) {
+        return true;
+    }
+
+    /** The mod lets only the cook and fully upgraded huts' workers work in the rain. */
+    boolean worksInRain() {
+        return hut.level >= Hut.MAX_LEVEL;
+    }
+
     Inventory chest() {
         return hut.block.getState(false) instanceof Container c ? c.getInventory() : null;
     }

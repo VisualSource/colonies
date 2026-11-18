@@ -164,7 +164,9 @@ final class Menus {
                 hut(player, c, h);
             }));
         if (h.type == Hut.Type.BUILDER && b != null && b.order != null)
-            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c)));
+            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c, h, b.missing())));
+        if (h.type == Hut.Type.MINER && h.level > 0 && c.jobAt(h) instanceof Miner miner)
+            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c, h, miner.missing())));
         if (h.type == Hut.Type.TOWN_HALL)
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
         if (h.block.getState(false) instanceof Container)
@@ -261,19 +263,16 @@ final class Menus {
                 .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
     }
 
-    /** Everything the current build still needs that is not in the hut chest, with item icons. */
-    void materials(Player p, Colony c) {
-        Builder b = c.builder;
-        if (b == null) return;
+    /** What a hut's current work still needs that is not in its chest, with item icons. */
+    void materials(Player p, Colony c, Hut h, Map<ItemStack, Integer> missing) {
         List<DialogBody> body = new ArrayList<>();
-        Map<ItemStack, Integer> missing = b.missing();
         if (missing.isEmpty()) body.add(text(Component.text("Nothing: all materials are in the hut.", NamedTextColor.GREEN)));
         missing.entrySet().stream().sorted(Map.Entry.<ItemStack, Integer>comparingByValue().reversed())
                 .forEach(e -> body.add(DialogBody.item(e.getKey())
                         .description(DialogBody.plainMessage(Component.text(e.getValue() + " × ")
                                 .append(e.getKey().effectiveName()), 250))
                         .showTooltip(true).build()));
-        List<ActionButton> buttons = List.of(button("Back", p, c, b.hut, player -> hut(player, c, b.hut)));
+        List<ActionButton> buttons = List.of(button("Back", p, c, h, player -> hut(player, c, h)));
         show(p, "Materials needed", body, DialogType.multiAction(buttons).columns(1)
                 .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
     }

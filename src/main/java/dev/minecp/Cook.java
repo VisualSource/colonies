@@ -38,6 +38,11 @@ final class Cook extends Job {
     }
 
     @Override
+    boolean worksInRain() {
+        return true; // the mod's cook works indoors
+    }
+
+    @Override
     List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;

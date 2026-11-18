@@ -239,10 +239,22 @@ final class Colony {
                 tell(colonists.getLast().name + " moved into " + name + ".");
             }
         }
+        long time = townHall().block.getWorld().getTime(); // 0..23999
+        boolean dayTime = time <= NIGHT;
+        if (dayTime && !isDay) day++; // a new colony day each morning, as in the mod
+        isDay = dayTime;
+        boolean raining = townHall().block.getWorld().hasStorm();
         for (Colonist c : colonists) {
             if (!c.tick()) continue;
             Job job = jobOf(c);
             hunger(c, job);
+            if (time > NIGHT - 2000 && (c.bedtime || shouldGoSleep(c, job, time))) { // from late evening to dawn
+                if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
+                c.bedtime = true;
+                if (job == null || job.leaveWork(c)) goToBed(c);
+                continue;
+            }
+            if (c.bedtime) { c.bedtime = false; c.wake(); }
             if (c.meal != null) { // eating comes before work
                 if (c.meal.tick(this, job)) {
                     c.hungerNote = c.meal.why;
@@ -251,13 +263,76 @@ final class Colony {
                 }
                 continue;
             }
-            if (job != null) job.tick(c);
+            if (job != null && raining && !job.worksInRain()) { // the mod's workers stay in out of the rain
+                c.setStatus("Rain: off work");
+                if (job.leaveWork(c)) c.wander(homeOf(c).block.getLocation().toCenterLocation());
+            } else if (job != null) job.tick(c);
             else {
                 c.setStatus("Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
             }
         }
     }
+
+    // ---- day and night (the mod's CitizenAI, EntityAISleep and CitizenSleepHandler) ----------------------------
+
+    private static final int NIGHT = 12600;          // day time from which beds can be used
+    private static final double TICKS_PER_BLOCK = 6; // the mod's estimate of walking time home
+    private static final double Y_WEIGHT = 1.5;      // climbing counts for more
+    int day;                  // colony days passed (saved)
+    private boolean isDay = true;
+
+    /** The house it sleeps in, or for the homeless the town hall (the mod: a tavern, else the town hall). */
+    private Hut homeOf(Colonist c) {
+        return c.home != null ? c.home : townHall();
+    }
+
+    /** Whether it must leave now to be home by nightfall, judging by how far it is (the mod's rule). */
+    private boolean shouldGoSleep(Colonist c, Job job, long time) {
+        Location at = c.location(), home = homeOf(c).block.getLocation();
+        double extra = 0;
+        if (job instanceof Miner && job.hut.block.getY() - 20 > at.getBlockY()) { // down the mine: first the way up
+            Location hut = job.hut.block.getLocation();
+            extra = Math.hypot(at.getX() - hut.getX(), at.getZ() - hut.getZ()) + Math.abs(at.getY() - hut.getY()) * 3;
+            at = hut;
+        }
+        double dx = home.getX() - at.getX(), dz = home.getZ() - at.getZ(), dy = (home.getY() - at.getY()) * Y_WEIGHT;
+        double needed = (Math.sqrt(dx * dx + dy * dy + dz * dz) + extra) * TICKS_PER_BLOCK;
+        return NIGHT - time - needed <= 0;
+    }
+
+    /** Walks home and lies down in its bed; the homeless just wait at the town hall. */
+    private void goToBed(Colonist c) {
+        c.setStatus("Sleeping");
+        if (c.bed() != null || c.isMoving()) return;
+        Block bed = bedOf(c);
+        if (bed == null) {
+            Block hall = homeOf(c).block;
+            if (c.location().distance(hall.getLocation()) > 16) c.goBeside(hall); // the mod's "home" range
+            return;
+        }
+        if (c.isBeside(bed)) c.sleepIn(bed);
+        else c.goBeside(bed);
+    }
+
+    /**
+     * The bed of a house resident: the house's beds nearest its hut block first, one per resident in the order they
+     * moved in (the mod assigns registered beds the same way). Only a free head half counts.
+     */
+    private Block bedOf(Colonist c) {
+        if (c.home == null) return null;
+        List<Block> beds = new ArrayList<>();
+        Block hut = c.home.block;
+        for (int dx = -BED_RANGE; dx <= BED_RANGE; dx++) for (int dz = -BED_RANGE; dz <= BED_RANGE; dz++) for (int dy = -4; dy <= 10; dy++) {
+            Block b = hut.getRelative(dx, dy, dz);
+            if (b.getBlockData() instanceof org.bukkit.block.data.type.Bed bd && bd.getPart() == org.bukkit.block.data.type.Bed.Part.HEAD) beds.add(b);
+        }
+        beds.sort(java.util.Comparator.comparingDouble(b -> b.getLocation().distanceSquared(hut.getLocation())));
+        int index = residents(c.home).indexOf(c);
+        return index < beds.size() ? beds.get(index) : null;
+    }
+
+    private static final int BED_RANGE = 8; // shortcut: beds are looked for near the hut block, not by the building's own outline
 
     private static final int HUNGER_TICKS = 20 * 60;          // saturation drops once a minute (as in the mod)
     private static final int FOOD_RETRY_TICKS = 20 * 60 * 5;  // after finding no food, look again in 5 minutes (the mod's wait)
@@ -315,6 +390,7 @@ final class Colony {
     void save(ConfigurationSection s) {
         s.set("name", name);
         s.set("style", style);
+        s.set("day", day);
         for (int i = 0; i < huts.size(); i++) {
             Hut h = huts.get(i);
             var hs = s.createSection("huts." + i);
@@ -324,6 +400,8 @@ final class Colony {
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
+                hs.set("stage", h.stage);
+                hs.set("worked-day", h.workedDay);
             }
         }
         for (int i = 0; i < workOrders.size(); i++) {
@@ -377,11 +455,14 @@ final class Colony {
             h.seed = Material.matchMaterial(hs.getString("seed", ""));
             List<Integer> extent = hs.getIntegerList("extent");
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
+            h.stage = hs.getInt("stage");
+            h.workedDay = hs.getInt("worked-day", -1);
             huts.add(h);
         }
         Colony colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
         colony.huts.addAll(huts.subList(1, huts.size()));
         colony.style = s.getString("style", colony.style);
+        colony.day = s.getInt("day");
 
         var citizens = s.getConfigurationSection("citizens");
         if (citizens != null) for (String id : citizens.getKeys(false)) {

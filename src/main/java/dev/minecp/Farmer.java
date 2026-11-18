@@ -40,12 +40,15 @@ final class Farmer extends Job {
     private static final int DELIVER_AT = 128; // items carried before a trip to the hut
     private static final int SEEDS_PER_TRIP = 64;
 
-    private enum Kind { HARVEST, TILL, PLANT }
+    private enum Kind { TILL, PLANT, HARVEST } // a field's stages, in the order the mod cycles them
     private record Task(Kind kind, Block soil, Material seed) {
         Block crop() { return soil.getRelative(0, 1, 0); }
     }
 
     private final Colony colony;
+    private Hut current;      // the field being worked today
+    private int skipped;      // its stages passed over with nothing to do
+    private boolean didWork;  // whether it did this field's stage
     private int cooldown = 0;
     private boolean delivering;
 
@@ -167,42 +170,58 @@ final class Farmer extends Job {
             return;
         }
 
-        Inventory chest = chest();
-        String why = null;
-        // Only tilling needs a hoe; harvesting and planting go on without one.
-        boolean canTill = hasTool(Tool.HOE, null) || (chest != null && java.util.Arrays.stream(chest.getContents()).anyMatch(i -> Tool.HOE.fits(i, null)));
-        Task best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (Hut field : fields) {
-            Material seed = seedOf(field);
-            if (seed == null) { why = "Choose a crop in each field's menu."; continue; }
-            boolean haveSeeds = carried.getOrDefault(seed, 0) > 0 || (chest != null && chest.contains(seed));
-            if (!haveSeeds) why = "Needs " + name(seed) + " in the hut chest to plant.";
-            int[] e = field.extent;
-            for (int dx = -e[3]; dx <= e[1]; dx++) for (int dz = -e[0]; dz <= e[2]; dz++) {
-                if (dx == 0 && dz == 0) continue; // the field block stands there
-                Block soil = plot(field, dx, dz);
-                if (soil == null) continue;
-                // Stems go in every other column, starting one in from the west edge; the rest stays free for the fruit.
-                boolean free = FRUIT.containsKey(CROPS.get(seed)) && (dx + e[3]) % 2 == 0;
-                Kind kind = work(soil, haveSeeds, free);
-                if (kind == Kind.TILL && !canTill) { why = "Needs a hoe in the hut chest to till new farmland."; continue; }
-                if (kind == null) continue;
-                double d = w.location().distanceSquared(soil.getLocation().add(0.5, 1, 0.5));
-                if (d < bestDistance) { best = new Task(kind, soil, seed); bestDistance = d; }
-            }
+        // One field at a time, one action (till, plant or harvest all of it) per field per colony day, as in the mod.
+        if (current != null && !fields.contains(current)) current = null;
+        if (current == null) {
+            for (Hut f : fields) if (f.workedDay < colony.day && (current == null || f.workedDay < current.workedDay)) current = f;
+            skipped = 0;
+            didWork = false;
         }
-        if (best == null) {
-            if (!carried.isEmpty()) { delivering = true; return; } // done for now: drop off the harvest
-            idle(w, why != null ? why : "Waiting for the crops to grow.");
+        if (current == null) {
+            if (!carried.isEmpty()) { delivering = true; return; } // done for the day: drop off the harvest
+            idle(w, "Every field has had its work today.");
             return;
         }
+        Hut field = current;
+        Kind stage = Kind.values()[field.stage % 3];
+        Material seed = seedOf(field);
+        if (seed == null) { idle(w, "Choose a crop in each field's menu."); current = null; field.workedDay = colony.day; return; }
+        Inventory chest = chest();
+        Task best = null;
+        double bestDistance = Double.MAX_VALUE;
+        int[] e = field.extent;
+        for (int dx = -e[3]; dx <= e[1]; dx++) for (int dz = -e[0]; dz <= e[2]; dz++) {
+            if (dx == 0 && dz == 0) continue; // the field block stands there
+            Block soil = plot(field, dx, dz);
+            if (soil == null) continue;
+            // Stems go in every other column, starting one in from the west edge; the rest stays free for the fruit.
+            boolean free = FRUIT.containsKey(CROPS.get(seed)) && (dx + e[3]) % 2 == 0;
+            if (work(soil, free) != stage) continue;
+            double d = w.location().distanceSquared(soil.getLocation().add(0.5, 1, 0.5));
+            if (d < bestDistance) { best = new Task(stage, soil, seed); bestDistance = d; }
+        }
+        if (best == null) { // this stage is done (or had nothing to do): on to the next one
+            field.stage = (field.stage + 1) % 3;
+            if (didWork || ++skipped >= 4) { field.workedDay = colony.day; current = null; } // the mod gives up after 4 empty stages
+            return;
+        }
+        // Only tilling needs a hoe; harvesting and planting go on without one.
+        if (best.kind == Kind.TILL && !hasTool(Tool.HOE, null)
+                && (chest == null || java.util.Arrays.stream(chest.getContents()).noneMatch(i -> Tool.HOE.fits(i, null)))) {
+            idle(w, "Needs a hoe in the hut chest to till new farmland.");
+            return;
+        }
+        if (best.kind != Kind.HARVEST && carried.getOrDefault(seed, 0) <= 0 && (chest == null || !chest.contains(seed))) {
+            idle(w, "Needs " + name(seed) + " in the hut chest to plant.");
+            return;
+        }
+        didWork = true;
         if (best.kind == Kind.TILL && !hasTool(Tool.HOE, null)) { // canTill: the hut chest has one
             if (!atHut(w)) { goToHut(w); return; }
             fetchTool(Tool.HOE, null);
             return;
         }
-        // Fetch seeds from the hut before tilling too, not after the first plot (TILL is only chosen with seeds to plant).
+        // Fetch seeds from the hut before tilling too, not after the first plot.
         if (best.kind != Kind.HARVEST && carried.getOrDefault(best.seed, 0) <= 0) {
             if (!atHut(w)) { goToHut(w); return; }
             int left = chest.removeItem(new ItemStack(best.seed, SEEDS_PER_TRIP)).values().stream().mapToInt(ItemStack::getAmount).sum();
@@ -213,7 +232,7 @@ final class Farmer extends Job {
             carried.merge(best.seed, SEEDS_PER_TRIP - left, Integer::sum);
             return;
         }
-        note = why; // e.g. one field lacks a seed while another is worked
+        note = null;
         w.setStatus("Farmer: working");
         Block crop = best.crop();
         if (w.location().distance(crop.getLocation().toCenterLocation()) > REACH) {
@@ -244,16 +263,16 @@ final class Farmer extends Job {
     }
 
     /**
-     * What a plot needs: harvest a ripe crop or a grown pumpkin or melon, or (with seeds to plant, and unless the plot
-     * is kept {@code free} for fruit) till bare soil and plant farmland.
+     * What a plot needs: harvest a ripe crop or a grown pumpkin or melon, or (unless the plot is kept {@code free} for
+     * fruit) till bare soil and plant farmland.
      */
-    private static Kind work(Block soil, boolean haveSeeds, boolean free) {
+    private static Kind work(Block soil, boolean free) {
         Block above = soil.getRelative(0, 1, 0);
         if (FRUIT.containsValue(above.getType())) return Kind.HARVEST;
         if (FRUIT.containsKey(above.getType())) return null; // a stem: it keeps growing fruit
         if (CROPS.containsValue(above.getType()))
             return above.getBlockData() instanceof Ageable a && a.getAge() >= a.getMaximumAge() ? Kind.HARVEST : null;
-        if (free || !haveSeeds || !(above.isEmpty() || (above.isReplaceable() && !above.isLiquid()))) return null;
+        if (free || !(above.isEmpty() || (above.isReplaceable() && !above.isLiquid()))) return null;
         if (soil.getType() == Material.FARMLAND) return Kind.PLANT;
         return TILLABLE.contains(soil.getType()) ? Kind.TILL : null;
     }

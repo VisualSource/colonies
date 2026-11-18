@@ -43,6 +43,8 @@ final class Hut {
     // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.
     Material seed;
     final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
+    int stage;            // what the farmer does here next: till, plant, harvest (Farmer.Kind order)
+    int workedDay = -1;   // colony day the farmer last worked it (one action a day, as in the mod)
 
     Hut(Type type, Block block, int level) {
         this.type = type;

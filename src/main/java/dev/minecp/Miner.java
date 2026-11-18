@@ -319,6 +319,7 @@ final class Miner extends Job {
             }
             levels.add(level);
             levelTarget = orderDepth - LEVEL_SPACING;
+            updateSign(level);
         } else { // a node: open the nodes its exits lead to
             Level level = levelAt(orderDepth);
             int in = dir(Integer.signum(orderNode.x - orderNode.px), Integer.signum(orderNode.z - orderNode.pz));
@@ -332,9 +333,28 @@ final class Miner extends Job {
                 level.add(new Node(nx, nz, orderNode.x, orderNode.z, s, false));
             }
             orderNode.done = true;
+            if (level != null) updateSign(level);
         }
         order = null;
         orderNode = null;
+    }
+
+    /** Writes the level's number, height and tunnels dug on the sign the level structure comes with, like the mod. */
+    private void updateSign(Level level) {
+        Block c = center(level.depth);
+        long dug = level.nodes.values().stream().filter(n -> n.done && n.style.file != null).count();
+        for (int dx = -4; dx <= 4; dx++) for (int dz = -4; dz <= 4; dz++) for (int dy = 0; dy <= 3; dy++) {
+            if (!(c.getRelative(dx, dy, dz).getState() instanceof org.bukkit.block.Sign sign)) continue;
+            for (var side : org.bukkit.block.sign.Side.values()) {
+                var text = sign.getSide(side);
+                text.line(0, net.kyori.adventure.text.Component.text("Mine level " + (levels.indexOf(level) + 1)));
+                text.line(1, net.kyori.adventure.text.Component.text("Y: " + (level.depth + 1)));
+                text.line(2, net.kyori.adventure.text.Component.text("Tunnels: " + dug));
+                text.line(3, net.kyori.adventure.text.Component.empty());
+            }
+            sign.update(true, false);
+            return;
+        }
     }
 
     // ---- digging, placing, supplies ------------------------------------------------------------------------
@@ -358,18 +378,60 @@ final class Miner extends Job {
         }
         spots.sort(java.util.Comparator.comparingDouble(s -> s.getLocation().distanceSquared(b.getLocation())));
         cooldown = 10;
+        if (!spots.isEmpty() && inMine(w.location().getBlockY()) != inMine(spots.getFirst().getY())) {
+            climb(w, spots.getFirst());
+            return false;
+        }
         // Mine supports and fences make paths that look walkable but aren't: after a few tries, go there directly.
         if (++tries <= 3) for (int i = 0; i < Math.min(3, spots.size()); i++) if (w.walk(spots.get(i).getLocation().add(0.5, 0, 0.5))) return false;
-        if (!spots.isEmpty()) { w.teleportTo(spots.getFirst()); return false; } // "climbs" the ladder
+        if (!spots.isEmpty()) { w.teleportTo(spots.getFirst()); return false; }
         if (w.location().distance(b.getLocation().toCenterLocation()) <= FAR_REACH) return true; // nowhere nearer to stand
         w.goBeside(b);
         return false;
     }
 
-    /** Back to the hut chest: from down the mine that means up the ladder, which it can only do by teleporting. */
+    /** Below the hut, in the shaft or a mine level. */
+    private boolean inMine(int y) {
+        return ladder != null && y < ladder.getY() - 1;
+    }
+
+    /**
+     * Takes the ladder to {@code to}'s side of the hut floor. Our pathing can't climb, so it walks to the ladder,
+     * then moves along the ladder column in one go: to the ladder at {@code to}'s height going down, or to the
+     * floor beside the ladder's top going up. From there it walks on.
+     */
+    private void climb(Colonist w, Block to) {
+        boolean up = !inMine(to.getY());
+        Block foot = up ? ladderAt(w.location().getBlockY()) : top();
+        cooldown = 10;
+        if (!w.isBeside(foot)) { w.goBeside(foot); return; }
+        Block onLadder = ladderAt(to.getY());
+        w.teleportTo(up ? top() : onLadder.isPassable() && onLadder.getRelative(BlockFace.UP).isPassable() ? onLadder : to);
+    }
+
+    /** Where it steps off at the top of the ladder: the nearest spot to stand beside it at the hut floor. */
+    private Block top() {
+        Block best = null;
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = -1; dy <= 2; dy++) {
+            Block s = ladder.getRelative(dx, dy, dz);
+            if (inMine(s.getY()) || (s.getX() == ladder.getX() && s.getZ() == ladder.getZ()) || !Colonist.canStandIn(s)) continue;
+            if (best == null || s.getLocation().distanceSquared(ladder.getLocation()) < best.getLocation().distanceSquared(ladder.getLocation())) best = s;
+        }
+        return best != null ? best : ladder.getRelative(facing.getOppositeFace()).getRelative(BlockFace.UP);
+    }
+
+    /** At night or in the rain: up the ladder before heading home. */
+    @Override
+    boolean leaveWork(Colonist w) {
+        if (!inMine(w.location().getBlockY())) return true;
+        if (--cooldown <= 0 && !w.isMoving()) climb(w, top());
+        return false;
+    }
+
+    /** Back to the hut chest: from down the mine, up the ladder first. */
     @Override
     void goToHut(Colonist w) {
-        if (ladder != null && w.location().getY() < ladder.getY() - 1) { w.teleportNear(hut.block); cooldown = 10; return; }
+        if (inMine(w.location().getBlockY())) { climb(w, top()); return; }
         super.goToHut(w);
     }
 
@@ -445,6 +507,21 @@ final class Miner extends Job {
             if (++total >= CARRY_LIMIT) break;
         }
         return need;
+    }
+
+    /** For the menu: tools, shaft stock and the current level or tunnel's materials that are neither carried nor in the hut chest. */
+    Map<ItemStack, Integer> missing() {
+        Map<ItemStack, Integer> out = new LinkedHashMap<>();
+        if (!hasTool(Tool.PICKAXE, null) && inChest(i -> Tool.PICKAXE.fits(i, null)) == 0) out.put(new ItemStack(Material.WOODEN_PICKAXE), 1);
+        if (!hasTool(Tool.SHOVEL, null) && inChest(i -> Tool.SHOVEL.fits(i, null)) == 0) out.put(new ItemStack(Material.WOODEN_SHOVEL), 1);
+        Map<Material, Integer> need = needs();
+        need.merge(Material.COBBLESTONE, COBBLE_STOCK, Math::max);
+        need.merge(Material.LADDER, LADDER_STOCK, Math::max);
+        need.forEach((m, n) -> {
+            int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
+            if (more > 0) out.put(new ItemStack(m), more);
+        });
+        return out;
     }
 
     private int carriedTotal() {
