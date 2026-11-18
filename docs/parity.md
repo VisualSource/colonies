@@ -46,9 +46,9 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
     - Most buildings: 0 at level 0, 1 at levels 1-3, 2 at levels 4-5
     - Town hall: 0, 1, 1, 2, 3, 5 (levels 0-5)
     - Guard tower: 2, 3, 3, 4, 5 (levels 1-5)
-    - Barracks: 2 at any level, 3 once all its towers are level 4 or higher; barracks towers claim nothing
+    - Barracks (level 1+): 3, or 2 while any of its towers is below level 4; barracks towers claim nothing
     - Gate house: 1, 1, 2 (levels 1-3)
-  - The claimed chunks are the colony border: other players' building and breaking there follow the colony's permissions, and huts and their buildings must be inside it
+  - The claimed chunks are the colony border: other players' building and breaking there follow the colony's permissions, and huts and their buildings must be inside it (not checked in the mod's source yet)
   - Optional server setting: keep the colony's chunks loaded while an owner or officer is near (`forceloadcolony`, with a strictness setting for how many chunks)
   - Stand-in to decide: keep the claimed chunks as a set per colony in the save file, check it in the plugin's block, interact and explosion events, and show the border with particles as the field menu does
   - No permissions for friends (only the owner can use huts)
