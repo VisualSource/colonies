@@ -47,7 +47,7 @@ abstract class Job {
 
     /** A want for one tool of this kind, unless the worker holds one or the chest has one. */
     void wantTool(List<Want> wants, Tool kind) {
-        if (!hasTool(kind, null) && inChest(i -> kind.fits(i, null)) == 0) wants.add(new Want(kind.label, i -> kind.fits(i, null), 1));
+        if (!hasTool(kind, null) && inChest(i -> fits(kind, i, null)) == 0) wants.add(new Want(toolLabel(kind), i -> fits(kind, i, null), 1));
     }
 
     Job(Hut hut) {
@@ -96,9 +96,28 @@ abstract class Job {
         load.clear();
     }
 
+    /**
+     * The best tool tier this hut's worker may use (the mod's getMaxEquipmentLevel): stone up to hut level 1, then the
+     * hut's level, anything at the top level. Better tools stay in the chest: the hut must be upgraded first.
+     */
+    int maxToolTier() {
+        return hut.level >= Hut.MAX_LEVEL ? Integer.MAX_VALUE : Math.max(hut.level, 1);
+    }
+
+    /** Whether {@code item} is a tool of this kind good enough for {@code block} (null: any) that this hut allows. */
+    boolean fits(Tool kind, ItemStack item, Block block) {
+        return kind.fits(item, block) && Tool.tier(item) <= maxToolTier();
+    }
+
+    /** What to ask for: the tool kind and, below the top level, the best tier this hut allows. */
+    String toolLabel(Tool kind) {
+        int max = maxToolTier();
+        return kind.label + (max == Integer.MAX_VALUE ? "" : " (" + Tool.tierName(max) + " or lower until the hut is upgraded)");
+    }
+
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */
     boolean hasTool(Tool kind, Block block) {
-        return kind.fits(tools.get(kind), block);
+        return fits(kind, tools.get(kind), block);
     }
 
     /**
@@ -110,7 +129,7 @@ abstract class Job {
         if (chest == null) return false;
         for (int i = 0; i < chest.getSize(); i++) {
             ItemStack item = chest.getItem(i);
-            if (!kind.fits(item, block)) continue;
+            if (!fits(kind, item, block)) continue;
             ItemStack old = tools.put(kind, item.asOne());
             item.subtract();
             chest.setItem(i, item.isEmpty() ? null : item);

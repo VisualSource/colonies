@@ -27,6 +27,29 @@ enum Tool {
         return null;
     }
 
+    /**
+     * The mod's equipment level of a tool: wood and gold 0, stone 1 (copper too: it mines what stone does; the mod
+     * predates it), iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1.
+     */
+    static int tier(ItemStack tool) {
+        String n = tool.getType().name();
+        int tier = n.startsWith("NETHERITE_") ? 4 : n.startsWith("DIAMOND_") ? 3 : n.startsWith("IRON_") ? 2
+                : n.startsWith("STONE_") || n.startsWith("COPPER_") ? 1 : 0;
+        int enchant = tool.getEnchantments().values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        return tier + Math.max(enchant - 1, 0);
+    }
+
+    /** Names of the tiers a hut allows at most, for the hut menus. */
+    static String tierName(int tier) {
+        return switch (tier) {
+            case 0 -> "wood or gold";
+            case 1 -> "stone";
+            case 2 -> "iron";
+            case 3 -> "diamond";
+            default -> "netherite";
+        };
+    }
+
     /** Whether {@code tool} is this kind and, for {@code block} (null: any), good enough to get its drops. */
     boolean fits(ItemStack tool, Block block) {
         return tool != null && items.isTagged(tool.getType())

@@ -136,7 +136,7 @@ final class Farmer extends Job {
     /** Hoes and a stock of seeds stay; the harvest goes to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        if (Tool.HOE.fits(item, null)) return Integer.MAX_VALUE;
+        if (fits(Tool.HOE, item, null)) return Integer.MAX_VALUE;
         return seeds().contains(item.getType()) ? SEED_STOCK : 0;
     }
 
@@ -207,7 +207,7 @@ final class Farmer extends Job {
         }
         // Only tilling needs a hoe; harvesting and planting go on without one.
         if (best.kind == Kind.TILL && !hasTool(Tool.HOE, null)
-                && (chest == null || java.util.Arrays.stream(chest.getContents()).noneMatch(i -> Tool.HOE.fits(i, null)))) {
+                && (chest == null || java.util.Arrays.stream(chest.getContents()).noneMatch(i -> fits(Tool.HOE, i, null)))) {
             idle(w, "Needs a hoe in the hut chest to till new farmland.");
             return;
         }

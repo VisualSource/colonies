@@ -442,7 +442,7 @@ final class Miner extends Job {
             if (!atHut(w)) { goToHut(w); return; }
             if (!fetchTool(tool, b)) {
                 neededTool = tool;
-                idle(w, "Needs " + tool.label + " good enough for " + b.getType().name().toLowerCase().replace('_', ' ') + " in the hut chest.");
+                idle(w, "Needs " + toolLabel(tool) + " good enough for " + b.getType().name().toLowerCase().replace('_', ' ') + " in the hut chest.");
                 return;
             }
         }
@@ -512,8 +512,8 @@ final class Miner extends Job {
     /** For the menu: tools, shaft stock and the current level or tunnel's materials that are neither carried nor in the hut chest. */
     Map<ItemStack, Integer> missing() {
         Map<ItemStack, Integer> out = new LinkedHashMap<>();
-        if (!hasTool(Tool.PICKAXE, null) && inChest(i -> Tool.PICKAXE.fits(i, null)) == 0) out.put(new ItemStack(Material.WOODEN_PICKAXE), 1);
-        if (!hasTool(Tool.SHOVEL, null) && inChest(i -> Tool.SHOVEL.fits(i, null)) == 0) out.put(new ItemStack(Material.WOODEN_SHOVEL), 1);
+        if (!hasTool(Tool.PICKAXE, null) && inChest(i -> fits(Tool.PICKAXE, i, null)) == 0) out.put(new ItemStack(Material.WOODEN_PICKAXE), 1);
+        if (!hasTool(Tool.SHOVEL, null) && inChest(i -> fits(Tool.SHOVEL, i, null)) == 0) out.put(new ItemStack(Material.WOODEN_SHOVEL), 1);
         Map<Material, Integer> need = needs();
         need.merge(Material.COBBLESTONE, COBBLE_STOCK, Math::max);
         need.merge(Material.LADDER, LADDER_STOCK, Math::max);
@@ -574,14 +574,14 @@ final class Miner extends Job {
         wantTool(wants, Tool.PICKAXE);
         wantTool(wants, Tool.SHOVEL);
         Tool t = neededTool;
-        if (t != null && !hasTool(t, null)) wants.add(new Want(t.label, i -> t.fits(i, null), 1));
+        if (t != null && !hasTool(t, null)) wants.add(new Want(toolLabel(t), i -> fits(t, i, null), 1));
         return wants;
     }
 
     /** Tools, cobblestone, ladders and the current structure's materials stay; the ore and stone go to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        for (Tool t : Tool.values()) if (t.fits(item, null)) return Integer.MAX_VALUE;
+        for (Tool t : Tool.values()) if (fits(t, item, null)) return Integer.MAX_VALUE;
         Material m = item.getType();
         if (m == Material.COBBLESTONE) return COBBLE_STOCK;
         if (m == Material.LADDER) return LADDER_STOCK;

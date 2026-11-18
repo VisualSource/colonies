@@ -176,10 +176,8 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 
 ## Worker huts
 
-- [ ] Tool tiers limited by the worker's own hut level (`IBuilding.getMaxEquipmentLevel`, `ItemStackUtils.verifyEquipmentLevel`); MineCP lets every worker use any tier now
-  - Tool level is the tier's attack bonus: wood and gold 0, stone 1, iron 2, diamond 3, netherite 4
-  - Highest allowed: hut level 0 or 1 stone, 2 iron, 3 diamond, 4 netherite, 5 (max) anything
-  - Enchantments count: the tool's highest enchantment level minus 1 is added (an Efficiency III iron pickaxe counts as 4)
+- [x] Tool tiers limited by the worker's own hut level (`IBuilding.getMaxEquipmentLevel`, `ItemStackUtils.verifyEquipmentLevel`): at most stone up to hut level 1, then the hut's level (iron 2, diamond 3, netherite 4), anything at level 5; a tool's tier is wood/gold 0, stone 1, iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1. Better tools stay in the chest (and couriers may take them away); requests say the best tier allowed
+  - Copper tools (newer than the mod) count as stone
   - The same rule covers every worker's tools and the fisherman's rod; not tied to research or the builder
 
 - [x] House (residence)

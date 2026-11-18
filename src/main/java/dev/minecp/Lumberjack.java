@@ -63,7 +63,7 @@ final class Lumberjack extends Job {
     /** Its tools stay; the wood, saplings and apples go to the warehouse. */
     @Override
     int keep(org.bukkit.inventory.ItemStack item) {
-        return Tool.AXE.fits(item, null) || Tool.HOE.fits(item, null) ? Integer.MAX_VALUE : 0;
+        return fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null) ? Integer.MAX_VALUE : 0;
     }
 
     int radius() {
@@ -168,7 +168,7 @@ final class Lumberjack extends Job {
         if (!atHut(w)) { goToHut(w); return false; }
         for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) fetchTool(t, null);
         List<String> missing = new ArrayList<>();
-        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) missing.add(t.label);
+        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) missing.add(toolLabel(t));
         if (missing.isEmpty()) return true;
         note = "Needs " + String.join(" and ", missing) + " in the hut chest.";
         w.setStatus("Lumberjack: idle");

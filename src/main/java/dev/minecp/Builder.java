@@ -103,14 +103,14 @@ final class Builder extends Job {
         missing().forEach((item, n) -> wants.add(new Want(name(item), item::isSimilar, n)));
         Tool t = neededTool;
         Block b = neededFor;
-        if (t != null) wants.add(new Want(t.label, i -> t.fits(i, b), 1));
+        if (t != null) wants.add(new Want(toolLabel(t), i -> fits(t, i, b), 1));
         return wants;
     }
 
     /** Tools and what the build still needs stay; leftovers and what it dug up go to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        for (Tool t : Tool.values()) if (t.fits(item, null)) return Integer.MAX_VALUE;
+        for (Tool t : Tool.values()) if (fits(t, item, null)) return Integer.MAX_VALUE;
         if (order != null) for (BuildOrder.Step s : order.upcoming()) {
             ItemStack needed = s.item();
             if (needed != null && needed.isSimilar(item.asOne()) && !s.done()) return Integer.MAX_VALUE;
@@ -163,7 +163,7 @@ final class Builder extends Job {
                 neededTool = tool;
                 neededFor = toolFor;
                 w.setStatus("Builder: needs tool");
-                note = "Needs " + tool.label + " good enough for "
+                note = "Needs " + toolLabel(tool) + " good enough for "
                         + step.block().getType().name().toLowerCase().replace('_', ' ') + " in the hut chest.";
                 cooldown = 100;
                 return;
