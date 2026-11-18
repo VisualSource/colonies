@@ -9,6 +9,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -33,19 +34,29 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class MineCP extends JavaPlugin implements Listener {
-    private static final long AUTOSAVE_TICKS = 20 * 60 * 5;
+    // Every colony is saved on this timer: citizens move and get hungry every tick, so a "changed" flag would always be set.
+    private static final long AUTOSAVE_TICKS = 20 * 30;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private static final int HUT_RANGE = 64;
     private NamespacedKey hutKey, tokenKey;
     private final List<NamespacedKey> recipes = new java.util.ArrayList<>();
-    private File dataFile;
-    private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
+    private File colonyDir; // one <owner uuid>.yml per colony; a file that fails to load is left alone
+    private final java.util.Set<UUID> unloaded = new java.util.HashSet<>(); // owners whose file was skipped: no new colony may overwrite it
+    // One thread, so writes and deletes of a colony's file happen in the order they were asked for.
+    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> new Thread(r, "MineCP colony saves"));
     private final Menus menus = new Menus(this);
     private final Placement placement = new Placement(this);
 
@@ -54,19 +65,37 @@ public final class MineCP extends JavaPlugin implements Listener {
         hutKey = new NamespacedKey(this, "hut_item");
         tokenKey = new NamespacedKey(this, "token");
         addRecipes();
-        dataFile = new File(getDataFolder(), "colonies.yml");
-        data = YamlConfiguration.loadConfiguration(dataFile);
-        var section = data.getConfigurationSection("colonies");
-        if (section != null) for (String owner : section.getKeys(false)) {
-            Colony colony = Colony.load(UUID.fromString(owner), section.getConfigurationSection(owner));
-            if (colony == null) getLogger().warning("Colony of " + owner + " is in a world that is not loaded; skipped.");
-            else colonies.put(colony.owner, colony);
+        colonyDir = new File(getDataFolder(), "colonies");
+        colonyDir.mkdirs();
+        File[] files = colonyDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files != null) for (File f : files) {
+            UUID owner;
+            try {
+                owner = UUID.fromString(f.getName().substring(0, f.getName().length() - ".yml".length()));
+            } catch (IllegalArgumentException e) {
+                getLogger().warning("Skipped " + f.getName() + ": the file name isn't a player UUID.");
+                continue;
+            }
+            YamlConfiguration yaml = new YamlConfiguration();
+            try {
+                yaml.load(f);
+            } catch (IOException | InvalidConfigurationException e) {
+                // Not loaded, so never saved over: the file stays as it is for someone to fix.
+                getLogger().severe("Could not load " + f.getName() + "; that colony is skipped and its file left as is: " + e.getMessage());
+                unloaded.add(owner);
+                continue;
+            }
+            Colony colony = Colony.load(owner, yaml);
+            if (colony == null) {
+                getLogger().warning("Colony of " + owner + " is in a world that is not loaded; skipped.");
+                unloaded.add(owner);
+            } else colonies.put(colony.owner, colony);
         }
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tick), 1L, 1L);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
-        getServer().getScheduler().runTaskTimer(this, this::save, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
+        getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
     }
 
     /**
@@ -171,19 +200,58 @@ public final class MineCP extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         placement.endAll();
-        save();
+        saveAll();
+        writer.shutdown(); // runs the queued writes, then stops
+        try {
+            if (!writer.awaitTermination(30, TimeUnit.SECONDS)) getLogger().severe("Colony saves didn't finish within 30 seconds.");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         colonies.values().forEach(Colony::despawn);
     }
 
-    void save() {
-        for (Colony c : colonies.values()) {
-            data.set("colonies." + c.owner, null);
-            c.save(data.createSection("colonies." + c.owner));
-        }
+    void saveAll() {
+        colonies.values().forEach(this::save);
+    }
+
+    /** Saves one colony: its state is read here, on the main thread; the file is written on the writer thread. */
+    void save(Colony c) {
+        if (colonies.get(c.owner) != c) return; // disbanded while one of its menus was still open: don't bring its file back
+        YamlConfiguration yaml = new YamlConfiguration();
+        c.save(yaml);
+        String text = yaml.saveToString();
+        Path file = fileOf(c.owner);
+        writer.execute(() -> write(file, text));
+    }
+
+    /** Removes a disbanded colony's file, after any save of it still waiting. */
+    private void deleteSave(UUID owner) {
+        Path file = fileOf(owner);
+        writer.execute(() -> {
+            try {
+                Files.deleteIfExists(file);
+            } catch (IOException e) {
+                getLogger().severe("Could not delete " + file.getFileName() + ": " + e.getMessage());
+            }
+        });
+    }
+
+    private Path fileOf(UUID owner) {
+        return colonyDir.toPath().resolve(owner + ".yml");
+    }
+
+    /** Writes to a temporary file, then moves it over the old one, so a crash mid-write never leaves half a file. */
+    private void write(Path file, String text) {
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
-            data.save(dataFile);
+            Files.writeString(tmp, text);
+            try {
+                Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
-            getLogger().severe("Could not save colonies: " + e.getMessage());
+            getLogger().severe("Could not save " + file.getFileName() + ": " + e.getMessage());
         }
     }
 
@@ -256,7 +324,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                     return true;
                 }
                 c.builder.start(order, null);
-                save();
+                save(c);
                 player.sendMessage("Build of " + args[1] + " queued (" + order.steps.size() + " blocks). "
                         + "Put materials in the Builder's Hut. Huts are built from their own menus.");
             }
@@ -345,7 +413,8 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** Why {@code p} can't put a {@code type} hut at {@code at}, or null if it can. */
     String placeProblem(Player p, Hut.Type type, Block at) {
         Colony c = colonies.get(p.getUniqueId());
-        if (type == Hut.Type.TOWN_HALL) return c != null ? "You already have a colony." : null;
+        if (type == Hut.Type.TOWN_HALL) return c != null ? "You already have a colony."
+                : unloaded.contains(p.getUniqueId()) ? "Your colony's save couldn't be loaded; ask an admin to check the server log." : null;
         Block th = c == null ? null : c.townHall().block;
         return c == null ? "You need a colony first."
                 : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
@@ -374,7 +443,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         hut.rotation = rotation;
         hut.mirror = mirror;
-        save();
+        save(c);
     }
 
     /** Colonists walk their fields; vanilla would let their jumps trample the farmland. */
@@ -411,7 +480,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 ct.getInventory().clear();
             }
             c.removeHut(hut);
-            save();
+            save(c);
             at.getWorld().dropItemNaturally(at, hutItem(hut.type));
             p.sendMessage(Component.text(hut.type.title + " removed.", NamedTextColor.YELLOW));
             return;
@@ -419,8 +488,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (c.builder != null) c.removeHut(c.builder.hut); // gives back what the builder carries
         c.despawn();
         colonies.remove(c.owner);
-        data.set("colonies." + c.owner, null);
-        save();
+        deleteSave(c.owner);
         at.getWorld().dropItemNaturally(at, hutItem(Hut.Type.TOWN_HALL));
         p.sendMessage(Component.text(c.name + " was disbanded.", NamedTextColor.YELLOW));
     }

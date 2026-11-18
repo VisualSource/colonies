@@ -154,13 +154,13 @@ final class Menus {
             buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, player -> {
                 String problem = c.requestUpgrade(h);
                 if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
-                plugin.save();
+                plugin.save(c);
                 hut(player, c, h);
             }));
         if (up != null)
             buttons.add(button("Cancel upgrade", p, c, h, player -> {
                 c.cancelUpgrade(h);
-                plugin.save();
+                plugin.save(c);
                 hut(player, c, h);
             }));
         if (h.type == Hut.Type.BUILDER && b != null && b.order != null)
@@ -213,7 +213,7 @@ final class Menus {
                 Float v = view.getFloat(SIDES[i].toLowerCase());
                 if (v != null) h.extent[i] = Math.clamp(Math.round(v), 0, Farmer.MAX_EXTENT);
             }
-            plugin.save();
+            plugin.save(c);
             field(player, c, h);
         }));
         p.showDialog(Dialog.create(f -> f.empty()
