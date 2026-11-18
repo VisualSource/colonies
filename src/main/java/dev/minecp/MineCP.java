@@ -267,6 +267,32 @@ public final class MineCP extends JavaPlugin implements Listener {
                         + " (right-click it for the colony menu)");
                 player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
             }
+            case "movement" -> { // testing aid: compare the old and new movement side by side
+                Colony c = colonies.get(player.getUniqueId());
+                if (c == null) {
+                    player.sendMessage("You don't have a colony.");
+                    return true;
+                }
+                if (args.length >= 2) { // /colony movement old|new [citizen name]: no name = everyone
+                    if (!args[1].equals("old") && !args[1].equals("new")) return false;
+                    String who = String.join(" ", List.of(args).subList(2, args.length));
+                    int n = 0;
+                    for (Colonist w : c.colonists) if (who.isEmpty() || w.name.equalsIgnoreCase(who)) {
+                        w.newMovement = args[1].equals("new");
+                        w.stats.teleports = w.stats.stuck = w.stats.searches = 0;
+                        w.stats.searchNanos = 0;
+                        n++;
+                    }
+                    player.sendMessage(n + " citizen(s) now use the " + args[1] + " movement; their counters were reset.");
+                    return true;
+                }
+                for (Colonist w : c.colonists) {
+                    var s = w.stats;
+                    player.sendMessage(w.name + " [" + (w.newMovement ? "new" : "old") + "]: " + s.teleports + " teleports, "
+                            + s.stuck + " stuck, " + s.searches + " path searches"
+                            + (s.searches == 0 ? "" : String.format(" (%.2f ms avg)", s.searchNanos / 1e6 / s.searches)));
+                }
+            }
             default -> { return false; }
         }
         return true;

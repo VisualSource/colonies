@@ -1,5 +1,6 @@
 plugins {
     java
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.24"
     id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
@@ -12,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.3.build.249-stable")
+    paperweight.paperDevBundle("26.3.build.253-stable") // matches the server build; includes the API
 }
 
 tasks.compileJava {

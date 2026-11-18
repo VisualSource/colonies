@@ -8,7 +8,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No citizen skills or levels (in the mod they change work speed and quality)
   - No citizen inventory; workers use a simple carried list
   - No chat interactions or requests above citizens' heads; reasons are shown in the hut menus instead
-  - Ladders: vanilla paths never climb, so citizens walk to a ladder within 12 blocks on their floor and teleport to where it meets the target's floor; with no such ladder, they teleport near the target
+  - Ladders: vanilla paths never climb, so citizens walk to a ladder within 12 blocks on their floor and go to where it meets the target's floor; with no such ladder, they teleport near the target. Old movement teleports along the ladder; new movement (`/colony movement new`, being tested) climbs and slides with vanilla physics. Routes are still vanilla's; our own async pathfinder is next (`docs/research/citizen-movement-system.md`)
 - [~] Hunger and food (saturation numbers from the mod)
   - Work drain assumes the worker is always busy; the mod counts actions
   - No food quality tied to house level

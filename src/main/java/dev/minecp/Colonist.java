@@ -40,6 +40,8 @@ final class Colonist {
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
     private static final int WANDER_RADIUS = 12;
+    private static final int CLIMB_TICKS = 200;     // a ladder climb that takes longer than this has failed
+    private static final double CLIMB_SPEED = 0.4;  // MoveControl speed on and off ladders
     private static final int LADDER_RANGE = 12; // how far around it looks for a ladder to another floor
     private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
@@ -74,6 +76,18 @@ final class Colonist {
     private int stuckTicks = 0;
     private int unstuck = 0; // times the watchdog moved it on during the current walk
     private int wait = 0;
+    boolean newMovement;  // which movement system moves it, set with /colony movement; not saved
+    private Climb climb;
+    private Location approachTo;   // approach(): the target it is closing in on, its best distance so far, and
+    private double approachBest;   // how many partial paths since then got it no closer
+    private int approachFails;  // new movement: on a ladder
+    final Stats stats = new Stats(); // movement counters for /colony movement; not saved
+
+    /** How often moving went wrong, to compare movement systems. */
+    static final class Stats {
+        int teleports, stuck, searches;
+        long searchNanos;
+    }
     private double walked = 0;
     private final List<Block> opened = new ArrayList<>(); // doors it opened, to close behind it
 
@@ -105,9 +119,58 @@ final class Colonist {
         last = to;
         footsteps(from, to);
         doors(to);
-        ladders(to);
+        if (climb != null) climbTick(to);
+        else ladders(to);
         unstick(to);
         return true;
+    }
+
+    /** A ladder climb in progress (new movement): up or down the column at {@code col} to stand on {@code to}. */
+    private record Climb(Block col, Block to, boolean up, int[] ticks) {}
+
+    /** Climbs or slides along a ladder with vanilla physics, then steps off onto {@code to}. */
+    private void startClimb(Block col, Block to) {
+        legs.getPathfinder().stopPathfinding();
+        climb = new Climb(col, to, to.getY() > legs.getLocation().getBlockY(), new int[1]);
+    }
+
+    private void climbTick(Location at) {
+        Climb c = climb;
+        double cx = c.col().getX() + 0.5, cz = c.col().getZ() + 0.5, tx = c.to().getX() + 0.5, tz = c.to().getZ() + 0.5;
+        // Centred: off-centre, the 0.6-wide body overlaps the floor beside the hole and bumps its head on it.
+        boolean inShaft = Math.abs(at.getX() - cx) < 0.15 && Math.abs(at.getZ() - cz) < 0.15;
+        boolean level = c.up() ? at.getY() >= c.to().getY() : at.getY() <= c.to().getY() + 0.05;
+        if (level && Math.abs(at.getX() - tx) < 0.4 && Math.abs(at.getZ() - tz) < 0.4) {
+            climb = null; // off the ladder on the other floor
+            return;
+        }
+        if (++c.ticks()[0] > CLIMB_TICKS) { // physics let it down (open top, no wall): finish as before
+            climb = null;
+            teleportTo(c.to());
+            return;
+        }
+        if (level && c.up()) Nms.drive(legs, tx, c.to().getY(), tz, CLIMB_SPEED); // step off onto the floor
+        else if (level) { // step off the bottom without MoveControl, which would hop on the ladder
+            Nms.halt(legs);
+            legs.setVelocity(new org.bukkit.util.Vector(Math.clamp((tx - at.getX()) * 0.3, -0.15, 0.15),
+                    legs.getVelocity().getY(), Math.clamp((tz - at.getZ()) * 0.3, -0.15, 0.15)));
+        }
+        else if (!c.up() && at.getBlockX() == c.col().getX() && at.getBlockZ() == c.col().getZ()) {
+            // Sliding down: no steering (MoveControl jumps a mob standing in a ladder block), just keep it centred.
+            Nms.halt(legs);
+            legs.setVelocity(new org.bukkit.util.Vector((cx - at.getX()) * 0.3, -0.15, (cz - at.getZ()) * 0.3));
+        }
+        else if (c.up() && at.getY() >= c.to().getY() - 1) { // at the top: over the floor edge, even if it bobs
+            Nms.drive(legs, tx, c.to().getY(), tz, CLIMB_SPEED);
+            Nms.jump(legs);
+        }
+        else if (!inShaft) Nms.drive(legs, cx, c.up() ? at.getY() : c.to().getY(), cz, CLIMB_SPEED); // into the shaft
+        else if (c.up()) { // pushing into the ladder's wall and jumping both make vanilla lift it 0.2 a tick (vines: jump)
+            BlockFace wall = at.getBlock().getBlockData() instanceof org.bukkit.block.data.type.Ladder l ? l.getFacing().getOppositeFace() : null;
+            Nms.drive(legs, cx + (wall == null ? 0 : wall.getModX() * 0.8), at.getY() + 1,
+                    cz + (wall == null ? 0 : wall.getModZ() * 0.8), CLIMB_SPEED);
+            Nms.jump(legs);
+        }
     }
 
     /**
@@ -124,7 +187,9 @@ final class Colonist {
         boolean shaft = false;
         for (int y = bottom.getY(); y <= at.getBlockY(); y++)
             shaft |= Tag.CLIMBABLE.isTagged(bottom.getWorld().getBlockAt(bottom.getX(), y, bottom.getZ()).getType());
-        if (shaft) legs.teleport(bottom.getLocation().add(0.5, 0, 0.5)); // keeps its path; it stands on this point now
+        if (!shaft) return;
+        if (newMovement) startClimb(bottom, bottom); // slides down, then the job asks for a new path
+        else warp(bottom.getLocation().add(0.5, 0, 0.5)); // keeps its path; it stands on this point now
     }
 
     /** Watchdog: walking but not getting anywhere (trapped by a fence, wedged on a corner) for a while -> hop aside. */
@@ -134,13 +199,14 @@ final class Colonist {
             stuckFrom = at;
             stuckTicks = 0;
         } else if (++stuckTicks > STUCK_TICKS) {
+            stats.stuck++;
             // Usually a jump it can't make (e.g. up off a path block): put it where it was going; else just step aside.
             var path = legs.getPathfinder().getCurrentPath();
             Location next = path == null ? null : path.getNextPoint();
             // (Not if that is where it stands already: blocked there, it would be put back on the same spot for ever.)
             // A second time on the same walk, the path itself is no good: drop it and let the job plan a new one.
             if (++unstuck < 2 && next != null && canStandIn(next.getBlock()) && !next.getBlock().equals(at.getBlock()))
-                legs.teleport(next.getBlock().getLocation().add(0.5, 0, 0.5));
+                warp(next.getBlock().getLocation().add(0.5, 0, 0.5));
             else { legs.getPathfinder().stopPathfinding(); hopAside(null); unstuck = 0; }
             stuckFrom = null;
             stuckTicks = 0;
@@ -171,11 +237,12 @@ final class Colonist {
     }
 
     void stopWalking() {
+        climb = null;
         legs.getPathfinder().stopPathfinding();
     }
 
     boolean isMoving() {
-        return legs.getPathfinder().hasPath();
+        return climb != null || legs.getPathfinder().hasPath();
     }
 
     /**
@@ -183,14 +250,20 @@ final class Colonist {
      * @return false if no path gets that close, or it already stands at the closest point.
      */
     boolean approach(Location to, double within) {
-        PathResult path = legs.getPathfinder().findPath(to);
+        // Partial paths can take turns ending in two dead ends near the target (a ledge and the pocket beside it),
+        // each one far enough from the other to pass the check below: give up once they stop getting it closer.
+        double now = legs.getLocation().distance(to);
+        if (!to.equals(approachTo)) { approachTo = to.clone(); approachBest = now; approachFails = 0; }
+        else if (now < approachBest - 0.5) { approachBest = now; approachFails = 0; }
+        else if (++approachFails >= 3) return false;
+        PathResult path = findPath(to);
         Location end = path == null ? null : path.getFinalPoint();
         if (end == null || end.toCenterLocation().distance(to) > within) return false;
         if (end.toCenterLocation().distance(to) < 2) { // the path ends in the block's own spot: stop short, beside it
             Location stop = null;
             for (Location p : path.getPoints()) if (p.toCenterLocation().distance(to) >= 2) stop = p;
             if (stop == null) return false; // already beside it
-            path = legs.getPathfinder().findPath(stop.toCenterLocation());
+            path = findPath(stop.toCenterLocation());
             if (path == null || !path.canReachFinalPoint()) return false;
             end = stop;
         }
@@ -243,7 +316,7 @@ final class Colonist {
         }
         if (best == null) { climbOut(); return; }
         legs.getPathfinder().stopPathfinding();
-        legs.teleport(best.getLocation().add(0.5, 0, 0.5));
+        warp(best.getLocation().add(0.5, 0, 0.5));
     }
 
     /** Moves straight up onto the first free spot in this column. */
@@ -251,7 +324,7 @@ final class Colonist {
         Block b = legs.getLocation().getBlock();
         for (int dy = 1; dy <= 16; dy++) if (canStandIn(b.getRelative(0, dy, 0))) {
             legs.getPathfinder().stopPathfinding();
-            legs.teleport(b.getRelative(0, dy, 0).getLocation().add(0.5, 0, 0.5));
+            warp(b.getRelative(0, dy, 0).getLocation().add(0.5, 0, 0.5));
             return;
         }
     }
@@ -274,26 +347,8 @@ final class Colonist {
         legs.teleport(at);
         body.teleport(at);
         body.setPose(Pose.SLEEPING, true);
-        // The client lays a sleeper out along its bed only if it knows the bed (yaw alone drifts with the body's
-        // last movement); the API can't set that, so start vanilla sleep on the server entity.
-        sleepHandle("startSleeping", bed);
+        Nms.sleep(body, bed); // the client lays the body along the bed only if it knows it (yaw alone drifts)
         last = at;
-    }
-
-    /**
-     * Calls a vanilla LivingEntity sleep method on the body; it also marks the bed occupied or free.
-     * shortcut: reflection on Mojang-mapped names (Paper's runtime), replace if Paper adds a sleeping-position API.
-     */
-    private void sleepHandle(String method, Block at) {
-        try {
-            Object handle = body.getClass().getMethod("getHandle").invoke(body);
-            if (at == null) { handle.getClass().getMethod(method).invoke(handle); return; }
-            Class<?> pos = Class.forName("net.minecraft.core.BlockPos");
-            handle.getClass().getMethod(method, pos)
-                    .invoke(handle, pos.getConstructor(int.class, int.class, int.class).newInstance(at.getX(), at.getY(), at.getZ()));
-        } catch (ReflectiveOperationException e) {
-            Bukkit.getLogger().warning("[MineCP] can't call " + method + " on a colonist: " + e);
-        }
     }
 
     /** Gets up and steps out beside the bed. */
@@ -303,14 +358,14 @@ final class Colonist {
         bed = null;
         if (body == null) return;
         body.setPose(Pose.STANDING, false);
-        sleepHandle("stopSleeping", null);
+        Nms.wake(body);
         teleportNear(head);
     }
 
     /** Teleports onto {@code spot} (a block it can stand in). */
     void teleportTo(Block spot) {
         legs.getPathfinder().stopPathfinding();
-        legs.teleport(spot.getLocation().add(0.5, 0, 0.5));
+        warp(spot.getLocation().add(0.5, 0, 0.5));
     }
 
     /** Teleports onto a free spot near {@code block}, for when nothing walkable leads there. */
@@ -320,7 +375,7 @@ final class Colonist {
             for (BlockFace f : SIDES) if (canStandIn(block.getRelative(f).getRelative(0, dy, 0))) spots.add(block.getRelative(f).getRelative(0, dy, 0));
         if (spots.isEmpty()) return;
         legs.getPathfinder().stopPathfinding();
-        legs.teleport(spots.getFirst().getLocation().add(0.5, 0, 0.5));
+        warp(spots.getFirst().getLocation().add(0.5, 0, 0.5));
     }
 
     /** Whether it stands on a spot {@link #walkBeside} would walk to for {@code block} (up to 2 out, 2 below to 1 above). */
@@ -349,7 +404,7 @@ final class Colonist {
     private boolean viaLadder(Block target) {
         Block here = legs.getLocation().getBlock();
         if (Math.abs(target.getY() - here.getY()) < 2) return false;
-        record Ladder(Block near, Block far) {}
+        record Ladder(Block col, Block near, Block far) {}
         List<Ladder> ladders = new ArrayList<>();
         for (int dx = -LADDER_RANGE; dx <= LADDER_RANGE; dx++) for (int dz = -LADDER_RANGE; dz <= LADDER_RANGE; dz++) {
             Block col = here.getRelative(dx, 0, dz);
@@ -363,14 +418,15 @@ final class Colonist {
             if (Math.abs(farY - target.getY()) >= Math.abs(here.getY() - target.getY())) continue; // gets it no closer
             Block near = shaftSpot(col.getWorld().getBlockAt(col.getX(), here.getY(), col.getZ()));
             Block far = shaftSpot(col.getWorld().getBlockAt(col.getX(), farY, col.getZ()));
-            if (near != null && far != null) ladders.add(new Ladder(near, far));
+            if (near != null && far != null) ladders.add(new Ladder(col, near, far));
         }
         ladders.sort(Comparator.comparingDouble(l -> l.near().getLocation().distanceSquared(here.getLocation())));
         int tries = 0;
         for (Ladder l : ladders) {
             Block n = l.near();
-            if (n.getY() == here.getY() && Math.abs(n.getX() - here.getX()) <= 1 && Math.abs(n.getZ() - here.getZ()) <= 1) {
-                teleportTo(l.far());
+            if (n.equals(here)) { // on the spot itself: from a neighbouring block a fence or corner can be in the way
+                if (newMovement) startClimb(l.col(), l.far());
+                else teleportTo(l.far());
                 return true;
             }
             if (++tries > 4) break; // each try is a path search
@@ -379,12 +435,13 @@ final class Colonist {
         return false;
     }
 
-    /** Where to stand to use the shaft at {@code at}: on the ladder itself if it stands on something, else beside it. */
+    /**
+     * Where to stand to use the shaft at {@code at}: on the ladder itself if it stands on something, else right beside
+     * it (not diagonally: the climb steers straight between the two, and a corner block or fence would be in the way).
+     */
     private static Block shaftSpot(Block at) {
         if (canStandIn(at)) return at;
-        for (BlockFace f : new BlockFace[]{BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST,
-                BlockFace.NORTH_EAST, BlockFace.SOUTH_EAST, BlockFace.SOUTH_WEST, BlockFace.NORTH_WEST})
-            if (canStandIn(at.getRelative(f))) return at.getRelative(f);
+        for (BlockFace f : SIDES) if (canStandIn(at.getRelative(f))) return at.getRelative(f);
         return null;
     }
 
@@ -464,9 +521,23 @@ final class Colonist {
         return null;
     }
 
+    /** Teleports the legs while walking (not into bed): counted, it's what better movement should make rare. */
+    private void warp(Location to) {
+        stats.teleports++;
+        legs.teleport(to);
+    }
+
+    private PathResult findPath(Location to) {
+        long t = System.nanoTime();
+        PathResult path = legs.getPathfinder().findPath(to);
+        stats.searches++;
+        stats.searchNanos += System.nanoTime() - t;
+        return path;
+    }
+
     /** Vanilla returns partial paths that stop short of unreachable targets; treat those as no path. */
     private PathResult reachablePath(Location to) {
-        PathResult path = legs.getPathfinder().findPath(to);
+        PathResult path = findPath(to);
         return path != null && path.canReachFinalPoint() ? path : null;
     }
 
@@ -535,7 +606,7 @@ final class Colonist {
     void despawn() {
         for (Block b : opened) if (b.getBlockData() instanceof Door d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();
-        if (body != null && bed != null) sleepHandle("stopSleeping", null); // else the bed stays marked occupied
+        if (body != null && bed != null) Nms.wake(body); // else the bed stays marked occupied
         if (body != null) body.remove();
         if (legs != null) legs.remove();
         body = null;
