@@ -1,5 +1,7 @@
 package dev.minecp;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.SoundCategory;
@@ -35,7 +37,6 @@ final class Miner extends Job {
     private static final int COBBLE_STOCK = 64, LADDER_STOCK = 16; // ours: the mod requests 32 cobblestone and 10 ladders at a time
     private static final int DELIVER_AT = 256;
     private static final int HUT_RANGE = 12;
-    private static final int CARRY_LIMIT = 27 * 64; // a citizen's 27-slot inventory, as in the mod
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
     /** Node shapes, with their structure and their exits relative to the way in (0 straight on, 1 and 3 the sides). */
@@ -87,7 +88,6 @@ final class Miner extends Job {
     private int orderDepth;
     private Tool neededTool;
     private boolean delivering;
-    private int cooldown = 0;
 
     private final Colony colony;
 
@@ -153,9 +153,31 @@ final class Miner extends Job {
         return Math.max(ladder.getWorld().getMinHeight() + 5, y);
     }
 
-    /** For the menu: {lowest ladder y, depth limit}, or null before the ladder is found. */
-    int[] depth() {
-        return ladder == null ? null : new int[]{lastLadder(), depthLimit()};
+    /** For the menu: how deep the shaft goes and how deep this hut level lets it go. */
+    record Depth(int shaft, int limit) {}
+
+    /** Null before the ladder is found. */
+    Depth depth() {
+        return ladder == null ? null : new Depth(lastLadder(), depthLimit());
+    }
+
+    @Override
+    List<Component> info(Colony c) {
+        if (hut.level == 0) return List.of(Component.text("The miner starts once level 1 is built.", NamedTextColor.GRAY));
+        Depth d = depth();
+        return List.of(
+                Component.text(d == null ? "Digs a shaft down from the ladder in the hut, then tunnels."
+                        : "Shaft down to y " + d.shaft() + "; this hut level allows y " + d.limit() + ". Mine levels: " + levels.size()
+                        + (d.shaft() < d.limit() ? ". Tunnelling on the deepest level." : ". Digging the shaft.")
+                        + " Upgrade the hut to go deeper.", NamedTextColor.GRAY),
+                Component.text("Needs a pickaxe and a shovel, cobblestone and ladders for the shaft, and for the tunnel supports: "
+                        + "oak planks, logs, wood, slabs, stairs and fences, torches, plus a fence gate and a sign for each mine level.",
+                        NamedTextColor.GRAY));
+    }
+
+    @Override
+    Map<ItemStack, Integer> materials() {
+        return hut.level > 0 ? missing() : null;
     }
 
     // ---- the work ----------------------------------------------------------------------------------------
@@ -173,12 +195,12 @@ final class Miner extends Job {
             w.stopWalking();
         }
         if (ladder == null || ladder.getType() != Material.LADDER) {
-            if (!findLadder()) { idle(w, "No ladder found in the Miner's Hut building."); return; }
+            if (!findLadder()) { idle(w, "No ladder found in the Miner's Hut building.", 100, null); return; }
         }
         if (delivering || carriedTotal() >= DELIVER_AT && loot() >= DELIVER_AT) {
             delivering = true;
             if (!atHut(w)) { w.setStatus("Miner: working"); goToHut(w); return; }
-            if (!deliverLoot()) { idle(w, "The hut chest is full."); return; }
+            if (!deliverLoot()) { idle(w, "The hut chest is full.", 100, null); return; }
             delivering = false;
         }
         w.setStatus("Miner: working");
@@ -257,7 +279,7 @@ final class Miner extends Job {
             if (n.done || n.style.file == null) continue;
             if (next == null || dist(n, c) < dist(next, c)) next = n;
         }
-        if (next == null) { idle(w, "No more tunnels to dig on this level (water or lava in the way)."); return; }
+        if (next == null) { idle(w, "No more tunnels to dig on this level (water or lava in the way).", 100, null); return; }
         order = centered(next.style.file, c.getWorld().getBlockAt(next.x, level.depth, next.z), 3, rotation(next));
         orderNode = next;
         orderDepth = level.depth;
@@ -395,7 +417,7 @@ final class Miner extends Job {
             if (!atHut(w)) { goToHut(w); return; }
             if (!fetchTool(tool, b)) {
                 neededTool = tool;
-                idle(w, "Needs " + toolLabel(tool) + " good enough for " + b.getType().name().toLowerCase().replace('_', ' ') + " in the hut chest.");
+                idle(w, "Needs " + toolLabel(tool) + " good enough for " + name(b.getType()) + " in the hut chest.", 100, null);
                 return;
             }
         }
@@ -430,7 +452,7 @@ final class Miner extends Job {
         Inventory chest = chest();
         int left = chest == null ? stock : chest.removeItem(new ItemStack(m, stock)).values().stream().mapToInt(ItemStack::getAmount).sum();
         if (left < stock) { carried.merge(m, stock - left, Integer::sum); return true; }
-        idle(w, "Needs " + m.name().toLowerCase().replace('_', ' ') + " in the hut chest.");
+        idle(w, "Needs " + name(m) + " in the hut chest.", 100, null);
         return false;
     }
 
@@ -446,22 +468,13 @@ final class Miner extends Job {
             if (want - left > 0) carried.merge(mat, want - left, Integer::sum);
         });
         if (carried.getOrDefault(m, 0) > 0) return true;
-        idle(w, "Needs " + m.name().toLowerCase().replace('_', ' ') + " in the hut chest.");
+        idle(w, "Needs " + name(m) + " in the hut chest.", 100, null);
         return false;
     }
 
     /** What the level or node being built still needs to place, up to a full load. */
     private Map<Material, Integer> needs() {
-        Map<Material, Integer> need = new LinkedHashMap<>();
-        if (order == null) return need;
-        int total = 0;
-        for (BuildOrder.Step s : order.upcoming()) {
-            Material m = s.cost();
-            if (m == null || s.done()) continue;
-            need.merge(m, 1, Integer::sum);
-            if (++total >= CARRY_LIMIT) break;
-        }
-        return need;
+        return nextLoad(order, BuildOrder.Step::cost);
     }
 
     /** For the menu: tools, shaft stock and the current level or tunnel's materials that are neither carried nor in the hut chest. */
@@ -524,11 +537,6 @@ final class Miner extends Job {
         return m.name().endsWith("_ORE") || m == Material.ANCIENT_DEBRIS;
     }
 
-    private void idle(Colonist w, String why) {
-        note = why;
-        w.setStatus("Miner: idle");
-        cooldown = 100;
-    }
 
     // ---- couriers ------------------------------------------------------------------------------------------
 
@@ -542,7 +550,7 @@ final class Miner extends Job {
         if (ladders < LADDER_STOCK / 2) wants.add(new Want("ladders", i -> i.getType() == Material.LADDER, LADDER_STOCK - ladders));
         needs().forEach((m, n) -> {
             int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
-            if (more > 0) wants.add(new Want(m.name().toLowerCase().replace('_', ' '), i -> i.getType() == m, more));
+            if (more > 0) wants.add(new Want(name(m), i -> i.getType() == m, more));
         });
         wantTool(wants, Tool.PICKAXE);
         wantTool(wants, Tool.SHOVEL);
@@ -563,7 +571,10 @@ final class Miner extends Job {
 
     // ---- saving --------------------------------------------------------------------------------------------
 
-    void save(ConfigurationSection s) {
+    @Override
+    void save(ConfigurationSection js, Colony c) {
+        super.save(js, c);
+        var s = js.createSection("mine");
         s.set("level-target", levelTarget);
         for (int i = 0; i < levels.size(); i++) {
             Level l = levels.get(i);
@@ -573,7 +584,11 @@ final class Miner extends Job {
         }
     }
 
-    void load(ConfigurationSection s) {
+    @Override
+    void load(ConfigurationSection js, Colony c) {
+        super.load(js, c);
+        var s = js.getConfigurationSection("mine");
+        if (s == null) return;
         levelTarget = s.getInt("level-target", Integer.MIN_VALUE);
         var ls = s.getConfigurationSection("levels");
         if (ls != null) for (String i : ls.getKeys(false)) {

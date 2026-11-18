@@ -108,10 +108,12 @@ final class Warehouse {
         return left;
     }
 
-    /** {used, total} slots, for the menu. */
-    int[] slots() {
+    /** Slots used and in all, for the menu. */
+    record Slots(int used, int total) {}
+
+    Slots slots() {
         int used = 0, total = 0;
         for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) { total++; if (i != null && !i.isEmpty()) used++; }
-        return new int[]{used, total};
+        return new Slots(used, total);
     }
 }

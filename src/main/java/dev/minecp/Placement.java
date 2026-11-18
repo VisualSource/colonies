@@ -1,13 +1,8 @@
 package dev.minecp;
 
-import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.block.Block;
@@ -31,7 +26,6 @@ import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,8 +45,6 @@ final class Placement implements Listener {
     private static final StructureRotation[] TURNS = {StructureRotation.NONE, StructureRotation.CLOCKWISE_90,
             StructureRotation.CLOCKWISE_180, StructureRotation.COUNTERCLOCKWISE_90};
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
-    private static final ClickCallback.Options ONCE = ClickCallback.Options.builder()
-            .uses(1).lifetime(Duration.ofMinutes(10)).build();
 
     private static final class Session {
         final Hut.Type type;
@@ -78,7 +70,7 @@ final class Placement implements Listener {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND || !plugin.isToken(e.getItem())) return;
+        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isToken(e.getItem())) return;
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK && e.getAction() != Action.RIGHT_CLICK_AIR) return;
         e.setCancelled(true);
         Player p = e.getPlayer();
@@ -111,7 +103,7 @@ final class Placement implements Listener {
             if (!type.isBuilding()) continue;
             int have = 0;
             for (ItemStack it : p.getInventory().getContents())
-                if (it != null && plugin.hutType(it) == type) have += it.getAmount();
+                if (it != null && plugin.items.hutType(it) == type) have += it.getAmount();
             if (have == 0 && !creative) continue;
             buttons.add(button(type.title + (creative ? "" : " (" + have + ")"), p, null, player -> start(player, type, anchor)));
         }
@@ -207,7 +199,7 @@ final class Placement implements Listener {
             problem = "Clear the block at the hut spot first.";
         int slot = -1;
         var inv = p.getInventory();
-        for (int i = 0; i < inv.getSize() && slot < 0; i++) if (inv.getItem(i) != null && plugin.hutType(inv.getItem(i)) == s.type) slot = i;
+        for (int i = 0; i < inv.getSize() && slot < 0; i++) if (inv.getItem(i) != null && plugin.items.hutType(inv.getItem(i)) == s.type) slot = i;
         if (problem == null && slot < 0 && p.getGameMode() != GameMode.CREATIVE) problem = "You no longer carry a " + s.type.title + ".";
         BuildOrder o = problem == null ? order(s) : null;
         if (problem == null && o == null) problem = "No structure for the " + s.type.title + ".";
@@ -239,24 +231,17 @@ final class Placement implements Listener {
         if (s != null) s.shown.forEach(org.bukkit.entity.Entity::remove);
     }
 
-    /** A button for {@code shownTo} only, run on the main thread while that placement is still the open one. */
+    /** A button for {@code shownTo} only, run while that placement is still the open one. */
     private ActionButton button(String label, Player shownTo, Session s, Consumer<Player> action) {
-        return ActionButton.builder(Component.text(label)).width(150).action(DialogAction.customClick((view, audience) -> {
-            if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (s == null || sessions.get(player.getUniqueId()) == s) action.accept(player);
-            });
-        }, ONCE)).build();
+        return Dialogs.button(plugin, label, 150, shownTo, () -> s == null || sessions.get(shownTo.getUniqueId()) == s,
+                (player, view) -> action.accept(player));
     }
 
     private static DialogBody text(String s) {
-        return DialogBody.plainMessage(Component.text(s), 300);
+        return Dialogs.text(Component.text(s));
     }
 
     private static void show(Player p, String title, List<DialogBody> body, List<ActionButton> buttons) {
-        p.showDialog(Dialog.create(f -> f.empty()
-                .base(DialogBase.builder(Component.text(title)).body(body).build())
-                .type(DialogType.multiAction(buttons).columns(2)
-                        .exitAction(ActionButton.builder(Component.text("Close")).build()).build())));
+        Dialogs.show(p, title, body, List.of(), buttons, 2);
     }
 }

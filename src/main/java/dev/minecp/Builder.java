@@ -1,11 +1,14 @@
 package dev.minecp;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -21,15 +24,13 @@ import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
 final class Builder extends Job {
-    // Ours, not the mod's, except CARRY_LIMIT:
+    // Ours, not the mod's:
     private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
-    private static final int CARRY_LIMIT = 27 * 64; // items fetched per trip: a citizen's 27-slot inventory, as in the mod
 
     BuildOrder order;
     Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
-    private int cooldown = 0;
     private Block workFrom; // ground spot it is working from
     private Tool neededTool; // a tool it is waiting for, for couriers
     private Block neededFor;
@@ -57,7 +58,21 @@ final class Builder extends Job {
         needed = null;
     }
 
-    int racks; // Storage Racks carried (kept apart from plain chests in {@link #carried}); saved with the colony
+    /** Storage Racks carried: in {@link #load}, as whole items, so they are never mixed up with plain chests. */
+    private int racks() {
+        int n = 0;
+        for (ItemStack i : load) if (Rack.is(i)) n += i.getAmount();
+        return n;
+    }
+
+    private void addRacks(int n) {
+        for (; n > 0; n -= 64) load.add(Rack.item().asQuantity(Math.min(n, 64)));
+    }
+
+    private void useRack() {
+        for (ItemStack i : load) if (Rack.is(i)) { i.subtract(); break; }
+        load.removeIf(ItemStack::isEmpty);
+    }
 
     /**
      * Items the rest of the build needs that are neither carried nor in the hut chest, as one-item stacks (a plain
@@ -92,34 +107,54 @@ final class Builder extends Job {
 
     /** How many of this build item it carries. */
     private int carrying(ItemStack item) {
-        return Rack.is(item) ? racks : carried.getOrDefault(item.getType(), 0);
+        return Rack.is(item) ? racks() : carried.getOrDefault(item.getType(), 0);
     }
 
     private static String name(ItemStack item) {
-        return Rack.is(item) ? "storage racks" : item.getType().name().toLowerCase().replace('_', ' ');
+        return Rack.is(item) ? "storage racks" : Job.name(item.getType());
     }
 
     @Override
-    boolean deliver() {
-        Inventory chest = chest();
-        if (chest != null && racks > 0)
-            racks = chest.addItem(Rack.item().asQuantity(racks)).values().stream().mapToInt(ItemStack::getAmount).sum();
-        return super.deliver() && racks == 0;
+    List<Component> info(Colony c) {
+        List<Component> lines = new ArrayList<>();
+        if (order == null) return lines;
+        if (work == null) lines.add(Component.text("Building " + order.structure + "."));
+        int kinds = missing().size();
+        lines.add(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
+                : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED));
+        return lines;
     }
 
     @Override
-    void dropCarried() {
-        Location at = hut.block.getLocation().toCenterLocation();
-        for (; racks > 0; racks--) at.getWorld().dropItemNaturally(at, Rack.item());
-        super.dropCarried();
+    Map<ItemStack, Integer> materials() {
+        return order != null ? missing() : null;
     }
 
     @Override
-    List<ItemStack> takeCarried() {
-        List<ItemStack> all = super.takeCarried();
-        if (racks > 0) all.add(Rack.item().asQuantity(racks)); // the grave's addItem splits it into stacks
-        racks = 0;
-        return all;
+    void save(ConfigurationSection s, Colony c) {
+        super.save(s, c);
+        if (order == null) return;
+        s.set("order.structure", order.structure);
+        s.set("order.rotation", order.rotation.name());
+        s.set("order.mirror", order.mirror);
+        ColonyStore.putLocation(s, "order.origin", order.origin);
+        if (work != null) {
+            s.set("order.hut", c.huts.indexOf(work.hut()));
+            s.set("order.level", work.level());
+        }
+    }
+
+    @Override
+    void load(ConfigurationSection s, Colony c) {
+        super.load(s, c);
+        Location origin = ColonyStore.getLocation(s, "order.origin");
+        if (origin == null) return;
+        String structure = s.getString("order.structure");
+        BuildOrder o = BuildOrder.create(structure, origin,
+                org.bukkit.block.structure.StructureRotation.valueOf(s.getString("order.rotation", "NONE")), s.getBoolean("order.mirror"), null); // origin already placed
+        Hut h = c.hutByIndex(s.getInt("order.hut", -1));
+        if (o != null) start(o, h != null ? new Hut.WorkOrder(h, s.getInt("order.level")) : null);
+        else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of " + c.name + " dropped.");
     }
 
     @Override
@@ -185,7 +220,7 @@ final class Builder extends Job {
                 neededFor = toolFor;
                 w.setStatus("Builder: needs tool");
                 note = "Needs " + toolLabel(tool) + " good enough for "
-                        + step.block().getType().name().toLowerCase().replace('_', ' ') + " in the hut chest.";
+                        + Job.name(step.block().getType()) + " in the hut chest.";
                 cooldown = 100;
                 return;
             }
@@ -296,7 +331,7 @@ final class Builder extends Job {
             b.setBlockData(step.data(), false); // no physics: blocks are placed out of support order
             if (step.rack()) Rack.tag(b); // the builder places the block, not the structure's chest data
             if (cost != null) { // used up
-                if (step.rack()) racks--;
+                if (step.rack()) useRack();
                 else carried.merge(cost, -1, Integer::sum);
             }
             var sounds = step.data().getSoundGroup();
@@ -307,20 +342,13 @@ final class Builder extends Job {
 
     /** Takes what the next steps need from the chest, up to {@link #CARRY_LIMIT} items. */
     private void restock(Inventory chest) {
-        Map<ItemStack, Integer> want = new java.util.LinkedHashMap<>();
-        int total = 0;
-        for (BuildOrder.Step s : order.upcoming()) {
-            ItemStack item = s.item();
-            if (item == null || s.done()) continue;
-            want.merge(item, 1, Integer::sum);
-            if (++total >= CARRY_LIMIT) break;
-        }
+        Map<ItemStack, Integer> want = nextLoad(order, BuildOrder.Step::item);
         want.forEach((item, n) -> {
             int missing = n - carrying(item);
             if (missing <= 0) return;
             // removeItem matches whole items, so plain chests are never taken for racks or the other way round
             int left = chest.removeItem(item.asQuantity(missing)).values().stream().mapToInt(ItemStack::getAmount).sum();
-            if (Rack.is(item)) racks += missing - left;
+            if (Rack.is(item)) addRacks(missing - left);
             else carried.merge(item.getType(), missing - left, Integer::sum);
         });
     }

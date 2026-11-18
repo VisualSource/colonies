@@ -1,5 +1,7 @@
 package dev.minecp;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.HeightMap;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -42,7 +44,6 @@ final class Lumberjack extends Job {
     private int next;             // index into logs, then into leaves
     private boolean onLeaves;
     private final Set<Block> unreachable = new HashSet<>();
-    private int cooldown = 0;
 
     Lumberjack(Hut hut) {
         super(hut);
@@ -65,6 +66,12 @@ final class Lumberjack extends Job {
     @Override
     int keep(org.bukkit.inventory.ItemStack item) {
         return fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null) ? Integer.MAX_VALUE : 0;
+    }
+
+    @Override
+    List<Component> info(Colony c) {
+        return List.of(Component.text(hut.level == 0 ? "The lumberjack starts once level 1 is built."
+                : "Cuts natural trees within " + radius() + " blocks and replants them.", NamedTextColor.GRAY));
     }
 
     int radius() {
@@ -194,7 +201,7 @@ final class Lumberjack extends Job {
         for (Block log : logs) {
             if (!log.isEmpty() || !Tag.DIRT.isTagged(log.getRelative(0, -1, 0).getType())) continue;
             if (carried.getOrDefault(sapling, 0) <= 0) {
-                note = "No " + sapling.name().toLowerCase().replace('_', ' ') + " dropped to replant the last tree.";
+                note = "No " + name(sapling) + " dropped to replant the last tree.";
                 return;
             }
             carried.merge(sapling, -1, Integer::sum);

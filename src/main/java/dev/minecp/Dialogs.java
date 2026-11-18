@@ -1,0 +1,53 @@
+package dev.minecp;
+
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.dialog.DialogResponseView;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import io.papermc.paper.registry.data.dialog.body.DialogBody;
+import io.papermc.paper.registry.data.dialog.input.DialogInput;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickCallback;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
+
+/** Dialog screens (vanilla client, Minecraft 1.21.6+): the pieces the hut menus and the build tool share. */
+final class Dialogs {
+    private static final ClickCallback.Options ONCE = ClickCallback.Options.builder()
+            .uses(1).lifetime(Duration.ofMinutes(10)).build();
+
+    private Dialogs() {}
+
+    static DialogBody text(Component c) {
+        return DialogBody.plainMessage(c, 300);
+    }
+
+    /**
+     * A button whose action runs on the main thread, only for the player it was shown to, and only while
+     * {@code stillValid} holds (the hut may be gone, or another placement started, while the dialog was open).
+     */
+    static ActionButton button(Plugin plugin, String label, int width, Player shownTo, BooleanSupplier stillValid,
+                               BiConsumer<Player, DialogResponseView> action) {
+        return ActionButton.builder(Component.text(label)).width(width).action(DialogAction.customClick((view, audience) -> {
+            if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (stillValid.getAsBoolean()) action.accept(player, view);
+            });
+        }, ONCE)).build();
+    }
+
+    /** Shows a dialog of text, optional inputs and buttons, with a Close button. */
+    static void show(Player p, String title, List<DialogBody> body, List<DialogInput> inputs, List<ActionButton> buttons, int columns) {
+        p.showDialog(Dialog.create(f -> f.empty()
+                .base(DialogBase.builder(Component.text(title)).body(body).inputs(inputs).build())
+                .type(DialogType.multiAction(buttons).columns(columns)
+                        .exitAction(ActionButton.builder(Component.text("Close")).build()).build())));
+    }
+}

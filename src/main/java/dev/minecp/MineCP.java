@@ -3,97 +3,51 @@ package dev.minecp;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.block.structure.StructureRotation;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.event.inventory.CraftItemEvent;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.inventory.CraftingInventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.RecipeChoice;
-import org.bukkit.inventory.ShapedRecipe;
-import org.bukkit.inventory.recipe.CraftingBookCategory;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
+/** The plugin: colonies by owner, their ticks and saves, and the world events on their huts, graves and citizens. */
 public final class MineCP extends JavaPlugin implements Listener {
     // Every colony is saved on this timer: citizens move and get hungry every tick, so a "changed" flag would always be set.
     private static final long AUTOSAVE_TICKS = 20 * 30;
-    private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private static final int HUT_RANGE = 64;
-    private NamespacedKey hutKey, tokenKey;
-    private final List<NamespacedKey> recipes = new java.util.ArrayList<>();
-    private File colonyDir; // one <owner uuid>.yml per colony; a file that fails to load is left alone
-    private final java.util.Set<UUID> tickFailed = new java.util.HashSet<>();
-    private final java.util.Set<UUID> unloaded = new java.util.HashSet<>(); // owners whose file was skipped: no new colony may overwrite it
-    // One thread, so writes and deletes of a colony's file happen in the order they were asked for.
-    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> new Thread(r, "MineCP colony saves"));
+    private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
+    private final Set<UUID> tickFailed = new HashSet<>();
+    final Items items = new Items(this);
+    private Saves saves;
     private final Menus menus = new Menus(this);
     private final Placement placement = new Placement(this);
 
     @Override
     public void onEnable() {
-        hutKey = new NamespacedKey(this, "hut_item");
-        tokenKey = new NamespacedKey(this, "token");
-        addRecipes();
-        colonyDir = new File(getDataFolder(), "colonies");
-        colonyDir.mkdirs();
-        File[] files = colonyDir.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files != null) for (File f : files) {
-            UUID owner;
-            try {
-                owner = UUID.fromString(f.getName().substring(0, f.getName().length() - ".yml".length()));
-            } catch (IllegalArgumentException e) {
-                getLogger().warning("Skipped " + f.getName() + ": the file name isn't a player UUID.");
-                continue;
-            }
-            YamlConfiguration yaml = new YamlConfiguration();
-            try {
-                yaml.load(f);
-            } catch (IOException | InvalidConfigurationException e) {
-                // Not loaded, so never saved over: the file stays as it is for someone to fix.
-                getLogger().severe("Could not load " + f.getName() + "; that colony is skipped and its file left as is: " + e.getMessage());
-                unloaded.add(owner);
-                continue;
-            }
-            Colony colony = Colony.load(owner, yaml);
-            if (colony == null) {
-                getLogger().warning("Colony of " + owner + " is in a world that is not loaded; skipped.");
-                unloaded.add(owner);
-            } else colonies.put(colony.owner, colony);
-        }
+        items.addRecipes();
+        saves = new Saves(new File(getDataFolder(), "colonies"), getLogger());
+        saves.loadAll(colonies);
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(items, this);
         getServer().getPluginManager().registerEvents(placement, this);
+        Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this));
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
             try {
                 c.tick();
@@ -105,115 +59,11 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
     }
 
-    /**
-     * Hut recipes in MineColonies' shapes (their gold scepter replaced by our Colony Token). Registered here, not in a
-     * data pack, because only plugin recipes can demand an exact item: an ordinary stick never matches the token.
-     */
-    private void addRecipes() {
-        RecipeChoice token = new RecipeChoice.ExactChoice(tokenItem());
-        Map<Hut.Type, RecipeChoice> middle = Map.of(
-                Hut.Type.TOWN_HALL, token,
-                Hut.Type.BUILDER, new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS),
-                Hut.Type.HOUSE, new RecipeChoice.MaterialChoice(Material.TORCH),
-                Hut.Type.LUMBERJACK, new RecipeChoice.MaterialChoice(Material.WOODEN_AXE),
-                Hut.Type.FARMER, new RecipeChoice.MaterialChoice(Material.WOODEN_HOE),
-                Hut.Type.COOK, new RecipeChoice.MaterialChoice(Material.APPLE),
-                Hut.Type.WAREHOUSE, new RecipeChoice.MaterialChoice(Material.CHEST),
-                Hut.Type.COURIER, new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS),
-                Hut.Type.MINER, new RecipeChoice.MaterialChoice(Material.WOODEN_PICKAXE));
-        middle.forEach((type, centre) -> {
-            NamespacedKey key = new NamespacedKey(this, type.name().toLowerCase());
-            getServer().removeRecipe(key); // a reload would otherwise register it twice
-            ShapedRecipe r = new ShapedRecipe(key, hutItem(type));
-            r.shape("PTP", "PXP", "PPP");
-            r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
-            r.setIngredient('T', token);
-            r.setIngredient('X', centre);
-            r.setCategory(CraftingBookCategory.BUILDING);
-            getServer().addRecipe(r);
-            recipes.add(key);
-        });
-        // MineColonies' storage rack: planks, iron nuggets, and the build tool (our token) in the middle.
-        NamespacedKey rackKey = new NamespacedKey(this, "rack");
-        getServer().removeRecipe(rackKey);
-        ShapedRecipe rack = new ShapedRecipe(rackKey, Rack.item());
-        rack.shape("PPP", "ITI", "PPP");
-        rack.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
-        rack.setIngredient('I', new RecipeChoice.MaterialChoice(Material.IRON_NUGGET));
-        rack.setIngredient('T', token);
-        rack.setCategory(CraftingBookCategory.BUILDING);
-        getServer().addRecipe(rack);
-        recipes.add(rackKey);
-        // The field is MineColonies' scarecrow, whose recipe takes no build tool: hay bale or pumpkin on a stick body.
-        NamespacedKey key = new NamespacedKey(this, "field");
-        getServer().removeRecipe(key);
-        ShapedRecipe field = new ShapedRecipe(key, hutItem(Hut.Type.FIELD));
-        field.shape(" H ", "SLS", " S ");
-        field.setIngredient('H', new RecipeChoice.MaterialChoice(Material.HAY_BLOCK, Material.PUMPKIN));
-        field.setIngredient('S', new RecipeChoice.ExactChoice(new ItemStack(Material.STICK))); // plain sticks, never the token
-        field.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
-        field.setCategory(CraftingBookCategory.BUILDING);
-        getServer().addRecipe(field);
-        recipes.add(key);
-    }
-
-    /** The token every hut recipe needs; made from a stick with /colony token. Like MineColonies' build tool, it is kept. */
-    private ItemStack tokenItem() {
-        ItemStack item = new ItemStack(Material.STICK);
-        item.editMeta(m -> {
-            m.itemName(Component.text("Colony Token", NamedTextColor.GOLD));
-            m.lore(List.of(Component.text("Crafts colony huts; you keep it", NamedTextColor.GRAY)));
-            m.getPersistentDataContainer().set(tokenKey, PersistentDataType.BOOLEAN, true);
-        });
-        return item;
-    }
-
-    boolean isToken(ItemStack item) {
-        return item != null && item.getPersistentDataContainer().has(tokenKey);
-    }
-
-    /** Hut recipes keep their tokens: they go back into the grid (or to the player) after each craft. */
-    @EventHandler(ignoreCancelled = true)
-    public void onCraft(CraftItemEvent e) {
-        if (!(e.getRecipe() instanceof ShapedRecipe r) || !recipes.contains(r.getKey())) return;
-        Player p = (Player) e.getWhoClicked();
-        CraftingInventory grid = e.getInventory();
-        List<Integer> tokenSlots = new java.util.ArrayList<>();
-        ItemStack[] matrix = grid.getMatrix();
-        for (int i = 0; i < matrix.length; i++) if (isToken(matrix[i])) tokenSlots.add(i);
-        if (tokenSlots.isEmpty()) return; // the field: no token to keep
-        if (e.isShiftClick()) { // crafts many at once, and the tokens can't be put back in between
-            e.setCancelled(true);
-            p.sendMessage(Component.text("Take colony huts out one at a time.", NamedTextColor.RED));
-            return;
-        }
-        getServer().getScheduler().runTask(this, () -> { // after vanilla has used up the ingredients
-            boolean open = p.getOpenInventory().getTopInventory().equals(grid);
-            ItemStack[] now = grid.getMatrix();
-            for (int i : tokenSlots) {
-                if (open && (now[i] == null || now[i].isEmpty())) now[i] = tokenItem();
-                else if (open && isToken(now[i])) now[i].add();
-                else p.getInventory().addItem(tokenItem()).values().forEach(o -> p.getWorld().dropItem(p.getLocation(), o));
-            }
-            if (open) grid.setMatrix(now);
-        });
-    }
-
-    @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        e.getPlayer().discoverRecipes(recipes); // show them in the recipe book
-    }
-
     @Override
     public void onDisable() {
         placement.endAll();
         saveAll();
-        writer.shutdown(); // runs the queued writes, then stops
-        try {
-            if (!writer.awaitTermination(30, TimeUnit.SECONDS)) getLogger().severe("Colony saves didn't finish within 30 seconds.");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        saves.finish();
         colonies.values().forEach(Colony::despawn);
     }
 
@@ -221,178 +71,9 @@ public final class MineCP extends JavaPlugin implements Listener {
         colonies.values().forEach(this::save);
     }
 
-    /** Saves one colony: its state is read here, on the main thread; the file is written on the writer thread. */
     void save(Colony c) {
         if (colonies.get(c.owner) != c) return; // disbanded while one of its menus was still open: don't bring its file back
-        YamlConfiguration yaml = new YamlConfiguration();
-        c.save(yaml);
-        String text = yaml.saveToString();
-        Path file = fileOf(c.owner);
-        writer.execute(() -> write(file, text));
-    }
-
-    /** Removes a disbanded colony's file, after any save of it still waiting. */
-    private void deleteSave(UUID owner) {
-        Path file = fileOf(owner);
-        writer.execute(() -> {
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException e) {
-                getLogger().severe("Could not delete " + file.getFileName() + ": " + e.getMessage());
-            }
-        });
-    }
-
-    private Path fileOf(UUID owner) {
-        return colonyDir.toPath().resolve(owner + ".yml");
-    }
-
-    /** Writes to a temporary file, then moves it over the old one, so a crash mid-write never leaves half a file. */
-    private void write(Path file, String text) {
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        try {
-            Files.writeString(tmp, text);
-            try {
-                Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            getLogger().severe("Could not save " + file.getFileName() + ": " + e.getMessage());
-        }
-    }
-
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player) || args.length == 0) return false;
-        switch (args[0]) {
-            case "townhall", "builderhut", "house", "lumberjack", "farmer", "field", "cook", "warehouse", "courier", "miner" -> {
-                if (!player.hasPermission("minecp.admin")) {
-                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
-                    return true;
-                }
-                player.getInventory().addItem(hutItem(switch (args[0]) {
-                    case "townhall" -> Hut.Type.TOWN_HALL;
-                    case "builderhut" -> Hut.Type.BUILDER;
-                    case "lumberjack" -> Hut.Type.LUMBERJACK;
-                    case "farmer" -> Hut.Type.FARMER;
-                    case "field" -> Hut.Type.FIELD;
-                    case "cook" -> Hut.Type.COOK;
-                    case "warehouse" -> Hut.Type.WAREHOUSE;
-                    case "courier" -> Hut.Type.COURIER;
-                    case "miner" -> Hut.Type.MINER;
-                    default -> Hut.Type.HOUSE;
-                }));
-            }
-            case "rack" -> {
-                if (!player.hasPermission("minecp.admin")) {
-                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
-                    return true;
-                }
-                player.getInventory().addItem(Rack.item().asQuantity(16));
-            }
-            case "token" -> {
-                ItemStack hand = player.getInventory().getItemInMainHand();
-                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or tokens already
-                    player.sendMessage(Component.text("Hold a stick to turn it into a Colony Token.", NamedTextColor.RED));
-                    return true;
-                }
-                hand.subtract(); // one is enough: the token is kept when crafting
-                player.getInventory().setItemInMainHand(hand.isEmpty() ? null : hand);
-                player.getInventory().addItem(tokenItem()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
-                player.sendMessage(Component.text("Colony Token made. It's kept when you craft huts.", NamedTextColor.GREEN));
-            }
-            case "build" -> {
-                Colony c = colonies.get(player.getUniqueId());
-                if (c == null || c.builder == null) {
-                    player.sendMessage(Component.text("You need a colony with a Builder's Hut.", NamedTextColor.RED));
-                    return true;
-                }
-                if (args.length != 2) return false;
-                if (args[1].equals("cancel")) {
-                    c.builder.cancel();
-                    player.sendMessage("Build cancelled.");
-                    return true;
-                }
-                if (!player.hasPermission("minecp.admin")) { // any structure anywhere, past protection plugins: a test command
-                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
-                    return true;
-                }
-                if (c.builder.order != null) {
-                    player.sendMessage(Component.text("The builder is busy. Use /colony build cancel first.", NamedTextColor.RED));
-                    return true;
-                }
-                Block target = player.getTargetBlockExact(10);
-                if (target == null) {
-                    player.sendMessage(Component.text("Look at the block to build on.", NamedTextColor.RED));
-                    return true;
-                }
-                BuildOrder order = BuildOrder.create(args[1], target.getRelative(0, 1, 0).getLocation(),
-                        BuildOrder.rotationFor(player.getFacing()), null);
-                if (order == null) {
-                    player.sendMessage(Component.text("No structure named " + args[1]
-                            + ". Save one with a structure block first.", NamedTextColor.RED));
-                    return true;
-                }
-                c.builder.start(order, null);
-                save(c);
-                player.sendMessage("Build of " + args[1] + " queued (" + order.steps.size() + " blocks). "
-                        + "Put materials in the Builder's Hut. Huts are built from their own menus.");
-            }
-            case "info" -> {
-                Colony c = colonies.get(player.getUniqueId());
-                if (c == null) {
-                    player.sendMessage("You don't have a colony. Place a Town Hall to found one.");
-                    return true;
-                }
-                var th = c.townHall().block;
-                player.sendMessage(Component.text(c.name, NamedTextColor.GOLD));
-                player.sendMessage("Town hall: " + th.getX() + " " + th.getY() + " " + th.getZ()
-                        + " (right-click it for the colony menu)");
-                player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
-            }
-            case "movement" -> { // how often each citizen's walking went wrong
-                Colony c = colonies.get(player.getUniqueId());
-                if (c == null) {
-                    player.sendMessage("You don't have a colony.");
-                    return true;
-                }
-                for (Colonist w : c.colonists) {
-                    var s = w.stats;
-                    player.sendMessage(w.name + ": " + s.teleports + " teleports, "
-                            + s.stuck + " stuck, " + s.searches + " path searches"
-                            + (s.searches == 0 ? "" : String.format(" (%.2f ms avg)", s.searchNanos / 1e6 / s.searches)));
-                }
-            }
-            default -> { return false; }
-        }
-        return true;
-    }
-
-    ItemStack hutItem(Hut.Type type) {
-        ItemStack item = new ItemStack(type.block);
-        item.editMeta(m -> {
-            m.itemName(Component.text(type.title, NamedTextColor.GOLD));
-            m.lore(List.of(Component.text(switch (type) {
-                case TOWN_HALL -> "Place to found a colony";
-                case BUILDER -> "Its chest holds building materials";
-                case HOUSE -> "Room for more citizens";
-                case LUMBERJACK -> "A citizen cuts and replants trees nearby";
-                case FARMER -> "A citizen works the colony's fields";
-                case FIELD -> "Marks a farm plot; right-click it to pick the crop and size";
-                case COOK -> "A restaurant: its cook cooks and serves food";
-                case WAREHOUSE -> "The colony's store, which couriers work from";
-                case COURIER -> "A courier carries goods between the warehouse and huts";
-                case MINER -> "A citizen digs a mine below the hut";
-            }, NamedTextColor.GRAY)));
-            m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
-        });
-        return item;
-    }
-
-    Hut.Type hutType(ItemStack item) {
-        String type = item.getPersistentDataContainer().get(hutKey, PersistentDataType.STRING);
-        return type == null ? null : Hut.Type.valueOf(type);
+        saves.save(c);
     }
 
     /** The colony {@code p} owns, or null. */
@@ -406,10 +87,15 @@ public final class MineCP extends JavaPlugin implements Listener {
         return null;
     }
 
+    Colony graveColony(Block b) {
+        for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
+        return null;
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
         if (Rack.is(e.getItemInHand())) { Rack.tag(e.getBlockPlaced()); return; } // item data doesn't carry over to the block
-        Hut.Type type = hutType(e.getItemInHand());
+        Hut.Type type = items.hutType(e.getItemInHand());
         if (type == null) return;
         Player p = e.getPlayer();
         String problem = placeProblem(p, type, e.getBlockPlaced());
@@ -425,11 +111,10 @@ public final class MineCP extends JavaPlugin implements Listener {
     String placeProblem(Player p, Hut.Type type, Block at) {
         Colony c = colonies.get(p.getUniqueId());
         if (type == Hut.Type.TOWN_HALL) return c != null ? "You already have a colony."
-                : unloaded.contains(p.getUniqueId()) ? "Your colony's save couldn't be loaded; ask an admin to check the server log." : null;
+                : saves.isUnloaded(p.getUniqueId()) ? "Your colony's save couldn't be loaded; ask an admin to check the server log." : null;
         Block th = c == null ? null : c.townHall().block;
         return c == null ? "You need a colony first."
-                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
-                : type == Hut.Type.WAREHOUSE && c.hut(Hut.Type.WAREHOUSE) != null ? "Your colony already has a Warehouse."
+                : type.unique && c.hut(type) != null ? "Your colony already has a " + type.title + "."
                 : !th.getWorld().equals(at.getWorld()) || th.getLocation().distance(at.getLocation()) > HUT_RANGE
                         ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
     }
@@ -492,7 +177,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             }
             c.removeHut(hut);
             save(c);
-            at.getWorld().dropItemNaturally(at, hutItem(hut.type));
+            at.getWorld().dropItemNaturally(at, items.hutItem(hut.type));
             p.sendMessage(Component.text(hut.type.title + " removed.", NamedTextColor.YELLOW));
             return;
         }
@@ -500,8 +185,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         c.jobs.forEach(Job::dropCarried); // every worker's load and tools, at its hut
         c.graves.forEach(Grave::dropAll); // grave contents only live in the colony
         colonies.remove(c.owner);
-        deleteSave(c.owner);
-        at.getWorld().dropItemNaturally(at, hutItem(Hut.Type.TOWN_HALL));
+        saves.delete(c.owner);
+        at.getWorld().dropItemNaturally(at, items.hutItem(Hut.Type.TOWN_HALL));
         p.sendMessage(Component.text(c.name + " was disbanded.", NamedTextColor.YELLOW));
     }
 
@@ -509,7 +194,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent e) {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
-        if (isToken(e.getItem())) return; // the build tool (Placement)
+        if (items.isToken(e.getItem())) return; // the build tool (Placement)
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();
@@ -539,13 +224,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (!(e.getEntity() instanceof org.bukkit.entity.Mannequin) && !e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) return;
         for (Colony c : colonies.values()) {
             Colonist w = c.colonistOf(e.getEntity());
-            if (w != null) { c.hurt(w, e); return; }
+            if (w != null) { c.health.hurt(w, e); return; }
         }
-    }
-
-    Colony graveColony(Block b) {
-        for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
-        return null;
     }
 
     /** Right-click a grave to take what is in it; breaking it drops everything. */
