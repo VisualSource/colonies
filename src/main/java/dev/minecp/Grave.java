@@ -58,6 +58,10 @@ final class Grave implements InventoryHolder {
         return false;
     }
 
+    boolean isLoaded() {
+        return block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4);
+    }
+
     void dropAll() {
         Location at = block.getLocation().toCenterLocation();
         for (ItemStack i : items.getContents()) if (i != null) at.getWorld().dropItemNaturally(at, i);

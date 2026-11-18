@@ -54,6 +54,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private NamespacedKey hutKey, tokenKey;
     private final List<NamespacedKey> recipes = new java.util.ArrayList<>();
     private File colonyDir; // one <owner uuid>.yml per colony; a file that fails to load is left alone
+    private final java.util.Set<UUID> tickFailed = new java.util.HashSet<>();
     private final java.util.Set<UUID> unloaded = new java.util.HashSet<>(); // owners whose file was skipped: no new colony may overwrite it
     // One thread, so writes and deletes of a colony's file happen in the order they were asked for.
     private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> new Thread(r, "MineCP colony saves"));
@@ -93,7 +94,13 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(placement, this);
-        getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tick), 1L, 1L);
+        getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
+            try {
+                c.tick();
+            } catch (RuntimeException e) { // one colony's bug must not stop the others; logged once, not every tick
+                if (tickFailed.add(c.owner)) getLogger().log(java.util.logging.Level.SEVERE, "Colony " + c.name + " failed to tick", e);
+            }
+        }), 1L, 1L);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
     }
@@ -307,6 +314,10 @@ public final class MineCP extends JavaPlugin implements Listener {
                     player.sendMessage("Build cancelled.");
                     return true;
                 }
+                if (!player.hasPermission("minecp.admin")) { // any structure anywhere, past protection plugins: a test command
+                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
+                    return true;
+                }
                 if (c.builder.order != null) {
                     player.sendMessage(Component.text("The builder is busy. Use /colony build cancel first.", NamedTextColor.RED));
                     return true;
@@ -485,8 +496,9 @@ public final class MineCP extends JavaPlugin implements Listener {
             p.sendMessage(Component.text(hut.type.title + " removed.", NamedTextColor.YELLOW));
             return;
         }
-        if (c.builder != null) c.removeHut(c.builder.hut); // gives back what the builder carries
-        c.despawn();
+        c.despawn(); // first: serving food and meals go back into their chests
+        c.jobs.forEach(Job::dropCarried); // every worker's load and tools, at its hut
+        c.graves.forEach(Grave::dropAll); // grave contents only live in the colony
         colonies.remove(c.owner);
         deleteSave(c.owner);
         at.getWorld().dropItemNaturally(at, hutItem(Hut.Type.TOWN_HALL));
@@ -524,13 +536,14 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** Hits on a citizen's body or legs hurt the citizen instead (Colony.hurt). */
     @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
     public void onDamage(org.bukkit.event.entity.EntityDamageEvent e) {
+        if (!(e.getEntity() instanceof org.bukkit.entity.Mannequin) && !e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) return;
         for (Colony c : colonies.values()) {
             Colonist w = c.colonistOf(e.getEntity());
             if (w != null) { c.hurt(w, e); return; }
         }
     }
 
-    private Colony graveColony(Block b) {
+    Colony graveColony(Block b) {
         for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
         return null;
     }

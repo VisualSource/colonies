@@ -21,6 +21,7 @@ import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
 final class Builder extends Job {
+    // Ours, not the mod's, except CARRY_LIMIT:
     private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
@@ -47,11 +48,13 @@ final class Builder extends Job {
     void start(BuildOrder o, Hut.WorkOrder w) {
         order = o;
         work = w;
+        needed = null;
     }
 
     void cancel() {
         order = null;
         work = null;
+        needed = null;
     }
 
     int racks; // Storage Racks carried (kept apart from plain chests in {@link #carried}); saved with the colony
@@ -61,16 +64,30 @@ final class Builder extends Job {
      * block, or a Storage Rack for rack spots).
      */
     Map<ItemStack, Integer> missing() {
-        Map<ItemStack, Integer> need = new java.util.LinkedHashMap<>();
-        if (order == null) return need;
-        for (BuildOrder.Step s : order.upcoming()) {
-            ItemStack item = s.item();
-            if (item != null && !s.done() && !protect.test(s.block())) need.merge(item, 1, Integer::sum);
-        }
+        Map<ItemStack, Integer> need = new java.util.LinkedHashMap<>(needed());
         Inventory chest = chest();
         need.replaceAll((item, n) -> n - carrying(item) - (chest == null ? 0 : count(chest, item)));
         need.values().removeIf(n -> n <= 0);
         return need;
+    }
+
+    private Map<ItemStack, Integer> needed;
+    private int neededAt;
+
+    /**
+     * What the rest of the build uses, as one-item stacks with counts. Each scan reads every remaining step's block
+     * and couriers ask once per chest slot, so it is rescanned at most once a second.
+     */
+    private Map<ItemStack, Integer> needed() {
+        int now = Bukkit.getCurrentTick();
+        if (needed != null && now - neededAt < 20) return needed;
+        needed = new java.util.LinkedHashMap<>();
+        neededAt = now;
+        if (order != null) for (BuildOrder.Step s : order.upcoming()) {
+            ItemStack item = s.item();
+            if (item != null && !s.done() && !protect.test(s.block())) needed.merge(item, 1, Integer::sum);
+        }
+        return needed;
     }
 
     /** How many of this build item it carries. */
@@ -98,6 +115,14 @@ final class Builder extends Job {
     }
 
     @Override
+    List<ItemStack> takeCarried() {
+        List<ItemStack> all = super.takeCarried();
+        if (racks > 0) all.add(Rack.item().asQuantity(racks)); // the grave's addItem splits it into stacks
+        racks = 0;
+        return all;
+    }
+
+    @Override
     List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         missing().forEach((item, n) -> wants.add(new Want(name(item), item::isSimilar, n)));
@@ -111,11 +136,7 @@ final class Builder extends Job {
     @Override
     int keep(ItemStack item) {
         for (Tool t : Tool.values()) if (fits(t, item, null)) return Integer.MAX_VALUE;
-        if (order != null) for (BuildOrder.Step s : order.upcoming()) {
-            ItemStack needed = s.item();
-            if (needed != null && needed.isSimilar(item.asOne()) && !s.done()) return Integer.MAX_VALUE;
-        }
-        return 0;
+        return needed().containsKey(item.asOne()) ? Integer.MAX_VALUE : 0;
     }
 
     /** How many of {@code item} (plain blocks, or racks: they don't count for each other) the inventory holds. */
@@ -244,7 +265,9 @@ final class Builder extends Job {
     private Collection<ItemStack> dropsOf(Block b) {
         Tool kind = Tool.forBlock(b.getType(), false);
         ItemStack tool = kind == null ? null : tools.get(kind);
-        return tool == null ? b.getDrops() : b.getDrops(tool);
+        List<ItemStack> drops = new ArrayList<>(tool == null ? b.getDrops() : b.getDrops(tool));
+        drops.addAll(contents(b, false)); // what a chest in the way holds goes to the hut chest too
+        return drops;
     }
 
     /** Whether {@code items} would all fit in {@code chest}, tried on a copy. */
@@ -264,6 +287,7 @@ final class Builder extends Job {
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
         else if (!b.isEmpty()) { // clear whatever is in the way, drops go to the hut
+            store(chest, contents(b, true)); // emptied first, or its contents would be lost
             store(chest, breakWith(Tool.forBlock(b.getType(), false), b, w));
             b.setType(Material.AIR, false);
         }

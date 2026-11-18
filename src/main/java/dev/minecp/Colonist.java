@@ -39,7 +39,7 @@ import java.util.concurrent.ThreadLocalRandom;
 final class Colonist {
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
-    private static final int WANDER_RADIUS = 12;
+    private static final int WANDER_RADIUS = 12;    // ours
     private static final int CLIMB_TICKS = 100;     // a ladder climb taking longer than this, plus 10 a block, has failed
     private static final double CLIMB_SPEED = 0.4;  // MoveControl speed on and off ladders
     private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
@@ -627,7 +627,8 @@ final class Colonist {
     }
 
     void despawn() {
-        for (Block b : opened) if (b.getBlockData() instanceof Door d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
+        for (Block b : opened) // doors and fence gates it opened
+            if (toggles(b) && b.getBlockData() instanceof org.bukkit.block.data.Openable d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();
         if (body != null && bed != null) Nms.wake(body); // else the bed stays marked occupied
         if (body != null) body.remove();

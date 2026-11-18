@@ -14,6 +14,7 @@ import java.util.function.Predicate;
  * barrels don't count).
  */
 final class Warehouse {
+    // Ours, not the mod's (it registers the building's racks from the blueprint):
     private static final int RANGE = 12;              // the buildings are ~25 wide, the hut chest near the middle
     private static final int BELOW = 2, ABOVE = 12;
     private static final int RESCAN_TICKS = 200;
@@ -81,12 +82,20 @@ final class Warehouse {
      */
     static int room(List<ItemStack> load, ItemStack item, int maxStacks) {
         if (maxStacks == Integer.MAX_VALUE) return Integer.MAX_VALUE;
-        int used = 0, same = 0;
-        for (ItemStack l : load) if (l.isSimilar(item)) same += l.getAmount();
+        int same = 0;
         java.util.Map<ItemStack, Integer> kinds = new java.util.HashMap<>();
-        for (ItemStack l : load) if (!l.isSimilar(item)) kinds.merge(l.asOne(), l.getAmount(), Integer::sum);
-        for (var e : kinds.entrySet()) used += (e.getValue() + e.getKey().getMaxStackSize() - 1) / e.getKey().getMaxStackSize();
-        return Math.max(0, (maxStacks - used) * item.getMaxStackSize() - same);
+        for (ItemStack l : load)
+            if (l.isSimilar(item)) same += l.getAmount();
+            else kinds.merge(l.asOne(), l.getAmount(), Integer::sum);
+        List<int[]> others = kinds.entrySet().stream().map(e -> new int[]{e.getValue(), e.getKey().getMaxStackSize()}).toList();
+        return room(others, same, item.getMaxStackSize(), maxStacks);
+    }
+
+    /** The arithmetic of {@link #room}, without items (unit tested): {@code others} holds {amount, stack size} per other kind. */
+    static int room(List<int[]> others, int same, int stackSize, int maxStacks) {
+        int used = 0;
+        for (int[] o : others) used += (o[0] + o[1] - 1) / o[1]; // each kind fills whole stacks of its own size
+        return Math.max(0, (maxStacks - used) * stackSize - same);
     }
 
     /** Stores items. @return what didn't fit. */

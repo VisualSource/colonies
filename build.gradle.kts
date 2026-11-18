@@ -14,10 +14,17 @@ repositories {
 
 dependencies {
     paperweight.paperDevBundle("26.3.build.253-stable") // matches the server build; includes the API
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.compileJava {
     options.release = 25
+}
+
+tasks.test {
+    useJUnitPlatform()
+    workingDir = layout.buildDirectory.dir("test-run").get().asFile.also { it.mkdirs() } // vanilla classes write logs/ here
 }
 
 tasks.runServer {

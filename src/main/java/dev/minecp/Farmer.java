@@ -36,6 +36,7 @@ final class Farmer extends Job {
         return FRUIT.getOrDefault(crop, crop);
     }
     private static final Set<Material> TILLABLE = EnumSet.of(Material.GRASS_BLOCK, Material.DIRT, Material.DIRT_PATH);
+    // Ours, not the mod's:
     private static final double REACH = 4;
     private static final int DELIVER_AT = 128; // items carried before a trip to the hut
     private static final int SEEDS_PER_TRIP = 64;
@@ -118,7 +119,7 @@ final class Farmer extends Job {
         return 1.2;
     }
 
-    private static final int SEED_STOCK = 64; // seeds of each field's crop it keeps in the hut chest
+    private static final int SEED_STOCK = 64; // ours: seeds of each field's crop it keeps in the hut chest
 
     @Override
     List<Want> wants() {

@@ -23,7 +23,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * {@link #GROWTH_TICKS} while there is room.
  */
 final class Colony {
-    private static final int STARTING_CITIZENS = 4;
+    private static final int STARTING_CITIZENS = 4; // the mod's initialcitizenamount default
+    // Ours: the mod spawns only the starting citizens on a timer; the rest come from the tavern and children.
     private static final int GROWTH_TICKS = 20 * 120;
     private static final String[] FEMALE = {"Ada", "Cora", "Edda", "Greta", "Ivy", "Lena", "Nell", "Pia", "Rosa",
             "Tilda", "Vera", "Yara"};
@@ -280,7 +281,7 @@ final class Colony {
         if (dayTime && !isDay) day++; // a new colony day each morning, as in the mod
         isDay = dayTime;
         boolean raining = townHall().block.getWorld().hasStorm();
-        if (growth % 20 == 0) graves.removeIf(g -> !g.decay(20));
+        if (growth % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             Job job = jobOf(c);
@@ -356,6 +357,7 @@ final class Colony {
         c.health -= damage;
         c.showHurt();
         if (c.health <= 0) { die(c, cause, source); return; }
+        c.wake(); // vanilla wakes any sleeper that is hurt; it flees first, then goes back to bed
         if (source instanceof org.bukkit.entity.LivingEntity) {
             c.hurtTicks = HEAL_TICKS;
             c.flee(source.getLocation(), 15);
@@ -446,18 +448,26 @@ final class Colony {
      */
     private Block bedOf(Colonist c) {
         if (c.home == null) return null;
-        List<Block> beds = new ArrayList<>();
-        Block hut = c.home.block;
-        for (int dx = -BED_RANGE; dx <= BED_RANGE; dx++) for (int dz = -BED_RANGE; dz <= BED_RANGE; dz++) for (int dy = -4; dy <= 10; dy++) {
-            Block b = hut.getRelative(dx, dy, dz);
-            if (b.getBlockData() instanceof org.bukkit.block.data.type.Bed bd && bd.getPart() == org.bukkit.block.data.type.Bed.Part.HEAD) beds.add(b);
+        Hut house = c.home;
+        int now = Bukkit.getCurrentTick();
+        if (house.beds == null || now - house.bedsAt >= BED_RESCAN_TICKS) { // ~4,300 blocks: not every tick all night
+            List<Block> beds = new ArrayList<>();
+            Block hut = house.block;
+            for (int dx = -BED_RANGE; dx <= BED_RANGE; dx++) for (int dz = -BED_RANGE; dz <= BED_RANGE; dz++) for (int dy = -4; dy <= 10; dy++) {
+                Block b = hut.getRelative(dx, dy, dz);
+                if (b.getBlockData() instanceof org.bukkit.block.data.type.Bed bd && bd.getPart() == org.bukkit.block.data.type.Bed.Part.HEAD) beds.add(b);
+            }
+            beds.sort(java.util.Comparator.comparingDouble(b -> b.getLocation().distanceSquared(hut.getLocation())));
+            house.beds = beds;
+            house.bedsAt = now;
         }
-        beds.sort(java.util.Comparator.comparingDouble(b -> b.getLocation().distanceSquared(hut.getLocation())));
-        int index = residents(c.home).indexOf(c);
-        return index < beds.size() ? beds.get(index) : null;
+        int index = residents(house).indexOf(c);
+        Block bed = index < house.beds.size() ? house.beds.get(index) : null;
+        return bed != null && bed.getBlockData() instanceof org.bukkit.block.data.type.Bed ? bed : null; // broken since the scan
     }
 
     private static final int BED_RANGE = 8; // shortcut: beds are looked for near the hut block, not by the building's own outline
+    private static final int BED_RESCAN_TICKS = 200;
 
     private static final int HUNGER_TICKS = 20 * 60;          // saturation drops once a minute (as in the mod)
     private static final int FOOD_RETRY_TICKS = 20 * 60 * 5;  // after finding no food, look again in 5 minutes (the mod's wait)
@@ -509,6 +519,7 @@ final class Colony {
 
     void despawn() {
         for (Colonist c : colonists) if (c.meal != null) { c.meal.abandon(); c.meal = null; } // food back in its chest
+        for (Job j : jobs) if (j instanceof Cook cook) cook.putBackServing();
         colonists.forEach(Colonist::despawn);
         huts.forEach(Colony::removeTape);
     }

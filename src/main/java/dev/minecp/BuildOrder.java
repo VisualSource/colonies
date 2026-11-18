@@ -207,7 +207,7 @@ final class BuildOrder {
     }
 
     /** A structure position turned (and first mirrored, x flipped, like vanilla's FRONT_BACK) around the corner. */
-    private static BlockVector transform(int x, int y, int z, StructureRotation r, boolean mirror) {
+    static BlockVector transform(int x, int y, int z, StructureRotation r, boolean mirror) {
         return rotate(new BlockVector(mirror ? -x : x, y, z), r);
     }
 

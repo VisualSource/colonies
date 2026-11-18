@@ -203,12 +203,17 @@ final class Placement implements Listener {
     private void confirm(Player p, Session s) {
         String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build." : plugin.placeProblem(p, s.type, s.anchor);
         if (problem == null && plugin.colonyAt(s.anchor) != null) problem = "Another hut is in that spot.";
+        if (problem == null && (plugin.graveColony(s.anchor) != null || !Job.contents(s.anchor, false).isEmpty()))
+            problem = "Clear the block at the hut spot first.";
         int slot = -1;
         var inv = p.getInventory();
         for (int i = 0; i < inv.getSize() && slot < 0; i++) if (inv.getItem(i) != null && plugin.hutType(inv.getItem(i)) == s.type) slot = i;
         if (problem == null && slot < 0 && p.getGameMode() != GameMode.CREATIVE) problem = "You no longer carry a " + s.type.title + ".";
         BuildOrder o = problem == null ? order(s) : null;
         if (problem == null && o == null) problem = "No structure for the " + s.type.title + ".";
+        // Last, so it is only asked when the block really goes: as a player break, so protection plugins can refuse it.
+        if (problem == null && !s.anchor.isEmpty() && !new org.bukkit.event.block.BlockBreakEvent(s.anchor, p).callEvent())
+            problem = "You can't break the block at the hut spot.";
         if (problem != null) {
             p.sendMessage(Component.text(problem, NamedTextColor.RED));
             return; // placement stays open to fix it

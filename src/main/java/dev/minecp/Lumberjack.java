@@ -24,6 +24,7 @@ import java.util.Set;
  * in buildings are left alone.
  */
 final class Lumberjack extends Job {
+    // Ours, not the mod's (its tree detection works differently):
     private static final int MIN_LEAVES = 4;
     private static final int MAX_TREE_LOGS = 200; // more connected logs than this is a build, not a tree
     private static final int MAX_LEAVES = 600;

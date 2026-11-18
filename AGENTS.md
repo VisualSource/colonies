@@ -12,6 +12,7 @@ A Paper 26.3 plugin (plus a data pack of converted structures) that recreates Mi
 ## Working on the code
 
 - Check builds with `./gradlew compileJava`. Don't run `build` or `jar`: the user's `./gradlew runServer` loads `build/libs/minecp-0.1.0.jar`, and overwriting it breaks their running server.
+- Unit tests for code that needs no server (`src/test`): `./gradlew test`. It doesn't touch the jar.
 - For headless tests, pack a separate jar from `build/classes` and `build/resources` into a scratch test server, run with a temporary self-test class behind `-Dminecp.selftest=true`, then remove the test code.
 - Don't write migration code for old saves, items or placed blocks. The plugin is still in development and data is wiped between tests.
 - Structures live in the data pack at `data/minecp/structure/<style>/...`, under the `minecp:` namespace.

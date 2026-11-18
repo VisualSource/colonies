@@ -208,7 +208,8 @@ final class Menus {
 
         List<ActionButton> buttons = List.of(button("Save", p, c, h, (player, view) -> {
             String crop = view.getText("crop");
-            h.seed = crop == null || crop.equals("none") ? null : Material.matchMaterial(crop);
+            Material chosen = crop == null ? null : Material.matchMaterial(crop);
+            h.seed = chosen != null && Farmer.CROPS.containsKey(chosen) ? chosen : null; // a modified client can send any name
             for (int i = 0; i < 4; i++) {
                 Float v = view.getFloat(SIDES[i].toLowerCase());
                 if (v != null) h.extent[i] = Math.clamp(Math.round(v), 0, Farmer.MAX_EXTENT);

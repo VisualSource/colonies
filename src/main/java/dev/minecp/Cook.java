@@ -17,6 +17,7 @@ import java.util.List;
  * furnaces and smokers near the hut cooking the raw food in the chest, with fuel from the chest.
  */
 final class Cook extends Job {
+    // Ours, not the mod's (its cook uses the building's furnaces and the request system):
     private static final int FURNACE_RANGE = 12;  // how far from the hut chest its furnaces may be (the buildings are ~25 wide)
     private static final int FURNACE_HEIGHT = 4;
     private static final int LOAD = 16;           // raw food or fuel put in a furnace at a time
@@ -30,7 +31,7 @@ final class Cook extends Job {
         super(hut);
     }
 
-    private static final int STOCK = 32; // food, raw food and fuel it keeps on hand
+    private static final int STOCK = 32; // ours: food, raw food and fuel it keeps on hand
 
     private static boolean isFuel(ItemStack i) {
         Material m = i.getType();
@@ -159,5 +160,22 @@ final class Cook extends Job {
         serving.forEach(i -> carried.merge(i.getType(), i.getAmount(), Integer::sum));
         serving.clear();
         super.dropCarried();
+    }
+
+    @Override
+    List<ItemStack> takeCarried() {
+        List<ItemStack> all = super.takeCarried();
+        all.addAll(serving);
+        serving.clear();
+        return all;
+    }
+
+    /** Food on its way to a customer goes back in the chest (it isn't saved); what doesn't fit drops at the hut. */
+    void putBackServing() {
+        Inventory chest = chest();
+        var at = hut.block.getLocation().toCenterLocation();
+        for (ItemStack i : serving)
+            for (ItemStack over : chest == null ? List.of(i) : chest.addItem(i).values()) at.getWorld().dropItemNaturally(at, over);
+        serving.clear();
     }
 }

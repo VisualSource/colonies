@@ -27,15 +27,15 @@ import java.util.concurrent.ThreadLocalRandom;
 final class Miner extends Job {
     private static final int SHAFT_RADIUS = 3;     // 7x7 shaft, the ladder on its edge
     private static final int SAFE_RANGE = 5;       // the floor under each new shaft layer is made solid 11x11
-    private static final int NODE_DISTANCE = 7;
-    private static final int LEVEL_SPACING = 6;
-    private static final int[] MINING_LEVELS = {48, 16, -16, -100}; // each hut level reaches the next of these (copper, iron, gold, diamond)
+    private static final int NODE_DISTANCE = 7;    // the mod's
+    private static final int LEVEL_SPACING = 6;    // ours: the mod's spacing comes from its shaft and level pieces (not checked)
+    private static final int[] MINING_LEVELS = {48, 16, -16, -100}; // the mod's: each hut level reaches the next (copper, iron, gold, diamond)
     private static final int REACH = 6;            // the first layer under the shaft room is only 1 high: work from the room's hole
     private static final int FAR_REACH = 8;        // if there is nowhere to stand nearer
-    private static final int COBBLE_STOCK = 64, LADDER_STOCK = 16;
+    private static final int COBBLE_STOCK = 64, LADDER_STOCK = 16; // ours: the mod requests 32 cobblestone and 10 ladders at a time
     private static final int DELIVER_AT = 256;
     private static final int HUT_RANGE = 12;
-    private static final int CARRY_LIMIT = 27 * 64;
+    private static final int CARRY_LIMIT = 27 * 64; // a citizen's 27-slot inventory, as in the mod
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
     /** Node shapes, with their structure and their exits relative to the way in (0 straight on, 1 and 3 the sides). */
@@ -401,6 +401,8 @@ final class Miner extends Job {
         }
         if (!near(w, b)) return;
         neededTool = null;
+        // A chest in the way spills what it holds, as when a player breaks it (its items can't go in the miner's carried counts).
+        for (ItemStack i : contents(b, true)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
         for (ItemStack drop : breakWith(tool, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
         var data = b.getBlockData();
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);

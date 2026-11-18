@@ -1,0 +1,48 @@
+package dev.minecp;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import org.bukkit.block.structure.StructureRotation;
+import org.bukkit.util.BlockVector;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/** The pure maths that is easy to get off by one; runs without a server. */
+class MathTest {
+    @Test
+    void transformMatchesVanillaStructurePlacement() {
+        int[][] points = {{0, 0, 0}, {3, 1, 0}, {0, 2, 5}, {4, 0, -2}, {-3, 7, 6}};
+        for (StructureRotation r : StructureRotation.values())
+            for (boolean mirror : new boolean[]{false, true})
+                for (int[] p : points) {
+                    BlockPos want = StructureTemplate.transform(new BlockPos(p[0], p[1], p[2]),
+                            mirror ? Mirror.FRONT_BACK : Mirror.NONE, Rotation.valueOf(r.name()), BlockPos.ZERO);
+                    BlockVector got = BuildOrder.transform(p[0], p[1], p[2], r, mirror);
+                    String at = r + (mirror ? " mirrored " : " ") + java.util.Arrays.toString(p);
+                    assertEquals(want.getX(), got.getBlockX(), at + " x");
+                    assertEquals(want.getY(), got.getBlockY(), at + " y");
+                    assertEquals(want.getZ(), got.getBlockZ(), at + " z");
+                }
+    }
+
+    @Test
+    void roomCountsWholeStacksPerKind() {
+        // Empty load: the full allowance of the item's own stack size.
+        assertEquals(128, Warehouse.room(List.of(), 0, 64, 2));
+        // 10 planks already loaded, 1 stack allowed: 54 more planks.
+        assertEquals(54, Warehouse.room(List.of(), 10, 64, 1));
+        // A hoe (stack size 1) takes a whole stack: 2 stacks allowed leaves one stack of planks.
+        assertEquals(64, Warehouse.room(List.<int[]>of(new int[]{1, 1}), 0, 64, 2));
+        // 65 cobblestone fill 2 stacks, 2 hoes 2 more: 4 used of 4, no room left.
+        assertEquals(0, Warehouse.room(List.of(new int[]{65, 64}, new int[]{2, 1}), 0, 64, 4));
+        // Never negative, even over the allowance.
+        assertEquals(0, Warehouse.room(List.<int[]>of(new int[]{200, 64}), 30, 64, 2));
+        // 17 ender pearls (stack size 16) fill 2 stacks: 1 of 3 left, minus the 5 snowballs (16) already loaded.
+        assertEquals(11, Warehouse.room(List.<int[]>of(new int[]{17, 16}), 5, 16, 3));
+    }
+}

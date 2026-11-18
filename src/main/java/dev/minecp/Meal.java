@@ -16,7 +16,7 @@ import java.util.List;
  */
 final class Meal {
     private static final int WAIT_TICKS = 20 * 60 * 2; // the mod's citizens wait 2 minutes to be served
-    private static final int BITE_TICKS = 8;
+    private static final int BITE_TICKS = 8;            // ours
     private static final int BITES = 5;                 // the mod's time to eat one item
 
     private enum State { FIND, TO_CHEST, TO_RESTAURANT, WAITING, EAT }

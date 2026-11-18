@@ -47,6 +47,8 @@ final class Hut {
     int[] footprint;          // minX, maxX+1, minZ, maxZ+1 of the building at footprintLevel, for the particle tape
     int footprintLevel = -1;
     final java.util.List<org.bukkit.entity.BlockDisplay> tape = new java.util.ArrayList<>(); // shown while waiting for the builder
+    java.util.List<Block> beds; // houses only: bed heads nearest first, from the last scan (Colony.bedOf)
+    int bedsAt;
     // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.
     Material seed;
     final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT

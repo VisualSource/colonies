@@ -127,6 +127,19 @@ abstract class Job {
         return all;
     }
 
+    /**
+     * What a block that holds items (chest, barrel, shulker box, furnace…) has inside: its own half only for a double
+     * chest. {@code take}: also emptied, so breaking it afterwards drops just the block. getDrops leaves contents out.
+     */
+    static List<ItemStack> contents(Block b, boolean take) {
+        if (!(b.getState(false) instanceof org.bukkit.inventory.BlockInventoryHolder holder)) return List.of();
+        Inventory inv = holder instanceof org.bukkit.block.Chest chest ? chest.getBlockInventory() : holder.getInventory();
+        List<ItemStack> items = new ArrayList<>();
+        for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) items.add(i.clone());
+        if (take) inv.clear();
+        return items;
+    }
+
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */
     boolean hasTool(Tool kind, Block block) {
         return fits(kind, tools.get(kind), block);
