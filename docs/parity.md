@@ -92,11 +92,16 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Not checked: does the mod only let a builder build huts up to its own level?
   - No decoration or free builds from a build tool; `/colony build` is the stand-in
   - No removal or repair work orders
-  - Hut rotation comes from the chest's facing, not a build tool
+  - Hut rotation comes from the build tool (for hut blocks placed by hand: the block's facing)
 - [~] Blueprints: medieval oak converted to vanilla structures (`tools/convert_blueprints.py`)
   - Other styles not converted
   - Modded blocks approximated (see `docs/structures/medievaloak.md`)
-- [ ] Build tool: preview, place and rotate buildings (next after day/night: shows the space a building takes, and lets rotation be chosen instead of coming from the hut block's facing)
+- [~] Build tool (Structurize `ItemBuildTool`, `AbstractBlueprintManipulationWindow`; MineColonies `SurvivalHandler`): the Colony Token is the tool. Right-click a block, pick a hut you carry; a preview of its level 1 building stays until confirmed or cancelled. Right-click again for the mod's controls in a dialog: move forward/back/left/right from where you face, up/down, rotate left/right, mirror (front to back, as the mod), confirm, cancel. Confirming checks the same rules as placing by hand, uses up the hut item, places the hut block and keeps the turn and mirror for every level
+  - Preview is block displays at 90% size, only for the placing player (the mod draws see-through blocks); blocks walled in on all sides are skipped
+  - The dialog covers the screen, so each button closes it to show the change
+  - Picks huts only: no style packs or categories to browse, no decorations (`/colony build` stays the stand-in), only the colony's style
+  - No ground-level offset: the hut block goes where you click (the converter drops the blueprints' ground tags)
+  - No check that the building stays inside the colony's claimed chunks (we have no claims); hut blocks must be within 64 blocks of the town hall
 - [ ] Scan tool
 - [~] Hut recipes: MineColonies' shapes, with the Colony Token in place of the build tool
   - Only huts that are built so far have recipes
@@ -124,14 +129,14 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [ ] Waypoint (helps citizens' pathing)
 - [ ] Colony sign
 - [ ] Colony banner and wall banner (the colony flag): stand-ins are normal vanilla banners and wall banners
-- [ ] Construction tape (marks a build site): no block; show the build site's outline with particles, like the field menu does
+- [~] Construction tape (marks a build site): no block; four thin yellow block-display bars along the footprint at the hut block's floor, while the hut is unbuilt or has an upgrade queued or under way (the build tool's preview shows them too). They are straight at one height, where the mod's tape follows the ground
 - ~~Decoration placeholder (blueprint filler)~~ (skipped)
 - [ ] Grave and named grave (graveyard): stand-ins are a stone brick wall, and a stone brick wall with a sign for the named grave
 - ~~Iron gate and wooden gate (large gates)~~ (skipped)
 
 ### Items
 
-- [~] Build tool (Structurize): `/colony build` and the Colony Token stand in
+- [~] Build tool (Structurize): the Colony Token (see Build tool above); `/colony build` for free builds
 - [ ] Scan tool (Structurize)
 - [ ] Supply chest and supply camp deployers (colony starts)
 - [ ] Clipboard (the colony's open requests)

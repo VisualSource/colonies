@@ -12,6 +12,7 @@ import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.type.Bed;
 import org.bukkit.block.data.type.Stairs;
 import org.bukkit.block.data.type.TrapDoor;
+import org.bukkit.block.structure.Mirror;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.util.BlockVector;
 
@@ -77,6 +78,7 @@ final class BuildOrder {
     final String structure;
     final Location origin;
     final StructureRotation rotation;
+    final boolean mirror; // mirrored front to back (x flipped) before turning, as the mod's build tool mirrors
     final List<Step> steps;
     private int cursor = 0;
 
@@ -87,10 +89,11 @@ final class BuildOrder {
     static final NamespacedKey RACK_MARKER = NamespacedKey.fromString("minecp:rack");
 
 
-    private BuildOrder(String structure, Location origin, StructureRotation rotation, List<Step> steps) {
+    private BuildOrder(String structure, Location origin, StructureRotation rotation, boolean mirror, List<Step> steps) {
         this.structure = structure;
         this.origin = origin;
         this.rotation = rotation;
+        this.mirror = mirror;
         this.steps = steps;
         int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z0 = Integer.MAX_VALUE, z1 = Integer.MIN_VALUE;
         for (Step s : steps) {
@@ -132,32 +135,39 @@ final class BuildOrder {
     /**
      * @param origin where the structure's corner goes
      * @param hut if the structure has a hut marker (the converter tags MineColonies hut blocks), the structure is
-     *            moved so the marker lands on this block and turned so the marker faces the way this block faces,
-     *            instead of using {@code origin} and {@code rotation}; null to always use those
+     *            moved so the marker lands on this block instead of using {@code origin}; null to always use origin
+     * @param rotation null (with a hut): turned so the marker faces the way the hut block faces (a hut placed by hand)
      * @return null if no structure has that name.
      */
     static BuildOrder create(String structure, Location origin, StructureRotation rotation, Block hut) {
+        return create(structure, origin, rotation, false, hut);
+    }
+
+    static BuildOrder create(String structure, Location origin, StructureRotation rotation, boolean mirror, Block hut) {
         var s = load(structure);
         if (s == null || s.getPalettes().isEmpty()) return null;
         var blocks = s.getPalettes().getFirst().getBlocks();
         Block base = origin.getBlock();
         if (hut != null) for (var state : blocks) {
             if (state instanceof TileState ts && ts.getPersistentDataContainer().has(HUT_MARKER)) {
-                if (state.getBlockData() instanceof Directional marker && hut.getBlockData() instanceof Directional placed)
+                if (rotation == null && state.getBlockData() instanceof Directional marker && hut.getBlockData() instanceof Directional placed)
                     for (StructureRotation r : StructureRotation.values()) {
                         var turned = (Directional) marker.clone();
                         turned.rotate(r);
                         if (turned.getFacing() == placed.getFacing()) { rotation = r; break; }
                     }
-                BlockVector at = rotate(new BlockVector(state.getX(), state.getY(), state.getZ()), rotation);
+                if (rotation == null) rotation = StructureRotation.NONE;
+                BlockVector at = transform(state.getX(), state.getY(), state.getZ(), rotation, mirror);
                 base = hut.getRelative(-at.getBlockX(), -at.getBlockY(), -at.getBlockZ());
                 break;
             }
         }
+        if (rotation == null) rotation = StructureRotation.NONE;
         List<Step> clears = new ArrayList<>(), places = new ArrayList<>();
         for (var state : blocks) {
-            BlockVector at = rotate(new BlockVector(state.getX(), state.getY(), state.getZ()), rotation);
+            BlockVector at = transform(state.getX(), state.getY(), state.getZ(), rotation, mirror);
             BlockData data = state.getBlockData().clone();
+            if (mirror) data.mirror(Mirror.FRONT_BACK);
             data.rotate(rotation);
             Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
             var world = block.getWorld();
@@ -171,11 +181,11 @@ final class BuildOrder {
         // Bottom up, and blocks that hang on others (torches, doors, carpets) after the solid ones.
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
-        BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, clears);
+        BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, mirror, clears);
         for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows
             if (!e.getScoreboardTags().contains(FIELD_TAG)) continue;
             var l = e.getLocation(); // relative to the structure's corner
-            BlockVector at = rotate(new BlockVector(l.getBlockX(), l.getBlockY(), l.getBlockZ()), rotation);
+            BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
             order.fields.add(base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ()));
         }
         return order;
@@ -194,6 +204,11 @@ final class BuildOrder {
         // Names without a namespace are ours: "house" means minecp:house (structure block name "minecp:house").
         NamespacedKey key = NamespacedKey.fromString(structure.contains(":") ? structure : "minecp:" + structure);
         return key == null ? null : Bukkit.getStructureManager().loadStructure(key);
+    }
+
+    /** A structure position turned (and first mirrored, x flipped, like vanilla's FRONT_BACK) around the corner. */
+    private static BlockVector transform(int x, int y, int z, StructureRotation r, boolean mirror) {
+        return rotate(new BlockVector(mirror ? -x : x, y, z), r);
     }
 
     /** Same rotation around the origin as vanilla structure placement. */

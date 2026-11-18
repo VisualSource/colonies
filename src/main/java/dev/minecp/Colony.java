@@ -39,7 +39,8 @@ final class Colony {
     final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
     final List<Job> jobs = new ArrayList<>(); // one per worker hut
     Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
-    String style = "medievaloak"; // structure pack hut buildings come from
+    static final String DEFAULT_STYLE = "medievaloak";
+    String style = DEFAULT_STYLE; // structure pack hut buildings come from
     private int growth = 0;
 
     Colony(UUID owner, String name, Block townHall, int townHallLevel) {
@@ -100,11 +101,12 @@ final class Colony {
         }
     }
 
-    void addHut(Hut.Type type, Block block) {
+    Hut addHut(Hut.Type type, Block block) {
         Hut hut = new Hut(type, block, 0);
         huts.add(hut);
         addJob(hut);
         assignJobs();
+        return hut;
     }
 
     private void addJob(Hut hut) {
@@ -171,6 +173,7 @@ final class Colony {
             if (job == builder) builder = null;
         }
         for (Colonist c : colonists) if (c.home == hut) c.home = null;
+        removeTape(hut);
         huts.remove(hut);
         assignHomes();
     }
@@ -203,6 +206,38 @@ final class Colony {
         if (builder != null && builder.work != null && builder.work.hut() == hut) return builder.work;
         for (Hut.WorkOrder w : workOrders) if (w.hut() == hut) return w;
         return null;
+    }
+
+    /**
+     * The mod puts construction tape around a building waiting for the builder; we put yellow bars along its footprint
+     * at the hut block's floor while the hut is unbuilt or has an upgrade queued or under way. Called once a second.
+     */
+    void tape() {
+        for (Hut h : huts) {
+            Hut.WorkOrder up = h.type.isBuilding() ? upgradeOf(h) : null;
+            if (up == null && (h.level > 0 || !h.type.isBuilding())) { removeTape(h); continue; }
+            int level = up != null ? up.level() : 1;
+            if (h.footprintLevel != level) { // the structure is loaded once per level, not every second
+                BuildOrder o = BuildOrder.create(h.structure(style, level), h.block.getLocation(), h.rotation, h.mirror, h.block);
+                if (o == null) continue;
+                h.footprint = new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1};
+                h.footprintLevel = level;
+                removeTape(h); // the next level may be bigger
+            }
+            boolean ok = !h.tape.isEmpty();
+            for (var d : h.tape) ok &= d.isValid(); // gone when its chunk unloaded
+            var w = h.block.getWorld();
+            int[] f = h.footprint; // spawning into an unloaded chunk would load it: wait until the corners are loaded
+            if (ok || !w.isChunkLoaded(f[0] >> 4, f[2] >> 4) || !w.isChunkLoaded(f[0] >> 4, f[3] >> 4)
+                    || !w.isChunkLoaded(f[1] >> 4, f[2] >> 4)) continue;
+            removeTape(h);
+            h.tape.addAll(Tape.around(w, f, h.block.getY() + 0.01, true));
+        }
+    }
+
+    private static void removeTape(Hut h) {
+        h.tape.forEach(org.bukkit.entity.Entity::remove);
+        h.tape.clear();
     }
 
     /** Queues the hut's next level for the builder. @return why it can't, or null when queued. */
@@ -376,8 +411,8 @@ final class Colony {
     private void startNextWorkOrder() {
         Hut.WorkOrder w = workOrders.removeFirst();
         String structure = w.hut().structure(style, w.level());
-        // A hut building is anchored on its hut block and turned to match the block's facing.
-        BuildOrder o = BuildOrder.create(structure, w.hut().block.getLocation(), StructureRotation.NONE, w.hut().block);
+        // A hut building is anchored on its hut block, turned as chosen with the build tool (by hand: the block's facing).
+        BuildOrder o = BuildOrder.create(structure, w.hut().block.getLocation(), w.hut().rotation, w.hut().mirror, w.hut().block);
         if (o == null) tell("Structure " + structure + " not found; upgrade skipped.");
         else builder.start(o, w);
     }
@@ -385,6 +420,7 @@ final class Colony {
     void despawn() {
         for (Colonist c : colonists) if (c.meal != null) { c.meal.abandon(); c.meal = null; } // food back in its chest
         colonists.forEach(Colonist::despawn);
+        huts.forEach(Colony::removeTape);
     }
 
     void save(ConfigurationSection s) {
@@ -397,6 +433,8 @@ final class Colony {
             hs.set("type", h.type.name());
             hs.set("level", h.level);
             putLocation(hs, "block", h.block.getLocation());
+            if (h.rotation != null) hs.set("rotation", h.rotation.name());
+            hs.set("mirror", h.mirror);
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
@@ -417,6 +455,7 @@ final class Colony {
             if (builder.order != null) {
                 bs.set("order.structure", builder.order.structure);
                 bs.set("order.rotation", builder.order.rotation.name());
+                bs.set("order.mirror", builder.order.mirror);
                 putLocation(bs, "order.origin", builder.order.origin);
                 if (builder.work != null) {
                     bs.set("order.hut", huts.indexOf(builder.work.hut()));
@@ -452,6 +491,8 @@ final class Colony {
             Location at = getLocation(hs, "block");
             if (at == null) return null;
             Hut h = new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level"));
+            if (hs.contains("rotation")) h.rotation = StructureRotation.valueOf(hs.getString("rotation"));
+            h.mirror = hs.getBoolean("mirror");
             h.seed = Material.matchMaterial(hs.getString("seed", ""));
             List<Integer> extent = hs.getIntegerList("extent");
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
@@ -500,7 +541,7 @@ final class Colony {
             if (origin != null) {
                 String structure = bs.getString("order.structure");
                 BuildOrder order = BuildOrder.create(structure, origin,
-                        StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), null); // origin already placed
+                        StructureRotation.valueOf(bs.getString("order.rotation", "NONE")), bs.getBoolean("order.mirror"), null); // origin already placed
                 Hut h = colony.hutByIndex(bs.getInt("order.hut", -1));
                 Hut.WorkOrder work = h != null ? new Hut.WorkOrder(h, bs.getInt("order.level")) : null;
                 if (order != null) colony.builder.start(order, work);

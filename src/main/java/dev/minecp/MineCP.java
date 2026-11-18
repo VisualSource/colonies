@@ -16,6 +16,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -46,6 +47,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private File dataFile;
     private YamlConfiguration data; // kept in memory so colonies in unloaded worlds survive a save
     private final Menus menus = new Menus(this);
+    private final Placement placement = new Placement(this);
 
     @Override
     public void onEnable() {
@@ -61,7 +63,9 @@ public final class MineCP extends JavaPlugin implements Listener {
             else colonies.put(colony.owner, colony);
         }
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(placement, this);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tick), 1L, 1L);
+        getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, this::save, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
     }
 
@@ -128,7 +132,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         return item;
     }
 
-    private boolean isToken(ItemStack item) {
+    boolean isToken(ItemStack item) {
         return item != null && item.getPersistentDataContainer().has(tokenKey);
     }
 
@@ -166,6 +170,7 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        placement.endAll();
         save();
         colonies.values().forEach(Colony::despawn);
     }
@@ -298,7 +303,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         return true;
     }
 
-    private ItemStack hutItem(Hut.Type type) {
+    ItemStack hutItem(Hut.Type type) {
         ItemStack item = new ItemStack(type.block);
         item.editMeta(m -> {
             m.itemName(Component.text(type.title, NamedTextColor.GOLD));
@@ -319,13 +324,18 @@ public final class MineCP extends JavaPlugin implements Listener {
         return item;
     }
 
-    private Hut.Type hutType(ItemStack item) {
+    Hut.Type hutType(ItemStack item) {
         String type = item.getPersistentDataContainer().get(hutKey, PersistentDataType.STRING);
         return type == null ? null : Hut.Type.valueOf(type);
     }
 
+    /** The colony {@code p} owns, or null. */
+    Colony colonyOf(Player p) {
+        return colonies.get(p.getUniqueId());
+    }
+
     /** The colony one of whose huts (town hall included) is this block. */
-    private Colony colonyAt(Block block) {
+    Colony colonyAt(Block block) {
         for (Colony c : colonies.values()) if (c.hutAt(block) != null) return c;
         return null;
     }
@@ -336,35 +346,48 @@ public final class MineCP extends JavaPlugin implements Listener {
         Hut.Type type = hutType(e.getItemInHand());
         if (type == null) return;
         Player p = e.getPlayer();
-        Colony c = colonies.get(p.getUniqueId());
-        if (type == Hut.Type.TOWN_HALL) {
-            if (c != null) {
-                e.setCancelled(true);
-                p.sendMessage(Component.text("You already have a colony.", NamedTextColor.RED));
-                return;
-            }
-            c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", e.getBlockPlaced());
-            colonies.put(c.owner, c);
-            save();
-            p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
-            return;
-        }
-        Block th = c == null ? null : c.townHall().block;
-        String problem = c == null ? "You need a colony first."
-                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
-                : type == Hut.Type.WAREHOUSE && c.hut(Hut.Type.WAREHOUSE) != null ? "Your colony already has a Warehouse."                : !th.getWorld().equals(e.getBlock().getWorld())
-                        || th.getLocation().distance(e.getBlock().getLocation()) > HUT_RANGE
-                        ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
+        String problem = placeProblem(p, type, e.getBlockPlaced());
         if (problem != null) {
             e.setCancelled(true);
             p.sendMessage(Component.text(problem, NamedTextColor.RED));
             return;
         }
-        c.addHut(type, e.getBlockPlaced());
+        placed(p, type, e.getBlockPlaced(), null, false);
+    }
+
+    /** Why {@code p} can't put a {@code type} hut at {@code at}, or null if it can. */
+    String placeProblem(Player p, Hut.Type type, Block at) {
+        Colony c = colonies.get(p.getUniqueId());
+        if (type == Hut.Type.TOWN_HALL) return c != null ? "You already have a colony." : null;
+        Block th = c == null ? null : c.townHall().block;
+        return c == null ? "You need a colony first."
+                : type == Hut.Type.BUILDER && c.builder != null ? "Your colony already has a Builder's Hut."
+                : type == Hut.Type.WAREHOUSE && c.hut(Hut.Type.WAREHOUSE) != null ? "Your colony already has a Warehouse."
+                : !th.getWorld().equals(at.getWorld()) || th.getLocation().distance(at.getLocation()) > HUT_RANGE
+                        ? "Place it within " + HUT_RANGE + " blocks of your town hall." : null;
+    }
+
+    /**
+     * Registers a hut block just put at {@code at} (by hand, or by the build tool with the building's turn and mirror;
+     * rotation null: from the block's facing). Check {@link #placeProblem} first.
+     */
+    void placed(Player p, Hut.Type type, Block at, StructureRotation rotation, boolean mirror) {
+        Colony c = colonies.get(p.getUniqueId());
+        Hut hut;
+        if (type == Hut.Type.TOWN_HALL) {
+            c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", at);
+            colonies.put(c.owner, c);
+            hut = c.townHall();
+            p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
+        } else {
+            hut = c.addHut(type, at);
+            p.sendMessage(Component.text(type == Hut.Type.FIELD
+                    ? "Field placed. Right-click it to choose the crop and the size of the field."
+                    : type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
+        }
+        hut.rotation = rotation;
+        hut.mirror = mirror;
         save();
-        p.sendMessage(Component.text(type == Hut.Type.FIELD
-                ? "Field placed. Right-click it to choose the crop and the size of the field."
-                : type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
     }
 
     /** Colonists walk their fields; vanilla would let their jumps trample the farmland. */
@@ -419,6 +442,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent e) {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        if (isToken(e.getItem())) return; // the build tool (Placement)
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();

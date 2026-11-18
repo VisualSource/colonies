@@ -2,6 +2,7 @@ package dev.minecp;
 
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.structure.StructureRotation;
 
 /** A colony building anchored on its hut block. Level 0 is just the block; level N means level N is built. */
 final class Hut {
@@ -40,6 +41,12 @@ final class Hut {
     final Type type;
     final Block block;
     int level;
+    // How the building is turned and mirrored, chosen with the build tool; rotation null: from the hut block's facing.
+    StructureRotation rotation;
+    boolean mirror;
+    int[] footprint;          // minX, maxX+1, minZ, maxZ+1 of the building at footprintLevel, for the particle tape
+    int footprintLevel = -1;
+    final java.util.List<org.bukkit.entity.BlockDisplay> tape = new java.util.ArrayList<>(); // shown while waiting for the builder
     // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.
     Material seed;
     final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
