@@ -37,7 +37,20 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 ## Colony
 
 - [~] Town Hall: founds the colony, levels gate other huts' levels, citizen list
-  - No claimed area or colony border; huts just have to be within 64 blocks of the town hall
+  - No claimed area or colony border; huts just have to be within 64 blocks of the town hall (see Chunk claims below)
+- [ ] Chunk claims (`core/util/ChunkDataHelper.java`, each building's `getClaimRadius`; server config `claims` section)
+  - Founding: the colony claims chunks within 4 of the town hall's chunk (`initialColonySize`, default 4, radius in chunks); these first chunks are never given up unless forced
+  - A new colony must be at least 8 chunks from another colony (`minColonyDistance`, default 8), or the initial claim size if that is larger
+  - No claim reaches more than 20 chunks from the colony centre (`maxColonySize`, default 20)
+  - Each building claims a radius of chunks around its own chunk when placed and when an upgrade finishes, plus every chunk its building's box touches; a destroyed building gives its claims back. Radius by building level:
+    - Most buildings: 0 at level 0, 1 at levels 1-3, 2 at levels 4-5
+    - Town hall: 0, 1, 1, 2, 3, 5 (levels 0-5)
+    - Guard tower: 2, 3, 3, 4, 5 (levels 1-5)
+    - Barracks: 2 at any level, 3 once all its towers are level 4 or higher; barracks towers claim nothing
+    - Gate house: 1, 1, 2 (levels 1-3)
+  - The claimed chunks are the colony border: other players' building and breaking there follow the colony's permissions, and huts and their buildings must be inside it
+  - Optional server setting: keep the colony's chunks loaded while an owner or officer is near (`forceloadcolony`, with a strictness setting for how many chunks)
+  - Stand-in to decide: keep the claimed chunks as a set per colony in the save file, check it in the plugin's block, interact and explosion events, and show the border with particles as the field menu does
   - No permissions for friends (only the owner can use huts)
   - No colony events or statistics (advancements are listed below)
 - [~] Colony growth: a citizen every 2 minutes while there is housing
