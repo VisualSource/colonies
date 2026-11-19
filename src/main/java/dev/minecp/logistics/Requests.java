@@ -77,9 +77,12 @@ public final class Requests {
     /** A crafter's request kept over a restart: requester hut, label, crafter hut (indexes into the colony's huts). */
     private record Saved(int job, String label, int crafter, int share) {}
 
+    private static final int MAX_CHAIN = 16; // crafters asking crafters: longer than this is taken for a loop
+
     private final Colony colony;
     private List<Request> all = List.of();
     private final List<Saved> saved = new ArrayList<>(); // from the save file, until the requests come back
+    private int restoring; // refreshes left to match them: a crafter asks for ingredients only once its own tasks are back
 
     public Requests(Colony colony) {
         this.colony = colony;
@@ -112,7 +115,7 @@ public final class Requests {
                 now.add(r);
             }
         }
-        saved.clear();
+        if (--restoring <= 0) saved.clear();
         Warehouse wh = colony.warehouse();
         for (Job j : colony.jobs) if (j instanceof Crafter c) c.tasks.clear();
         for (Request r : now) {
@@ -160,7 +163,7 @@ public final class Requests {
      * another crafter's, and so on.
      */
     private static boolean cycle(Recipe recipe, Request r, Map<Crafter, List<Request>> tasks, int depth) {
-        if (depth > 16) return true; // a chain this long is a loop we didn't spot
+        if (depth > MAX_CHAIN) return true; // a chain this long is a loop we didn't spot
         if (!(r.job instanceof Crafter up)) return false;
         for (Request parent : tasks.getOrDefault(up, List.of())) {
             if (Crafter.uses(recipe, parent.test()) || cycle(recipe, parent, tasks, depth + 1)) return true;
@@ -172,6 +175,7 @@ public final class Requests {
         for (Saved s : saved) {
             if (colony.hutByIndex(s.job) != r.job.hut || !s.label.equals(r.label())) continue;
             if (colony.jobAt(colony.hutByIndex(s.crafter)) instanceof Crafter c) { r.crafter = c; r.crafterShare = s.share; }
+            saved.remove(s);
             return;
         }
     }
@@ -193,6 +197,7 @@ public final class Requests {
             var rs = s.getConfigurationSection(k);
             saved.add(new Saved(rs.getInt("hut", -1), rs.getString("label", ""), rs.getInt("crafter", -1), rs.getInt("share")));
         }
+        restoring = MAX_CHAIN; // one link of a chain of crafters comes back per refresh
     }
 
     private record Key(Job job, String label) {} // jobs compare by identity

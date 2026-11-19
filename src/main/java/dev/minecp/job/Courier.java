@@ -109,7 +109,7 @@ public final class Courier extends Job {
      */
     private boolean pickTask(Warehouse wh) {
         for (Requests.Request r : colony.requests.all()) {
-            if (!craftedReady(r) || taken(r.job)) continue;
+            if (!craftedReady(r) || taken(r.job) || r.job == r.crafter) continue; // made for itself: already in its own chest
             serving = r.job; crafted = r; toWarehouse = false;
             want = new Want(r.label(), r.test(), r.amount());
             note = "Bringing " + r.label() + " from the " + r.crafter.hut.type.title + " to the " + r.job.hut.type.title + ".";

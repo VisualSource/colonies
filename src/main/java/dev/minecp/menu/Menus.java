@@ -106,7 +106,7 @@ public final class Menus {
         List<ActionButton> buttons = new ArrayList<>();
         if (h.type.isBuilding() && up == null && h.level < Hut.MAX_LEVEL)
             buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, Action.MANAGE_HUTS, player -> {
-                String problem = c.requestUpgrade(h);
+                String problem = c.requestUpgrade(h, plugin.claims);
                 if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
                 plugin.save(c);
                 hut(player, c, h);

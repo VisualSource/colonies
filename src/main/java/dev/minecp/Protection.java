@@ -21,8 +21,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockBurnEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -97,7 +102,14 @@ final class Protection implements Listener {
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onIgnite(BlockIgniteEvent e) {
-        if (e.getPlayer() != null && !allowed(e.getPlayer(), e.getBlock().getLocation(), Action.PLACE_BLOCKS)) e.setCancelled(true);
+        if (e.getPlayer() != null ? !allowed(e.getPlayer(), e.getBlock().getLocation(), Action.PLACE_BLOCKS)
+                : e.getIgnitingBlock() != null && crosses(e.getIgnitingBlock(), e.getBlock())) e.setCancelled(true); // fire or lava next door
+    }
+
+    /** Fire just outside the border burning a block just inside. */
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onBurn(BlockBurnEvent e) {
+        if (e.getIgnitingBlock() != null && crosses(e.getIgnitingBlock(), e.getBlock())) e.setCancelled(true);
     }
 
     /**
@@ -159,19 +171,60 @@ final class Protection implements Listener {
     }
 
     /**
-     * Attacking a citizen or anything but a hostile mob, judged where the player stands, as the mod does. Lowest
-     * priority: before MineCP hands a citizen's hit to its health. (Hostile players may attack guards, once there are any.)
+     * Attacking a citizen or anything but a hostile mob, judged where the player stands, as the mod does; a citizen
+     * also where it stands, so nobody can hit one from just outside the border. Lowest priority: before MineCP hands a
+     * citizen's hit to its health. (Hostile players may attack guards, once there are any.)
      */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
     public void onAttack(EntityDamageByEntityEvent e) {
         Entity damager = e.getDamager() instanceof Projectile pr && pr.getShooter() instanceof Entity shooter ? shooter : e.getDamager();
         if (!(damager instanceof Player p) || e.getEntity() instanceof Enemy) return;
-        if (!allowed(p, p.getLocation(), isCitizen(e.getEntity()) ? Action.ATTACK_CITIZEN : Action.ATTACK_ENTITY)) e.setCancelled(true);
+        boolean citizen = isCitizen(e.getEntity());
+        if (!allowed(p, p.getLocation(), citizen ? Action.ATTACK_CITIZEN : Action.ATTACK_ENTITY)
+                || citizen && !allowed(p, e.getEntity().getLocation(), Action.ATTACK_CITIZEN)) e.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onHangingBreak(HangingBreakByEntityEvent e) {
         if (e.getRemover() instanceof Player p && !allowed(p, e.getEntity().getLocation(), Action.BREAK_BLOCKS)) e.setCancelled(true);
+    }
+
+    // ---- things that cross the border by themselves -----------------------------------------------------------
+
+    /** Whether something starting at {@code from} would change a block at {@code to} that another colony claims. */
+    private boolean crosses(Block from, Block to) {
+        Colony c = enabled ? plugin.claims.colonyAt(to.getLocation()) : null;
+        return c != null && c != plugin.claims.colonyAt(from.getLocation());
+    }
+
+    /** A piston outside a colony can't push blocks in, pull them out, or reach in with its head. */
+    private boolean pistonCrosses(Block piston, List<Block> moved, org.bukkit.block.BlockFace dir) {
+        if (crosses(piston, piston.getRelative(dir))) return true;
+        for (Block b : moved) // both neighbours: what the retract event calls its direction differs between versions
+            if (crosses(piston, b) || crosses(piston, b.getRelative(dir)) || crosses(piston, b.getRelative(dir.getOppositeFace()))) return true;
+        return false;
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onPistonExtend(BlockPistonExtendEvent e) {
+        if (pistonCrosses(e.getBlock(), e.getBlocks(), e.getDirection())) e.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onPistonRetract(BlockPistonRetractEvent e) {
+        if (pistonCrosses(e.getBlock(), e.getBlocks(), e.getDirection())) e.setCancelled(true);
+    }
+
+    /** Water and lava flowing in. */
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onFlow(BlockFromToEvent e) {
+        if (crosses(e.getBlock(), e.getToBlock())) e.setCancelled(true);
+    }
+
+    /** Fire spreading in (and grass, vines and the like, which also spread). */
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onSpread(BlockSpreadEvent e) {
+        if (crosses(e.getSource(), e.getBlock())) e.setCancelled(true);
     }
 
     // ---- explosions -------------------------------------------------------------------------------------------

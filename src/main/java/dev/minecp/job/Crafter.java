@@ -39,7 +39,8 @@ public final class Crafter extends Job {
     private static final int EXTRA_RECIPES = 5; // the mod's EXTRA_RECIPE_MULTIPLIER
 
     /** The sawmill's recipes, by the mod's BuildingSawmill rule: wood ingredients over the rest, above 0.75. */
-    public static final Predicate<Recipe> SAWMILL = r -> woodRatio(r) > 0.75;
+    static final double MIN_WOOD_RATIO = 0.75; // the mod's Sawmill rule: more than this
+    public static final Predicate<Recipe> SAWMILL = r -> woodRatio(r) > MIN_WOOD_RATIO;
 
     private final Predicate<Recipe> accepts;
     /** What this crafter makes, for the menus. */
@@ -110,14 +111,20 @@ public final class Crafter extends Job {
      * 2 planks + 2 iron is 1.0; a recipe of only planks and logs divides by zero and passes, as in the mod.
      */
     private static double woodRatio(Recipe r) {
-        double wood = 0, other = 0;
+        int planksAndLogs = 0, otherWood = 0, rest = 0;
         for (var e : ingredients(r).entrySet()) {
             Material m = e.getKey().getItemStack().getType();
-            if (Tag.PLANKS.isTagged(m) || Tag.LOGS.isTagged(m)) { wood += e.getValue(); continue; }
-            if (woodTagged(m)) wood += e.getValue();
-            other += e.getValue();
+            if (Tag.PLANKS.isTagged(m) || Tag.LOGS.isTagged(m)) planksAndLogs += e.getValue();
+            else if (woodTagged(m)) otherWood += e.getValue();
+            else rest += e.getValue();
         }
-        return wood > 0 ? wood / other : 0; // wood / 0 is infinity, above 0.75
+        return woodRatio(planksAndLogs, otherWood, rest);
+    }
+
+    /** The mod's ratio: every wood item over every ingredient that isn't planks or logs. */
+    static double woodRatio(int planksAndLogs, int otherWood, int rest) {
+        int wood = planksAndLogs + otherWood;
+        return wood > 0 ? (double) wood / (otherWood + rest) : 0; // wood / 0 is infinity, above 0.75
     }
 
     /** Items with "wood" in one of their tags, as the mod checks: sticks (c:rods/wooden), wooden slabs, stairs and so on. */

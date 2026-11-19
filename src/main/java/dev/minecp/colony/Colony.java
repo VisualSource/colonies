@@ -282,7 +282,7 @@ public final class Colony {
     }
 
     /** Queues the hut's next level for the builder. @return why it can't, or null when queued. */
-    public String requestUpgrade(Hut hut) {
+    public String requestUpgrade(Hut hut, ClaimMap claims) {
         int next = hut.level + 1;
         if (builder == null) return "Place a Builder's Hut first: the builder builds every hut.";
         if (hut.level >= Hut.MAX_LEVEL) return "The " + hut.type.title + " is at the highest level.";
@@ -290,6 +290,11 @@ public final class Colony {
         if (hut.type != Hut.Type.TOWN_HALL && next > 1 && next > townHall().level)
             return "Upgrade the Town Hall to level " + next + " first.";
         if (!BuildOrder.exists(hut.structure(style, next))) return "Structure " + hut.structure(style, next) + " not found.";
+        int[] box = hut.type.isBuilding() ? BuildOrder.footprint(hut.structure(style, next), hut.block, hut.rotation, hut.mirror) : null;
+        if (box != null) for (long k : Claims.chunks(box)) { // unclaimed land is fine: the building claims it, as in the mod
+            Colony owner = claims.colonyAt(hut.block.getWorld(), Claims.x(k), Claims.z(k));
+            if (owner != null && owner != this) return "Level " + next + " of the " + hut.type.title + " would reach into " + owner.name + ".";
+        }
         workOrders.add(new Hut.WorkOrder(hut, next));
         return null;
     }
