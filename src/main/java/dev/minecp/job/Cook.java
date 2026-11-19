@@ -1,5 +1,13 @@
-package dev.minecp;
+package dev.minecp.job;
 
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.citizen.Meal;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Furnace;
@@ -16,21 +24,22 @@ import java.util.List;
  * The restaurant: the cook serves citizens waiting at the Cook's Hut with food from its chest, and keeps the
  * furnaces and smokers near the hut cooking the raw food in the chest, with fuel from the chest.
  */
-final class Cook extends Job {
+public final class Cook extends Job {
+    // Ours, not the mod's (its cook uses the building's furnaces and the request system):
     private static final int FURNACE_RANGE = 12;  // how far from the hut chest its furnaces may be (the buildings are ~25 wide)
     private static final int FURNACE_HEIGHT = 4;
     private static final int LOAD = 16;           // raw food or fuel put in a furnace at a time
 
-    final Deque<Meal> waiting = new ArrayDeque<>(); // citizens at the restaurant, first come first served
+    public final Deque<Meal> waiting = new ArrayDeque<>(); // citizens at the restaurant, first come first served
     private final List<ItemStack> serving = new ArrayList<>(); // food it carries to the next customer
     private List<Block> furnaces = List.of();
-    private int cooldown = 0, scan = 0;
+    private int scan = 0;
 
-    Cook(Hut hut) {
+    public Cook(Hut hut) {
         super(hut);
     }
 
-    private static final int STOCK = 32; // food, raw food and fuel it keeps on hand
+    private static final int STOCK = 32; // ours: food, raw food and fuel it keeps on hand
 
     private static boolean isFuel(ItemStack i) {
         Material m = i.getType();
@@ -38,7 +47,7 @@ final class Cook extends Job {
     }
 
     @Override
-    boolean worksInRain() {
+    public boolean worksInRain() {
         return true; // the mod's cook works indoors
     }
 
@@ -61,7 +70,17 @@ final class Cook extends Job {
     }
 
     @Override
-    void tick(Colonist w) {
+    public List<Component> info(Colony c) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.text(hut.level == 0 ? "The restaurant opens once level 1 is built."
+                : "Hungry citizens without food in their hut or house come here to be served. Put food in this chest, "
+                + "or raw food and fuel: the cook cooks it in the furnaces and smokers nearby.", NamedTextColor.GRAY));
+        if (!waiting.isEmpty()) lines.add(Component.text("Waiting to be served: " + waiting.size()));
+        return lines;
+    }
+
+    @Override
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Cook: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
@@ -93,7 +112,7 @@ final class Cook extends Job {
         }
 
         if (scan-- <= 0) { furnaces = findFurnaces(); scan = 200; }
-        if (furnaces.isEmpty()) { idle(w, "No furnace or smoker near the hut to cook with."); return; }
+        if (furnaces.isEmpty()) { idle(w, "No furnace or smoker near the hut to cook with.", 40, hut.block); return; }
         for (Block f : furnaces) {
             if (!(f.getState(false) instanceof Furnace furnace)) continue;
             FurnaceInventory inv = furnace.getInventory();
@@ -116,7 +135,7 @@ final class Cook extends Job {
             cooldown = 20;
             return;
         }
-        idle(w, waiting.isEmpty() ? null : note);
+        idle(w, waiting.isEmpty() ? null : note, 40, hut.block);
     }
 
     /** Raw food a furnace cooks ({@code raw}), or fuel that isn't food, in the chest; null if none. */
@@ -146,18 +165,29 @@ final class Cook extends Job {
         return found;
     }
 
-    private void idle(Colonist w, String why) {
-        note = why;
-        w.setStatus("Cook: idle");
-        if (!atHut(w)) goToHut(w);
-        cooldown = 40;
-    }
-
     /** Food it was carrying goes back to the chest when the job ends. */
     @Override
-    void dropCarried() {
+    public void dropCarried() {
         serving.forEach(i -> carried.merge(i.getType(), i.getAmount(), Integer::sum));
         serving.clear();
         super.dropCarried();
+    }
+
+    @Override
+    public List<ItemStack> takeCarried() {
+        List<ItemStack> all = super.takeCarried();
+        all.addAll(serving);
+        serving.clear();
+        return all;
+    }
+
+    /** Food on its way to a customer goes back in the chest (it isn't saved); what doesn't fit drops at the hut. */
+    @Override
+    public void stow() {
+        Inventory chest = chest();
+        var at = hut.block.getLocation().toCenterLocation();
+        for (ItemStack i : serving)
+            for (ItemStack over : chest == null ? List.of(i) : chest.addItem(i).values()) at.getWorld().dropItemNaturally(at, over);
+        serving.clear();
     }
 }

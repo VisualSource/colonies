@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.job;
 
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -6,7 +6,7 @@ import org.bukkit.block.Block;
 import org.bukkit.inventory.ItemStack;
 
 /** Kinds of tool a worker needs, matched to blocks by the vanilla "mineable" tags. */
-enum Tool {
+public enum Tool {
     AXE("an axe", Tag.ITEMS_AXES, Tag.MINEABLE_AXE),
     PICKAXE("a pickaxe", Tag.ITEMS_PICKAXES, Tag.MINEABLE_PICKAXE),
     SHOVEL("a shovel", Tag.ITEMS_SHOVELS, Tag.MINEABLE_SHOVEL),

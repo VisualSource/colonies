@@ -1,20 +1,25 @@
-package dev.minecp;
+package dev.minecp.menu;
 
-import io.papermc.paper.dialog.Dialog;
+import dev.minecp.MineCP;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+import dev.minecp.job.Builder;
+import dev.minecp.job.Courier;
+import dev.minecp.job.Farmer;
+import dev.minecp.job.Job;
+import dev.minecp.logistics.Warehouse;
+
 import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.block.Container;
 import org.bukkit.inventory.ItemStack;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,18 +32,15 @@ import org.bukkit.Particle;
 import org.bukkit.block.Block;
 
 /** Dialog screens (vanilla client, Minecraft 1.21.6+) for the colony's huts. */
-final class Menus {
-    private static final ClickCallback.Options ONCE = ClickCallback.Options.builder()
-            .uses(1).lifetime(Duration.ofMinutes(10)).build();
-
+public final class Menus {
     private final MineCP plugin;
 
-    Menus(MineCP plugin) {
+    public Menus(MineCP plugin) {
         this.plugin = plugin;
     }
 
     /** The menu of any hut: level and upgrade, plus what that kind of hut shows. */
-    void hut(Player p, Colony c, Hut h) {
+    public void hut(Player p, Colony c, Hut h) {
         List<DialogBody> body = new ArrayList<>();
         if (h.type == Hut.Type.TOWN_HALL) body.add(text(Component.text(c.name, NamedTextColor.GOLD)));
         if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,
@@ -65,34 +67,6 @@ final class Menus {
                 if (!c.workOrders.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ",
                         c.workOrders.stream().map(w -> w.hut().type.title + " " + w.level()).toList()), NamedTextColor.GRAY)));
             }
-            case BUILDER -> {
-                Colonist worker = b == null ? null : c.worker(b);
-                body.add(text(Component.text(worker == null ? "No builder." : worker.name + " — " + worker.status())));
-                if (b != null && b.order != null) {
-                    if (b.work == null) body.add(text(Component.text("Building " + b.order.structure + ".")));
-                    int kinds = b.missing().size();
-                    body.add(text(kinds == 0 ? Component.text("All materials are in the hut.", NamedTextColor.GREEN)
-                            : Component.text(kinds + " kinds of materials missing from the hut chest.", NamedTextColor.RED)));
-                }
-                if (b != null && b.note != null) body.add(text(Component.text(b.note, NamedTextColor.YELLOW)));
-            }
-            case LUMBERJACK -> {
-                Job job = c.jobAt(h);
-                Colonist worker = job == null ? null : c.worker(job);
-                body.add(text(Component.text(worker == null ? "No lumberjack: every citizen has a job." : worker.name + " — " + worker.status())));
-                body.add(text(Component.text(h.level == 0 ? "The lumberjack starts once level 1 is built."
-                        : "Cuts natural trees within " + ((Lumberjack) job).radius() + " blocks and replants them.", NamedTextColor.GRAY)));
-                if (job instanceof Lumberjack lj && lj.note != null) body.add(text(Component.text(lj.note, NamedTextColor.YELLOW)));
-            }
-            case FARMER -> {
-                Job job = c.jobAt(h);
-                Colonist worker = job == null ? null : c.worker(job);
-                body.add(text(Component.text(worker == null ? "No farmer: every citizen has a job." : worker.name + " — " + worker.status())));
-                body.add(text(Component.text(h.level == 0 ? "The farmer starts once level 1 is built."
-                        : "Works " + c.fieldsOf(job).size() + " of up to " + h.level + " fields (one per level). Seeds to plant go in this chest.",
-                        NamedTextColor.GRAY)));
-                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
-            }
             case FIELD -> { field(p, c, h); return; }
             case WAREHOUSE -> {
                 body.add(text(Component.text(h.level == 0 ? "Couriers work from the warehouse once level 1 is built."
@@ -100,53 +74,27 @@ final class Menus {
                         + "what huts don't need (logs, harvest, leftovers) here.", NamedTextColor.GRAY)));
                 Warehouse wh = c.warehouse();
                 if (wh != null && wh.hut == h) {
-                    int[] slots = wh.slots();
-                    body.add(text(Component.text(wh.containers().size() + " chests, " + slots[0] + " of " + slots[1] + " slots used.",
-                            slots[0] >= slots[1] ? NamedTextColor.RED : NamedTextColor.WHITE)));
+                    var slots = wh.slots();
+                    body.add(text(Component.text(wh.containers().size() + " chests, " + slots.used() + " of " + slots.total() + " slots used.",
+                            slots.used() >= slots.total() ? NamedTextColor.RED : NamedTextColor.WHITE)));
                 }
                 long couriers = c.jobs.stream().filter(j -> j instanceof Courier && c.worker(j) != null).count();
                 body.add(text(Component.text("Couriers: " + couriers + (couriers == 0 ? " (build a Courier's Hut)" : ""))));
-            }
-            case MINER -> {
-                Job job = c.jobAt(h);
-                Colonist worker = job == null ? null : c.worker(job);
-                body.add(text(Component.text(worker == null ? "No miner: every citizen has a job." : worker.name + " — " + worker.status())));
-                if (h.level == 0) body.add(text(Component.text("The miner starts once level 1 is built.", NamedTextColor.GRAY)));
-                else if (job instanceof Miner miner) {
-                    int[] d = miner.depth();
-                    body.add(text(Component.text(d == null ? "Digs a shaft down from the ladder in the hut, then tunnels."
-                            : "Shaft down to y " + d[0] + "; this hut level allows y " + d[1] + ". Mine levels: " + miner.levels.size()
-                            + (d[0] < d[1] ? ". Tunnelling on the deepest level." : ". Digging the shaft.")
-                            + " Upgrade the hut to go deeper.", NamedTextColor.GRAY)));
-                    body.add(text(Component.text("Needs a pickaxe and a shovel, cobblestone and ladders for the shaft, and for the tunnel supports: oak planks, logs, wood, slabs, stairs and fences, torches, plus a fence gate and a sign for each mine level.", NamedTextColor.GRAY)));
-                }
-                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
-            }
-            case COURIER -> {
-                Job job = c.jobAt(h);
-                Colonist worker = job == null ? null : c.worker(job);
-                body.add(text(Component.text(worker == null ? "No courier: every citizen has a job." : worker.name + " — " + worker.status())));
-                body.add(text(Component.text(h.level == 0 ? "The courier starts once level 1 is built."
-                        : "Carries " + (h.level >= Hut.MAX_LEVEL ? "any amount" : "up to " + (1 << (h.level - 1)) + (h.level == 1 ? " stack" : " stacks"))
-                        + " per trip between the warehouse and the huts (more with each level).", NamedTextColor.GRAY)));
-                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
-            }
-            case COOK -> {
-                Job job = c.jobAt(h);
-                Colonist worker = job == null ? null : c.worker(job);
-                body.add(text(Component.text(worker == null ? "No cook: every citizen has a job." : worker.name + " — " + worker.status())));
-                body.add(text(Component.text(h.level == 0 ? "The restaurant opens once level 1 is built."
-                        : "Hungry citizens without food in their hut or house come here to be served. Put food in this chest, "
-                        + "or raw food and fuel: the cook cooks it in the furnaces and smokers nearby.", NamedTextColor.GRAY)));
-                if (job instanceof Cook cook && !cook.waiting.isEmpty())
-                    body.add(text(Component.text("Waiting to be served: " + cook.waiting.size())));
-                if (job != null && job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
             }
             case HOUSE -> {
                 var residents = c.residents(h);
                 body.add(text(Component.text("Residents: " + residents.size() + " of " + h.level, NamedTextColor.GOLD)));
                 for (Colonist x : residents) body.add(text(Component.text(x.name)));
             }
+            default -> {}
+        }
+        Job job = c.jobAt(h);
+        if (job != null) { // every worker hut: who works it and what it is doing, then what that job shows
+            Colonist worker = c.worker(job);
+            body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + ": every citizen has a job."
+                    : worker.name + " — " + worker.status())));
+            job.info(c).forEach(line -> body.add(text(line)));
+            if (job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
         }
 
         List<ActionButton> buttons = new ArrayList<>();
@@ -163,18 +111,17 @@ final class Menus {
                 plugin.save(c);
                 hut(player, c, h);
             }));
-        if (h.type == Hut.Type.BUILDER && b != null && b.order != null)
-            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c, h, b.missing())));
-        if (h.type == Hut.Type.MINER && h.level > 0 && c.jobAt(h) instanceof Miner miner)
-            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c, h, miner.missing())));
+        if (job != null && job.materials() != null) buttons.add(button("Materials needed", p, c, h, player -> {
+            var missing = job.materials(); // null once the work ended while the menu was open
+            materials(player, c, h, missing == null ? Map.of() : missing);
+        }));
         if (h.type == Hut.Type.TOWN_HALL)
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
         if (h.block.getState(false) instanceof Container)
             buttons.add(button("Open storage", p, c, h, player -> {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
             }));
-        show(p, h.type.title, body, DialogType.multiAction(buttons).columns(1)
-                .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
+        Dialogs.show(p, h.type.title, body, List.of(), buttons, 1);
     }
 
     private static final String[] SIDES = {"North", "East", "South", "West"};
@@ -208,7 +155,8 @@ final class Menus {
 
         List<ActionButton> buttons = List.of(button("Save", p, c, h, (player, view) -> {
             String crop = view.getText("crop");
-            h.seed = crop == null || crop.equals("none") ? null : Material.matchMaterial(crop);
+            Material chosen = crop == null ? null : Material.matchMaterial(crop);
+            h.seed = chosen != null && Farmer.CROPS.containsKey(chosen) ? chosen : null; // a modified client can send any name
             for (int i = 0; i < 4; i++) {
                 Float v = view.getFloat(SIDES[i].toLowerCase());
                 if (v != null) h.extent[i] = Math.clamp(Math.round(v), 0, Farmer.MAX_EXTENT);
@@ -216,9 +164,7 @@ final class Menus {
             plugin.save(c);
             field(player, c, h);
         }));
-        p.showDialog(Dialog.create(f -> f.empty()
-                .base(DialogBase.builder(Component.text("Field")).body(body).inputs(inputs).build())
-                .type(DialogType.multiAction(buttons).columns(1).exitAction(ActionButton.builder(Component.text("Close")).build()).build())));
+        Dialogs.show(p, "Field", body, inputs, buttons, 1);
     }
 
     /** Shows the field's edge to the player with particles for a few seconds. */
@@ -260,8 +206,7 @@ final class Menus {
                 body.add(text(Component.text("   " + x.hungerNote, NamedTextColor.YELLOW)));
         }
         List<ActionButton> buttons = List.of(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
-        show(p, "Citizens", body, DialogType.multiAction(buttons).columns(1)
-                .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
+        Dialogs.show(p, "Citizens", body, List.of(), buttons, 1);
     }
 
     /** What a hut's current work still needs that is not in its chest, with item icons. */
@@ -274,32 +219,19 @@ final class Menus {
                                 .append(e.getKey().effectiveName()), 250))
                         .showTooltip(true).build()));
         List<ActionButton> buttons = List.of(button("Back", p, c, h, player -> hut(player, c, h)));
-        show(p, "Materials needed", body, DialogType.multiAction(buttons).columns(1)
-                .exitAction(ActionButton.builder(Component.text("Close")).build()).build());
+        Dialogs.show(p, "Materials needed", body, List.of(), buttons, 1);
     }
 
     private static DialogBody text(Component c) {
-        return DialogBody.plainMessage(c, 300);
+        return Dialogs.text(c);
     }
 
-    /** A button whose action runs on the main thread, only for the player it was shown to, while the hut exists. */
+    /** A button that runs only while the hut still exists (it may be removed while the menu is open). */
     private ActionButton button(String label, Player shownTo, Colony c, Hut h, Consumer<Player> action) {
         return button(label, shownTo, c, h, (player, view) -> action.accept(player));
     }
 
-    /** Same, for a dialog with inputs: the action also gets what the player entered. */
     private ActionButton button(String label, Player shownTo, Colony c, Hut h, BiConsumer<Player, DialogResponseView> action) {
-        return ActionButton.builder(Component.text(label)).width(200).action(DialogAction.customClick((view, audience) -> {
-            if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (c.huts.contains(h)) action.accept(player, view); // the hut may have been removed while the menu was open
-            });
-        }, ONCE)).build();
-    }
-
-    private static void show(Player p, String title, List<DialogBody> body, DialogType type) {
-        p.showDialog(Dialog.create(f -> f.empty()
-                .base(DialogBase.builder(Component.text(title)).body(body).build())
-                .type(type)));
+        return Dialogs.button(plugin, label, 200, shownTo, () -> c.huts.contains(h), action);
     }
 }

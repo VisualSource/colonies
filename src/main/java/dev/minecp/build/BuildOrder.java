@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.build;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.job.Tool;
+import dev.minecp.logistics.Rack;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -33,32 +37,32 @@ import java.util.function.Predicate;
  * Structure voids are left alone; barriers mean "fill with dirt unless already solid" (foundations).
  * Progress is not stored: steps whose block is already right are skipped, so a reloaded order resumes by itself.
  */
-final class BuildOrder {
+public final class BuildOrder {
     /**
      * {@code fill}: a filler spot (barrier in the structure) that is only filled with dirt when not already solid.
      * {@code rack}: a chest standing in for the mod's storage rack, tagged with {@link #RACK_MARKER} when placed.
      */
-    record Step(Block block, BlockData data, boolean fill, boolean rack) {
-        boolean isClear() { return data.getMaterial().isAir(); }
-        boolean done() {
+    public record Step(Block block, BlockData data, boolean fill, boolean rack) {
+        public boolean isClear() { return data.getMaterial().isAir(); }
+        public boolean done() {
             if (fill) return block.getType().isSolid();
             // Compare type only: neighbour updates change states like fence connections after placing.
             return isClear() ? block.isEmpty() : block.getType() == data.getMaterial();
         }
         /** The tool that turns the block already there into this one in place (shovel: path, hoe: farmland), or null. */
-        Tool convertWith() {
+        public Tool convertWith() {
             Material want = data.getMaterial(), have = block.getType();
             if (want == Material.DIRT_PATH && FLATTENS.contains(have)) return Tool.SHOVEL;
             if (want == Material.FARMLAND && TILLS.contains(have)) return Tool.HOE;
             return null;
         }
         /** The item this step uses up as an item (a Storage Rack for rack spots), or null if it is free. */
-        ItemStack item() {
+        public ItemStack item() {
             Material m = cost();
             return m == null ? null : rack ? Rack.item() : new ItemStack(m);
         }
         /** The item this step uses up, or null if it is free. */
-        Material cost() {
+        public Material cost() {
             if (isClear() || data.getMaterial() == Material.WATER || data.getMaterial() == Material.LAVA) return null;
             if (convertWith() != null) return null;
             // Players can't get path or farmland items without Silk Touch: lay dirt, flattened or tilled as it goes down.
@@ -75,18 +79,18 @@ final class BuildOrder {
             Material.COARSE_DIRT, Material.MYCELIUM, Material.ROOTED_DIRT);
     private static final Set<Material> TILLS = EnumSet.of(Material.GRASS_BLOCK, Material.DIRT, Material.DIRT_PATH);
 
-    final String structure;
-    final Location origin;
-    final StructureRotation rotation;
-    final boolean mirror; // mirrored front to back (x flipped) before turning, as the mod's build tool mirrors
-    final List<Step> steps;
+    public final String structure;
+    public final Location origin;
+    public final StructureRotation rotation;
+    public final boolean mirror; // mirrored front to back (x flipped) before turning, as the mod's build tool mirrors
+    public final List<Step> steps;
     private int cursor = 0;
 
     /** Tag on the chest that marks a structure's hut block, written by tools/convert_blueprints.py. */
     static final NamespacedKey HUT_MARKER = NamespacedKey.fromString("minecp:hut");
     private final Map<Block, Step> byBlock = new HashMap<>();
     /** Tag on the chests that stand in for the mod's storage racks (written by the converter), for a custom model later. */
-    static final NamespacedKey RACK_MARKER = NamespacedKey.fromString("minecp:rack");
+    public static final NamespacedKey RACK_MARKER = NamespacedKey.fromString("minecp:rack");
 
 
     private BuildOrder(String structure, Location origin, StructureRotation rotation, boolean mirror, List<Step> steps) {
@@ -104,10 +108,10 @@ final class BuildOrder {
         minX = x0; maxX = x1; minZ = z0; maxZ = z1;
     }
 
-    final int minX, maxX, minZ, maxZ; // the structure's footprint
+    public final int minX, maxX, minZ, maxZ; // the structure's footprint
 
     /** Ground spots in a ring 1-2 blocks outside the footprint, where a builder stands to work (like the mod's builders). */
-    List<Block> groundAround() {
+    public List<Block> groundAround() {
         var world = origin.getWorld();
         List<Block> spots = new ArrayList<>();
         for (int x = minX - 2; x <= maxX + 2; x++) for (int z = minZ - 2; z <= maxZ + 2; z++) {
@@ -119,7 +123,7 @@ final class BuildOrder {
     }
 
     /** The other half of a door, tall plant or bed, which should be placed together with this one. */
-    Step partner(Step step) {
+    public Step partner(Step step) {
         if (step.data instanceof Bed bed)
             return byBlock.get(step.block.getRelative(bed.getPart() == Bed.Part.FOOT ? bed.getFacing() : bed.getFacing().getOppositeFace()));
         if (twoTall(step.data))
@@ -139,11 +143,11 @@ final class BuildOrder {
      * @param rotation null (with a hut): turned so the marker faces the way the hut block faces (a hut placed by hand)
      * @return null if no structure has that name.
      */
-    static BuildOrder create(String structure, Location origin, StructureRotation rotation, Block hut) {
+    public static BuildOrder create(String structure, Location origin, StructureRotation rotation, Block hut) {
         return create(structure, origin, rotation, false, hut);
     }
 
-    static BuildOrder create(String structure, Location origin, StructureRotation rotation, boolean mirror, Block hut) {
+    public static BuildOrder create(String structure, Location origin, StructureRotation rotation, boolean mirror, Block hut) {
         var s = load(structure);
         if (s == null || s.getPalettes().isEmpty()) return null;
         var blocks = s.getPalettes().getFirst().getBlocks();
@@ -194,9 +198,9 @@ final class BuildOrder {
     /** Tag of the marker entities on a structure's field blocks, written by tools/convert_blueprints.py. */
     static final String FIELD_TAG = "minecp_field";
     /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
-    final List<Block> fields = new ArrayList<>();
+    public final List<Block> fields = new ArrayList<>();
 
-    static boolean exists(String structure) {
+    public static boolean exists(String structure) {
         return load(structure) != null;
     }
 
@@ -207,12 +211,12 @@ final class BuildOrder {
     }
 
     /** A structure position turned (and first mirrored, x flipped, like vanilla's FRONT_BACK) around the corner. */
-    private static BlockVector transform(int x, int y, int z, StructureRotation r, boolean mirror) {
+    static BlockVector transform(int x, int y, int z, StructureRotation r, boolean mirror) {
         return rotate(new BlockVector(mirror ? -x : x, y, z), r);
     }
 
     /** Same rotation around the origin as vanilla structure placement. */
-    static BlockVector rotate(BlockVector v, StructureRotation r) {
+    public static BlockVector rotate(BlockVector v, StructureRotation r) {
         return switch (r) {
             case NONE -> v;
             case CLOCKWISE_90 -> new BlockVector(-v.getBlockZ(), v.getBlockY(), v.getBlockX());
@@ -222,7 +226,7 @@ final class BuildOrder {
     }
 
     /** Rotation that makes the structure extend away from a player facing {@code facing}. */
-    static StructureRotation rotationFor(BlockFace facing) {
+    public static StructureRotation rotationFor(BlockFace facing) {
         return switch (facing) {
             case WEST -> StructureRotation.CLOCKWISE_90;
             case NORTH -> StructureRotation.CLOCKWISE_180;
@@ -235,7 +239,7 @@ final class BuildOrder {
      * @return the first step not yet done and not on a {@code keep} block, or null when the build is finished.
      * Unbreakable blocks (bedrock, barriers, portal frames) are always left alone.
      */
-    Step next(Predicate<Block> keep) {
+    public Step next(Predicate<Block> keep) {
         while (cursor < steps.size() && (steps.get(cursor).done() || keep.test(steps.get(cursor).block)
                 || steps.get(cursor).block.getType().getHardness() < 0)) cursor++;
         if (cursor >= steps.size()) return null;
@@ -244,8 +248,21 @@ final class BuildOrder {
         return other != null && s.cost() == null && other.cost() != null && !other.done() && !keep.test(other.block) ? other : s;
     }
 
+    /** What the next steps use up, by {@code item} (null: free), counted up to {@code limit} items: one trip's load. */
+    public <K> Map<K, Integer> nextLoad(java.util.function.Function<Step, K> item, int limit) {
+        Map<K, Integer> want = new java.util.LinkedHashMap<>();
+        int total = 0;
+        for (Step s : upcoming()) {
+            K k = item.apply(s);
+            if (k == null || s.done()) continue;
+            want.merge(k, 1, Integer::sum);
+            if (++total >= limit) break;
+        }
+        return want;
+    }
+
     /** Steps from the current one on, for planning what materials to carry. */
-    List<Step> upcoming() {
+    public List<Step> upcoming() {
         return steps.subList(cursor, steps.size());
     }
 }

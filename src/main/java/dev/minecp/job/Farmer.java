@@ -1,5 +1,11 @@
-package dev.minecp;
+package dev.minecp.job;
 
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -18,11 +24,11 @@ import java.util.Set;
  * harvests ripe crops, and brings the harvest to the hut chest. Seeds to plant come from what it harvested,
  * then from the hut chest. A Farmer's Hut works one field per level.
  */
-final class Farmer extends Job {
+public final class Farmer extends Job {
     /** A field is the soil around its block, at the level the block stands on, up to this far out each way (as in the mod). */
-    static final int MAX_EXTENT = 5;
+    public static final int MAX_EXTENT = 5;
     /** Seed item -> crop block, for the crops a farmer plants. */
-    static final Map<Material, Material> CROPS = Map.of(Material.WHEAT_SEEDS, Material.WHEAT, Material.CARROT, Material.CARROTS,
+    public static final Map<Material, Material> CROPS = Map.of(Material.WHEAT_SEEDS, Material.WHEAT, Material.CARROT, Material.CARROTS,
             Material.POTATO, Material.POTATOES, Material.BEETROOT_SEEDS, Material.BEETROOTS,
             Material.PUMPKIN_SEEDS, Material.PUMPKIN_STEM, Material.MELON_SEEDS, Material.MELON_STEM);
     /** Stems -> the fruit they grow beside them, which is what gets harvested. */
@@ -31,11 +37,12 @@ final class Farmer extends Job {
             Material.ATTACHED_MELON_STEM, Material.MELON);
 
     /** What the player sees as the crop of a seed: the fruit for stems, else the crop. */
-    static Material produce(Material seed) {
+    public static Material produce(Material seed) {
         Material crop = CROPS.get(seed);
         return FRUIT.getOrDefault(crop, crop);
     }
     private static final Set<Material> TILLABLE = EnumSet.of(Material.GRASS_BLOCK, Material.DIRT, Material.DIRT_PATH);
+    // Ours, not the mod's:
     private static final double REACH = 4;
     private static final int DELIVER_AT = 128; // items carried before a trip to the hut
     private static final int SEEDS_PER_TRIP = 64;
@@ -49,16 +56,15 @@ final class Farmer extends Job {
     private Hut current;      // the field being worked today
     private int skipped;      // its stages passed over with nothing to do
     private boolean didWork;  // whether it did this field's stage
-    private int cooldown = 0;
     private boolean delivering;
 
-    Farmer(Hut hut, Colony colony) {
+    public Farmer(Hut hut, Colony colony) {
         super(hut);
         this.colony = colony;
     }
 
     /** The seed the field is planted with, chosen in its menu; null if none. */
-    static Material seedOf(Hut field) {
+    public static Material seedOf(Hut field) {
         return field.seed;
     }
 
@@ -88,7 +94,7 @@ final class Farmer extends Job {
     }
 
     /** The ground of the field's plot at this offset from the field block, or null. */
-    static Block plot(Hut field, int dx, int dz) {
+    public static Block plot(Hut field, int dx, int dz) {
         return surface(field.block.getRelative(dx, -1, dz));
     }
 
@@ -98,7 +104,7 @@ final class Farmer extends Job {
     }
 
     /** {usable, total} plots of the field: soil with room above it (or a crop already). */
-    static int[] plots(Hut field) {
+    public static int[] plots(Hut field) {
         int usable = 0, total = 0;
         int[] e = field.extent;
         for (int dx = -e[3]; dx <= e[1]; dx++) for (int dz = -e[0]; dz <= e[2]; dz++) {
@@ -114,11 +120,11 @@ final class Farmer extends Job {
     }
 
     @Override
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.2;
     }
 
-    private static final int SEED_STOCK = 64; // seeds of each field's crop it keeps in the hut chest
+    private static final int SEED_STOCK = 64; // ours: seeds of each field's crop it keeps in the hut chest
 
     @Override
     List<Want> wants() {
@@ -146,12 +152,19 @@ final class Farmer extends Job {
         return seeds;
     }
 
+    @Override
+    public List<Component> info(Colony c) {
+        return List.of(Component.text(hut.level == 0 ? "The farmer starts once level 1 is built."
+                : "Works " + c.fieldsOf(this).size() + " of up to " + hut.level + " fields (one per level). Seeds to plant go in this chest.",
+                NamedTextColor.GRAY));
+    }
+
     private int actionTicks() {
         return Math.max(4, 16 - 2 * hut.level);
     }
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Farmer: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
@@ -161,12 +174,12 @@ final class Farmer extends Job {
         if (delivering || carried.values().stream().mapToInt(Integer::intValue).sum() >= DELIVER_AT) {
             delivering = true;
             if (!atHut(w)) { goToHut(w); return; }
-            if (!deliver()) { idle(w, "The hut chest is full."); return; }
+            if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return; }
             delivering = false;
         }
         List<Hut> fields = colony.fieldsOf(this);
         if (fields.isEmpty()) {
-            idle(w, "No field to work: place a Field near the hut (one per hut level).");
+            idle(w, "No field to work: place a Field near the hut (one per hut level).", 100, hut.block);
             return;
         }
 
@@ -179,13 +192,13 @@ final class Farmer extends Job {
         }
         if (current == null) {
             if (!carried.isEmpty()) { delivering = true; return; } // done for the day: drop off the harvest
-            idle(w, "Every field has had its work today.");
+            idle(w, "Every field has had its work today.", 100, hut.block);
             return;
         }
         Hut field = current;
         Kind stage = Kind.values()[field.stage % 3];
         Material seed = seedOf(field);
-        if (seed == null) { idle(w, "Choose a crop in each field's menu."); current = null; field.workedDay = colony.day; return; }
+        if (seed == null) { idle(w, "Choose a crop in each field's menu.", 100, hut.block); current = null; field.workedDay = colony.day; return; }
         Inventory chest = chest();
         Task best = null;
         double bestDistance = Double.MAX_VALUE;
@@ -208,11 +221,11 @@ final class Farmer extends Job {
         // Only tilling needs a hoe; harvesting and planting go on without one.
         if (best.kind == Kind.TILL && !hasTool(Tool.HOE, null)
                 && (chest == null || java.util.Arrays.stream(chest.getContents()).noneMatch(i -> fits(Tool.HOE, i, null)))) {
-            idle(w, "Needs a hoe in the hut chest to till new farmland.");
+            idle(w, "Needs a hoe in the hut chest to till new farmland.", 100, hut.block);
             return;
         }
         if (best.kind != Kind.HARVEST && carried.getOrDefault(seed, 0) <= 0 && (chest == null || !chest.contains(seed))) {
-            idle(w, "Needs " + name(seed) + " in the hut chest to plant.");
+            idle(w, "Needs " + name(seed) + " in the hut chest to plant.", 100, hut.block);
             return;
         }
         didWork = true;
@@ -226,7 +239,7 @@ final class Farmer extends Job {
             if (!atHut(w)) { goToHut(w); return; }
             int left = chest.removeItem(new ItemStack(best.seed, SEEDS_PER_TRIP)).values().stream().mapToInt(ItemStack::getAmount).sum();
             if (left == SEEDS_PER_TRIP) { // only renamed or otherwise changed seeds: don't walk back and forth for them
-                idle(w, "Needs plain " + name(best.seed) + " in the hut chest to plant.");
+                idle(w, "Needs plain " + name(best.seed) + " in the hut chest to plant.", 100, hut.block);
                 return;
             }
             carried.merge(best.seed, SEEDS_PER_TRIP - left, Integer::sum);
@@ -275,17 +288,5 @@ final class Farmer extends Job {
         if (free || !(above.isEmpty() || (above.isReplaceable() && !above.isLiquid()))) return null;
         if (soil.getType() == Material.FARMLAND) return Kind.PLANT;
         return TILLABLE.contains(soil.getType()) ? Kind.TILL : null;
-    }
-
-    /** Nothing to do (or it can't): wait at the hut, as the mod's workers do, and look again in 5 seconds. */
-    private void idle(Colonist w, String why) {
-        note = why;
-        w.setStatus("Farmer: idle");
-        if (!atHut(w)) goToHut(w);
-        cooldown = 100;
-    }
-
-    private static String name(Material m) {
-        return m.name().toLowerCase().replace('_', ' ');
     }
 }

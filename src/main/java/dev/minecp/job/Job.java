@@ -1,13 +1,20 @@
-package dev.minecp;
+package dev.minecp.job;
 
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+
+import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
@@ -16,13 +23,72 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 /** A job at a worker hut: one colonist works it, using the hut's chest. */
-abstract class Job {
-    final Hut hut;
-    UUID worker; // colonist id, or null while nobody has the job
+public abstract class Job {
+    public final Hut hut;
+    public UUID worker; // colonist id, or null while nobody has the job
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
     final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
-    String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
-    final List<ItemStack> load = new ArrayList<>(); // whole items in hand (a courier's delivery); saved with the colony
+    public String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
+    // Whole items in hand, kept as items (a courier's delivery, the builder's storage racks); saved with the colony.
+    public final List<ItemStack> load = new ArrayList<>();
+    int cooldown; // ticks until the worker acts again
+
+    /** Items fetched per trip: a citizen's 27-slot inventory, as in the mod. */
+    static final int CARRY_LIMIT = 27 * 64;
+
+    // ---- what a kind of job adds: the hut menu, saving, shutting down ----------------------------------------
+
+    /** Lines for the hut menu, under the worker and its status (the note is added after them). */
+    public List<Component> info(Colony c) {
+        return List.of();
+    }
+
+    /** What the hut menu's "Materials needed" lists, or null for no such button. */
+    public Map<ItemStack, Integer> materials() {
+        return null;
+    }
+
+    /** Saves what this job holds; kinds of job add their own state. */
+    public void save(ConfigurationSection s, Colony c) {
+        if (worker != null) s.set("worker", worker.toString());
+        carried.forEach((m, n) -> s.set("carried." + m.name(), n));
+        // Tools keep durability and enchantments, so they are stored as whole items.
+        tools.forEach((kind, item) -> s.set("tools." + kind.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
+        if (!load.isEmpty()) s.set("load", load.stream().map(i -> Base64.getEncoder().encodeToString(i.serializeAsBytes())).toList());
+    }
+
+    /** Loads what {@link #save} wrote. Called once every hut and job of the colony exists. */
+    public void load(ConfigurationSection s, Colony c) {
+        String w = s.getString("worker");
+        if (w != null) worker = UUID.fromString(w);
+        var ts = s.getConfigurationSection("tools");
+        if (ts != null) for (String kind : ts.getKeys(false))
+            tools.put(Tool.valueOf(kind), ItemStack.deserializeBytes(Base64.getDecoder().decode(ts.getString(kind))));
+        for (String item : s.getStringList("load")) load.add(ItemStack.deserializeBytes(Base64.getDecoder().decode(item)));
+        var cs = s.getConfigurationSection("carried");
+        if (cs != null) for (String m : cs.getKeys(false)) {
+            Material mat = Material.matchMaterial(m);
+            if (mat != null) carried.put(mat, cs.getInt(m));
+        }
+    }
+
+    /** The colony's entities are going away (shutdown, disband): put back what isn't saved. */
+    public void stow() {}
+
+    // ---- shared helpers --------------------------------------------------------------------------------------
+
+    /** Waits {@code ticks}, showing why in the hut menu; walks beside {@code near} first (null: stays where it is). */
+    void idle(Colonist w, String why, int ticks, Block near) {
+        note = why;
+        w.setStatus(hut.type.worker + ": idle");
+        if (near != null && !w.isBeside(near)) w.goBeside(near);
+        cooldown = ticks;
+    }
+
+    /** An item's name as players read it: "oak planks". */
+    static String name(Material m) {
+        return m.name().toLowerCase().replace('_', ' ');
+    }
 
     /** Something the hut wants a courier to bring to its chest: items matching {@code test}, {@code amount} more. */
     record Want(String label, Predicate<ItemStack> test, int amount) {}
@@ -55,20 +121,20 @@ abstract class Job {
     }
 
     /** How much faster than others this job makes a citizen hungry (the mod: farmer and lumberjack 1.2). */
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.0;
     }
 
     /** One tick of work for the worker, whose entities are spawned. */
-    abstract void tick(Colonist w);
+    public abstract void tick(Colonist w);
 
     /** Called each tick while work stops (night, rain). @return false while it is still getting out of its work place. */
-    boolean leaveWork(Colonist w) {
+    public boolean leaveWork(Colonist w) {
         return true;
     }
 
     /** The mod lets only the cook and fully upgraded huts' workers work in the rain. */
-    boolean worksInRain() {
+    public boolean worksInRain() {
         return hut.level >= Hut.MAX_LEVEL;
     }
 
@@ -76,17 +142,20 @@ abstract class Job {
         return hut.block.getState(false) instanceof Container c ? c.getInventory() : null;
     }
 
-    /** Puts what the worker carries into the chest; what doesn't fit stays carried. @return true if all fit. */
+    /** Puts what the worker carries (load included) into the chest; what doesn't fit stays carried. @return true if all fit. */
     boolean deliver() {
         Inventory chest = chest();
         if (chest == null) return false;
         carried.replaceAll((m, n) -> n <= 0 ? 0 : chest.addItem(new ItemStack(m, n)).values().stream().mapToInt(ItemStack::getAmount).sum());
         carried.values().removeIf(n -> n <= 0);
-        return carried.isEmpty();
+        List<ItemStack> left = new ArrayList<>(chest.addItem(load.toArray(ItemStack[]::new)).values());
+        load.clear();
+        load.addAll(left);
+        return carried.isEmpty() && load.isEmpty();
     }
 
     /** The hut is gone or the job ends: drop what the worker carries, tools included, at the hut. */
-    void dropCarried() {
+    public void dropCarried() {
         Location at = hut.block.getLocation().toCenterLocation();
         carried.forEach((m, n) -> { if (n > 0) at.getWorld().dropItemNaturally(at, new ItemStack(m, n)); });
         carried.clear();
@@ -116,7 +185,7 @@ abstract class Job {
     }
 
     /** Everything the worker carries, tools included, taken off it (it died: it all goes into its grave). */
-    List<ItemStack> takeCarried() {
+    public List<ItemStack> takeCarried() {
         List<ItemStack> all = new ArrayList<>();
         carried.forEach((m, n) -> { for (int left = n; left > 0; left -= m.getMaxStackSize()) all.add(new ItemStack(m, Math.min(left, m.getMaxStackSize()))); });
         carried.clear();
@@ -125,6 +194,30 @@ abstract class Job {
         all.addAll(load);
         load.clear();
         return all;
+    }
+
+    /**
+     * What a block that holds items (chest, barrel, shulker box, furnace…) has inside, as copies: its own half only
+     * for a double chest. getDrops leaves contents out.
+     */
+    public static List<ItemStack> contents(Block b) {
+        Inventory inv = inventoryOf(b);
+        List<ItemStack> items = new ArrayList<>();
+        if (inv != null) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) items.add(i.clone());
+        return items;
+    }
+
+    /** Same, and empties the block, so breaking it afterwards drops just the block. */
+    static List<ItemStack> takeContents(Block b) {
+        List<ItemStack> items = contents(b);
+        Inventory inv = inventoryOf(b);
+        if (inv != null) inv.clear();
+        return items;
+    }
+
+    private static Inventory inventoryOf(Block b) {
+        if (!(b.getState(false) instanceof org.bukkit.inventory.BlockInventoryHolder holder)) return null;
+        return holder instanceof org.bukkit.block.Chest chest ? chest.getBlockInventory() : holder.getInventory();
     }
 
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */

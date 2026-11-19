@@ -1,5 +1,12 @@
-package dev.minecp;
+package dev.minecp.job;
 
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+import dev.minecp.logistics.Warehouse;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.block.Block;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -12,15 +19,14 @@ import java.util.List;
  * (materials for the builder, seeds and tools, the cook's food and fuel), then the surplus in huts
  * (logs, harvest, what the builder dug up) to the warehouse.
  */
-final class Courier extends Job {
+public final class Courier extends Job {
 
     private final Colony colony;
     Job serving;          // the hut it is bringing to or fetching from, so couriers don't double up
     private Want want;    // what it fetches from the warehouse for {@link #serving}; null: it collects surplus
     private boolean toWarehouse; // with a load: heading to the warehouse (surplus, or a delivery that no longer fit)
-    private int cooldown = 0;
 
-    Courier(Hut hut, Colony colony) {
+    public Courier(Hut hut, Colony colony) {
         super(hut);
         this.colony = colony;
     }
@@ -31,7 +37,15 @@ final class Courier extends Job {
     }
 
     @Override
-    void tick(Colonist w) {
+    public List<Component> info(Colony c) {
+        int m = maxStacks();
+        return List.of(Component.text(hut.level == 0 ? "The courier starts once level 1 is built."
+                : "Carries " + (m == Integer.MAX_VALUE ? "any amount" : "up to " + m + (m == 1 ? " stack" : " stacks"))
+                + " per trip between the warehouse and the huts (more with each level).", NamedTextColor.GRAY));
+    }
+
+    @Override
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Courier: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
@@ -39,7 +53,7 @@ final class Courier extends Job {
         }
         if (w.isMoving() || --cooldown > 0) return;
         Warehouse wh = colony.warehouse();
-        if (wh == null) { idle(w, "No Warehouse: build one (level 1 or higher) for couriers to work from.", hut.block); return; }
+        if (wh == null) { idle(w, "No Warehouse: build one (level 1 or higher) for couriers to work from.", 60, hut.block); return; }
         if (serving != null && !colony.jobs.contains(serving)) { serving = null; want = null; }
 
         if (!load.isEmpty()) { // deliver what it carries
@@ -57,7 +71,7 @@ final class Courier extends Job {
             load.addAll(left);
             w.swing();
             if (!load.isEmpty()) { // didn't fit: take it back to the warehouse, or wait for room there
-                if (to == wh.hut.block) { idle(w, note, wh.hut.block); return; }
+                if (to == wh.hut.block) { idle(w, note, 60, wh.hut.block); return; }
                 toWarehouse = true;
                 return;
             }
@@ -66,7 +80,7 @@ final class Courier extends Job {
             return;
         }
 
-        if (serving == null && !pickTask(wh)) { idle(w, null, wh.hut.block); return; }
+        if (serving == null && !pickTask(wh)) { idle(w, null, 60, wh.hut.block); return; }
         w.setStatus("Courier: working");
         if (want != null) { // fetch from the warehouse
             if (!w.isBeside(wh.hut.block)) { w.goBeside(wh.hut.block); return; }
@@ -142,10 +156,4 @@ final class Courier extends Job {
         return taken;
     }
 
-    private void idle(Colonist w, String why, Block near) {
-        note = why;
-        w.setStatus("Courier: idle");
-        if (!w.isBeside(near)) w.goBeside(near);
-        cooldown = 60;
-    }
 }

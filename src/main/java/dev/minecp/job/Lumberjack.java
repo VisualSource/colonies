@@ -1,5 +1,11 @@
-package dev.minecp;
+package dev.minecp.job;
 
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.HeightMap;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -23,7 +29,8 @@ import java.util.Set;
  * A tree is logs standing on soil with at least {@link #MIN_LEAVES} naturally grown leaves, so the logs
  * in buildings are left alone.
  */
-final class Lumberjack extends Job {
+public final class Lumberjack extends Job {
+    // Ours, not the mod's (its tree detection works differently):
     private static final int MIN_LEAVES = 4;
     private static final int MAX_TREE_LOGS = 200; // more connected logs than this is a build, not a tree
     private static final int MAX_LEAVES = 600;
@@ -41,14 +48,13 @@ final class Lumberjack extends Job {
     private int next;             // index into logs, then into leaves
     private boolean onLeaves;
     private final Set<Block> unreachable = new HashSet<>();
-    private int cooldown = 0;
 
-    Lumberjack(Hut hut) {
+    public Lumberjack(Hut hut) {
         super(hut);
     }
 
     @Override
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.2;
     }
 
@@ -66,6 +72,12 @@ final class Lumberjack extends Job {
         return fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null) ? Integer.MAX_VALUE : 0;
     }
 
+    @Override
+    public List<Component> info(Colony c) {
+        return List.of(Component.text(hut.level == 0 ? "The lumberjack starts once level 1 is built."
+                : "Cuts natural trees within " + radius() + " blocks and replants them.", NamedTextColor.GRAY));
+    }
+
     int radius() {
         return 16 + 8 * Math.max(0, hut.level - 1);
     }
@@ -75,7 +87,7 @@ final class Lumberjack extends Job {
     }
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Lumberjack: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
@@ -193,7 +205,7 @@ final class Lumberjack extends Job {
         for (Block log : logs) {
             if (!log.isEmpty() || !Tag.DIRT.isTagged(log.getRelative(0, -1, 0).getType())) continue;
             if (carried.getOrDefault(sapling, 0) <= 0) {
-                note = "No " + sapling.name().toLowerCase().replace('_', ' ') + " dropped to replant the last tree.";
+                note = "No " + name(sapling) + " dropped to replant the last tree.";
                 return;
             }
             carried.merge(sapling, -1, Integer::sum);

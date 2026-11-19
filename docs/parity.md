@@ -59,24 +59,28 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
     - No swimming or diving (citizens wade only), no rails, no vines unless tagged climbable
     - Heuristic weight fixed at 2 (the mod starts at 2 and tunes it per citizen); path blocks cost 1/2 (the mod: 1/6)
     - Teleports near the goal when nothing reaches it (the mod waits at least 2 minutes first)
+    - Moves diagonally on level ground, at √2 the cost of a straight step; a step through water costs 4 (not checked against the mod)
 - [x] House (residence)
-- [~] Colony growth: a citizen every 2 minutes while there is housing
-  - Not checked against the mod's rules
+- [~] Colony growth: 4 citizens to start (the mod's default); then a citizen every 2 minutes while there is housing
+  - Ours: the mod spawns only the starting citizens on a timer; later ones come from the tavern's visitors and from children
 - [x] Tool tiers limited by the worker's own hut level (`IBuilding.getMaxEquipmentLevel`, `ItemStackUtils.verifyEquipmentLevel`): at most stone up to hut level 1, then the hut's level (iron 2, diamond 3, netherite 4), anything at level 5; a tool's tier is wood/gold 0, stone 1, iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1. Better tools stay in the chest (and couriers may take them away); requests say the best tier allowed; of the tools that will do, the lowest tier is taken, as in the mod
   - Copper tools (newer than the mod) count as stone
   - The same rule covers every worker's tools and the fisherman's rod; not tied to research or the builder
 - [~] Hunger and food (saturation numbers from the mod)
   - Work drain assumes the worker is always busy; the mod counts actions
+  - Saturation only drops in daytime and not while asleep, as in the mod (`EntityCitizen.decreaseIdleSaturation`)
   - No food quality tied to house level
   - No food variety (diet diversity)
   - Saturation sets how fast health comes back (see Health)
 - [~] Day/night routine (`CitizenAI`, `EntityAISleep`, `CitizenSleepHandler`): from day time 10600 citizens leave for home when the walk (6 ticks a block, height counted 1.5x, the miner's climb added) would get them there by nightfall at 12600; they sleep in a house bed and get up at dawn; a colony day counter goes up each morning; in rain only the cook and level 5 huts' workers work
   - Beds are found near the house's hut block (within 8 blocks), not from the building's registered beds
-  - Homeless citizens wait at the town hall (the mod sends them to a tavern if there is one)
+  - Homeless citizens wait within 16 blocks of the town hall (the mod sends them to a tavern if there is one)
   - No "all citizens are asleep" message, sleeping particles, off-to-bed sounds, or "home too far" complaint
   - No research that lets citizens work longer or in the rain
   - Sleep isn't checked by health, sickness, raids or mourning yet (those come first in the mod)
-- [~] Health and death (`EntityCitizen` hurt/die/checkHeal, `GraveManager`, `TileEntityGrave`): 20 health; a hit takes at most 20% (4), so it takes several to kill; stuck in a wall it is moved out instead; players other than the owner can't deal more than 1; hurt by a mob or player it runs 15 blocks away, by a block 5; it heals every 5 seconds unless a mob or player hurt it in the last 5: 2 when full, 1 normally, saturation/20/2 below 6. On death the owner is told where and why, and a grave is put on the nearest free ground within 10 blocks with everything it carried (none in lava: items drop); the grave decays after 10 minutes and is gone 10 minutes later, dropping its items
+- [~] Health and death (`EntityCitizen` hurt/die/checkHeal, `GraveManager`, `TileEntityGrave`): 20 health; a hit takes at most 20% (4), so it takes several to kill; stuck in a wall it is moved out instead; a hit of more than 1 from a player other than the owner does nothing (the mod's `EntityCitizen.checkIfValidDamageSource`: without the HURT_CITIZEN permission); void and `/kill` take all its health, past the cap; hurt by a mob or player it runs 15 blocks away from it; hurt by anything else but a fall (a block, drowning, starving) it moves 5 blocks from where it stands, as in the mod (`EntityCitizen.performMoveAway`: `walkAwayFrom(blockPosition(), 5)`, skipped for falls); a hurt sleeper wakes, as vanilla does, then goes back to bed; it heals every 5 seconds unless a mob or player hurt it in the last 5: 2 when full, 1 normally, saturation/20/2 below 6. On death the owner is told where and why, and a grave is put on the nearest free ground within 10 blocks with everything it carried (none in lava: items drop); the grave decays after 10 minutes and is gone 10 minutes later, dropping its items; the timer only runs while its chunk is loaded (the mod's grave ticks as a block entity)
+  - Hut blocks and graves survive explosions
+  - Breaking the Town Hall drops what every worker carried and what every grave holds
   - The hidden legs mob takes the hits (mobs that hunt villagers, like zombies, go for it); the hits themselves are cancelled
   - No armour, sickness cap on healing, research, happiness or mourning effects, or calling guards for help (no guards yet)
   - Health shows in the town hall's citizen list
@@ -98,6 +102,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No request screen
   - No sorting (the mod sorts from level 3)
   - No limit on couriers per warehouse level
+  - A courier carries 1, 2, 4 or 8 stacks at hut levels 1 to 4, and any amount at level 5 (the mod's 2^(level-1), `EntityAIWorkDeliveryman`)
   - No minimum stock setting (`MinimumStockModule`: items a hut keeps topped up)
   - Builder chest is emptied to the warehouse while no build is running
 - [~] Storage rack: own item, recipe, required by the builder, warehouse counts only racks
@@ -109,7 +114,8 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 
 - [~] Builder: upgrades huts from converted blueprints, uses tools, materials and storage racks
   - Not checked: does the mod only let a builder build huts up to its own level?
-  - No decoration or free builds from a build tool; `/colony build` is the stand-in
+  - No decoration or free builds from a build tool; `/colony build` (admins only: it builds anywhere, past protection plugins) is the stand-in
+  - A chest or other container in the way is emptied into the hut chest before it is cleared (the miner spills it where it stood)
   - No removal, repair or move work orders
   - Hut rotation comes from the build tool (for hut blocks placed by hand: the block's facing)
 - [~] Blueprints: medieval oak converted to vanilla structures (`tools/convert_blueprints.py`)
@@ -121,6 +127,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Picks huts only: no style packs or categories to browse, no decorations (`/colony build` stays the stand-in), only the colony's style
   - No ground-level offset: the hut block goes where you click (the converter drops the blueprints' ground tags)
   - No check that the building stays inside the colony's claimed chunks (we have no claims); hut blocks must be within 64 blocks of the town hall
+  - The block at the hut spot is broken as a player break (protection plugins can refuse it); graves and blocks holding items are refused
 - [ ] Scan tool
 - [~] Hut recipes: MineColonies' shapes, with the Colony Token in place of the build tool
   - Only huts that are built so far have recipes
@@ -131,6 +138,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Not checked against the mod: restricted area, which trees, mushroom and nether trees, stripping
 - [~] Farmer and fields
   - Done: one action per field per colony day; each field cycles till, plant, harvest; a stage with nothing to do is skipped, and after 4 empty stages the field is done for the day (as in the mod)
+  - One field per Farmer's Hut level; the farmer waits max(4, 16 - 2 x level) ticks between actions (ours: the mod's delay depends on the worker's skill, which we don't have)
   - Sugar cane and others are the plantation's, not done
   - No compost or fertiliser
 - [~] Miner
@@ -141,6 +149,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No fill block or max depth settings
   - No ladder repair
   - Asks for whatever tool a block calls for, as the mod's workers do: an axe where a tunnel piece replaces a level's wooden posts (the mod's pieces share an edge row: a 9x9 level and 7x7 tunnels, 7 apart)
+  - Waits max(4, 14 - 2 x level) ticks between blocks (ours: the mod's delay depends on the worker's skill)
   - Goes back to deliver once its loot (not the supplies it keeps for the work) reaches 256
 - [ ] Quarrier (digs out simple and medium quarries)
 - [ ] Fisherman

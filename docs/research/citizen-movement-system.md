@@ -361,4 +361,4 @@ No damage and no block breaking for citizens, matching the mod's citizen setup [
 13. MineColonies `api/configuration/ServerConfiguration.java` (`minimumrailstopath` 8, `pathNodeLimitMultiplier` 1) — https://github.com/ldtteam/minecolonies/blob/version/main/src/main/java/com/minecolonies/api/configuration/ServerConfiguration.java
 14. MineColonies tag `pathblocks.json` — https://github.com/ldtteam/minecolonies/blob/version/main/src/datagen/generated/minecolonies/data/minecolonies/tags/blocks/pathblocks.json
 15. (a) MineColonies `LICENSE` (GPL-3.0) — https://github.com/ldtteam/minecolonies/blob/version/main/LICENSE ; (b) `src/main/resources/assets/minecolonies/LICENSE` ("All Rights Reserved") — https://github.com/ldtteam/minecolonies/blob/version/main/src/main/resources/assets/minecolonies/LICENSE
-16. MineCP source: `src/main/java/dev/minecp/Colonist.java`, `src/main/java/dev/minecp/Miner.java`, `build.gradle.kts`
+16. MineCP source: `src/main/java/dev/minecp/citizen/Colonist.java`, `src/main/java/dev/minecp/job/Miner.java`, `build.gradle.kts`

@@ -1,4 +1,7 @@
-package dev.minecp;
+package dev.minecp.logistics;
+
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
@@ -13,23 +16,24 @@ import java.util.function.Predicate;
  * The colony's store: the warehouse hut chest and the storage racks around it, as in the mod (plain chests and
  * barrels don't count).
  */
-final class Warehouse {
+public final class Warehouse {
+    // Ours, not the mod's (it registers the building's racks from the blueprint):
     private static final int RANGE = 12;              // the buildings are ~25 wide, the hut chest near the middle
     private static final int BELOW = 2, ABOVE = 12;
     private static final int RESCAN_TICKS = 200;
 
-    final Hut hut;
+    public final Hut hut;
     private final Colony colony;
     private List<Block> containers = List.of();
     private long scannedAt = -RESCAN_TICKS; // game time starts at 0, so the first call scans
 
-    Warehouse(Hut hut, Colony colony) {
+    public Warehouse(Hut hut, Colony colony) {
         this.hut = hut;
         this.colony = colony;
     }
 
     /** The storage blocks, the hut chest first; rescanned now and then as the building grows. */
-    List<Block> containers() {
+    public List<Block> containers() {
         long now = hut.block.getWorld().getGameTime();
         if (now - scannedAt < RESCAN_TICKS) return containers;
         scannedAt = now;
@@ -53,14 +57,14 @@ final class Warehouse {
         return invs;
     }
 
-    int count(Predicate<ItemStack> test) {
+    public int count(Predicate<ItemStack> test) {
         int n = 0;
         for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) if (i != null && test.test(i)) n += i.getAmount();
         return n;
     }
 
     /** Takes up to {@code amount} items matching {@code test}, as many as fit in {@code maxStacks} stacks. */
-    List<ItemStack> take(Predicate<ItemStack> test, int amount, int maxStacks) {
+    public List<ItemStack> take(Predicate<ItemStack> test, int amount, int maxStacks) {
         List<ItemStack> taken = new ArrayList<>();
         for (Inventory inv : inventories()) for (int slot = 0; slot < inv.getSize() && amount > 0; slot++) {
             ItemStack i = inv.getItem(slot);
@@ -79,18 +83,29 @@ final class Warehouse {
      * How many more of {@code item} fit in {@code load} without it going over {@code maxStacks} stacks
      * (each kind of item fills stacks of its own size: 64 planks or one hoe is a stack).
      */
-    static int room(List<ItemStack> load, ItemStack item, int maxStacks) {
+    public static int room(List<ItemStack> load, ItemStack item, int maxStacks) {
         if (maxStacks == Integer.MAX_VALUE) return Integer.MAX_VALUE;
-        int used = 0, same = 0;
-        for (ItemStack l : load) if (l.isSimilar(item)) same += l.getAmount();
+        int same = 0;
         java.util.Map<ItemStack, Integer> kinds = new java.util.HashMap<>();
-        for (ItemStack l : load) if (!l.isSimilar(item)) kinds.merge(l.asOne(), l.getAmount(), Integer::sum);
-        for (var e : kinds.entrySet()) used += (e.getValue() + e.getKey().getMaxStackSize() - 1) / e.getKey().getMaxStackSize();
-        return Math.max(0, (maxStacks - used) * item.getMaxStackSize() - same);
+        for (ItemStack l : load)
+            if (l.isSimilar(item)) same += l.getAmount();
+            else kinds.merge(l.asOne(), l.getAmount(), Integer::sum);
+        List<Kind> others = kinds.entrySet().stream().map(e -> new Kind(e.getValue(), e.getKey().getMaxStackSize())).toList();
+        return room(others, same, item.getMaxStackSize(), maxStacks);
+    }
+
+    /** How many of one kind of item a load holds, and that item's stack size. */
+    record Kind(int amount, int stackSize) {}
+
+    /** The arithmetic of {@link #room}, without items (unit tested). */
+    static int room(List<Kind> others, int same, int stackSize, int maxStacks) {
+        int used = 0;
+        for (Kind o : others) used += (o.amount() + o.stackSize() - 1) / o.stackSize(); // each kind fills whole stacks of its own size
+        return Math.max(0, (maxStacks - used) * stackSize - same);
     }
 
     /** Stores items. @return what didn't fit. */
-    List<ItemStack> store(List<ItemStack> items) {
+    public List<ItemStack> store(List<ItemStack> items) {
         List<ItemStack> left = new ArrayList<>(items);
         for (Inventory inv : inventories()) {
             if (left.isEmpty()) break;
@@ -99,10 +114,12 @@ final class Warehouse {
         return left;
     }
 
-    /** {used, total} slots, for the menu. */
-    int[] slots() {
+    /** Slots used and in all, for the menu. */
+    public record Slots(int used, int total) {}
+
+    public Slots slots() {
         int used = 0, total = 0;
         for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) { total++; if (i != null && !i.isEmpty()) used++; }
-        return new int[]{used, total};
+        return new Slots(used, total);
     }
 }

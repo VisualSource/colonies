@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.citizen;
 
 import net.minecraft.core.BlockPos;
 import org.bukkit.block.Block;
