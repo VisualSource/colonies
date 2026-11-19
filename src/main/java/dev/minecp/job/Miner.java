@@ -546,16 +546,16 @@ public final class Miner extends Job {
     // ---- couriers ------------------------------------------------------------------------------------------
 
     @Override
-    List<Want> wants() {
+    public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
         int cobble = inChest(i -> i.getType() == Material.COBBLESTONE) + carried.getOrDefault(Material.COBBLESTONE, 0);
-        if (cobble < COBBLE_STOCK / 2) wants.add(new Want("cobblestone", i -> i.getType() == Material.COBBLESTONE, COBBLE_STOCK - cobble));
+        if (cobble < COBBLE_STOCK / 2) wants.add(new Want("cobblestone", i -> i.getType() == Material.COBBLESTONE, COBBLE_STOCK - cobble, 1)); // minimum 1, as the mod
         int ladders = inChest(i -> i.getType() == Material.LADDER) + carried.getOrDefault(Material.LADDER, 0);
-        if (ladders < LADDER_STOCK / 2) wants.add(new Want("ladders", i -> i.getType() == Material.LADDER, LADDER_STOCK - ladders));
+        if (ladders < LADDER_STOCK / 2) wants.add(new Want("ladders", i -> i.getType() == Material.LADDER, LADDER_STOCK - ladders, 1));
         needs().forEach((m, n) -> {
             int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
-            if (more > 0) wants.add(new Want(name(m), i -> i.getType() == m, more));
+            if (more > 0) wants.add(new Want(name(m), i -> i.getType() == m, more, 1)); // the mod's structure requests: minimum 1
         });
         wantTool(wants, Tool.PICKAXE);
         wantTool(wants, Tool.SHOVEL);

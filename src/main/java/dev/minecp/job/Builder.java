@@ -165,9 +165,9 @@ public final class Builder extends Job {
     }
 
     @Override
-    List<Want> wants() {
+    public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
-        missing().forEach((item, n) -> wants.add(new Want(name(item), item::isSimilar, n)));
+        missing().forEach((item, n) -> wants.add(new Want(name(item), item::isSimilar, n, 1))); // the mod's builder asks with a minimum of 1
         Tool t = neededTool;
         Block b = neededFor;
         if (t != null) wants.add(new Want(toolLabel(t), i -> fits(t, i, b), 1));

@@ -127,13 +127,13 @@ public final class Farmer extends Job {
     private static final int SEED_STOCK = 64; // ours: seeds of each field's crop it keeps in the hut chest
 
     @Override
-    List<Want> wants() {
+    public List<Want> wants() {
         List<Want> wants = new java.util.ArrayList<>();
         if (hut.level < 1) return wants;
         for (Material seed : seeds()) {
             int have = inChest(i -> i.getType() == seed) + carried.getOrDefault(seed, 0);
             // Ask once below half, for a full stock: not a courier trip for every few seeds planted.
-            if (have < SEED_STOCK / 2) wants.add(new Want(name(seed), i -> i.getType() == seed, SEED_STOCK - have));
+            if (have < SEED_STOCK / 2) wants.add(new Want(name(seed), i -> i.getType() == seed, SEED_STOCK - have, 1)); // minimum 1, as the mod
         }
         wantTool(wants, Tool.HOE);
         return wants;

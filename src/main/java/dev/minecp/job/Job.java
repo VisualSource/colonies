@@ -86,15 +86,22 @@ public abstract class Job {
     }
 
     /** An item's name as players read it: "oak planks". */
-    static String name(Material m) {
+    public static String name(Material m) {
         return m.name().toLowerCase().replace('_', ' ');
     }
 
-    /** Something the hut wants a courier to bring to its chest: items matching {@code test}, {@code amount} more. */
-    record Want(String label, Predicate<ItemStack> test, int amount) {}
+    /**
+     * Something the hut wants brought to its chest: items matching {@code test}, {@code amount} more. {@code min}: the least the warehouse must have to take the request (the mod's minimum count); by default the
+     * whole amount, as the mod's crafters ask for their ingredients.
+     */
+    public record Want(String label, Predicate<ItemStack> test, int amount, int min) {
+        public Want(String label, Predicate<ItemStack> test, int amount) {
+            this(label, test, amount, amount);
+        }
+    }
 
     /** What this hut wants delivered from the warehouse. */
-    List<Want> wants() {
+    public List<Want> wants() {
         return List.of();
     }
 

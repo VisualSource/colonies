@@ -3,6 +3,7 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
 
 import net.kyori.adventure.text.Component;
@@ -15,15 +16,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Carries items between the warehouse and the worker huts, as the mod's couriers do: first what huts want
- * (materials for the builder, seeds and tools, the cook's food and fuel), then the surplus in huts
- * (logs, harvest, what the builder dug up) to the warehouse.
+ * Carries items between the huts, as the mod's couriers do: first what crafters made for a hut, straight from the
+ * crafter, then what huts want from the warehouse (materials for the builder, seeds and tools, the cook's food and
+ * fuel), then the surplus in huts (logs, harvest, what the builder dug up) to the warehouse.
  */
 public final class Courier extends Job {
 
     private final Colony colony;
     Job serving;          // the hut it is bringing to or fetching from, so couriers don't double up
-    private Want want;    // what it fetches from the warehouse for {@link #serving}; null: it collects surplus
+    private Want want;    // what it fetches for {@link #serving}; null: it collects surplus
+    private Requests.Request crafted; // when fetching what a crafter made for {@link #serving}: that request; null: the warehouse
     private boolean toWarehouse; // with a load: heading to the warehouse (surplus, or a delivery that no longer fit)
 
     public Courier(Hut hut, Colony colony) {
@@ -53,39 +55,42 @@ public final class Courier extends Job {
         }
         if (w.isMoving() || --cooldown > 0) return;
         Warehouse wh = colony.warehouse();
-        if (wh == null) { idle(w, "No Warehouse: build one (level 1 or higher) for couriers to work from.", 60, hut.block); return; }
-        if (serving != null && !colony.jobs.contains(serving)) { serving = null; want = null; }
+        if (serving != null && (!colony.jobs.contains(serving) || crafted != null && !colony.jobs.contains(crafted.crafter))) drop();
 
         if (!load.isEmpty()) { // deliver what it carries
-            Block to = toWarehouse || serving == null ? wh.hut.block : serving.hut.block;
+            // Where it goes: the hut it is for; else the warehouse; with neither (the hut is gone, no warehouse), its own hut.
+            Job toJob = toWarehouse || serving == null ? null : serving;
+            Block to = toJob != null ? toJob.hut.block : wh != null ? wh.hut.block : hut.block;
             if (!w.isBeside(to)) { w.setStatus("Courier: working"); w.goBeside(to); return; }
-            List<ItemStack> left;
-            if (to == wh.hut.block) {
-                left = wh.store(load);
-                if (!left.isEmpty()) note = "The warehouse is full.";
-            } else {
-                Inventory chest = serving.chest();
-                left = chest == null ? new ArrayList<>(load) : new ArrayList<>(chest.addItem(load.toArray(ItemStack[]::new)).values());
-            }
+            Inventory into = toJob != null ? toJob.chest() : wh != null ? null : chest();
+            List<ItemStack> left = into == null && wh != null && toJob == null ? wh.store(load)
+                    : into == null ? new ArrayList<>(load) : new ArrayList<>(into.addItem(load.toArray(ItemStack[]::new)).values());
             load.clear();
             load.addAll(left);
             w.swing();
-            if (!load.isEmpty()) { // didn't fit: take it back to the warehouse, or wait for room there
-                if (to == wh.hut.block) { idle(w, note, 60, wh.hut.block); return; }
-                toWarehouse = true;
+            if (!load.isEmpty()) { // didn't fit
+                if (toJob != null && wh != null) { toWarehouse = true; return; } // take it back to the warehouse
+                // No warehouse to take it back to, or the warehouse is full: wait for room and try again.
+                idle(w, "The " + (toJob != null ? toJob.hut.type.title : wh != null ? "warehouse" : hut.type.title) + "'s chest is full.", 60, to);
                 return;
             }
-            serving = null; want = null; toWarehouse = false; note = null;
+            drop();
             cooldown = 10;
             return;
         }
 
-        if (serving == null && !pickTask(wh)) { idle(w, null, 60, wh.hut.block); return; }
+        if (serving == null && !pickTask(wh)) {
+            idle(w, wh == null ? "No Warehouse: until one is built (level 1 or higher), couriers only carry what crafters make." : null,
+                    60, wh == null ? hut.block : wh.hut.block);
+            return;
+        }
         w.setStatus("Courier: working");
-        if (want != null) { // fetch from the warehouse
-            if (!w.isBeside(wh.hut.block)) { w.goBeside(wh.hut.block); return; }
-            load.addAll(wh.take(want.test(), want.amount(), maxStacks()));
-            if (load.isEmpty()) { serving = null; want = null; } // gone meanwhile
+        if (want != null) { // fetch it from the crafter that made it, or from the warehouse
+            Block source = crafted != null ? crafted.crafter.hut.block : wh == null ? null : wh.hut.block;
+            if (source == null) { drop(); return; }
+            if (!w.isBeside(source)) { w.goBeside(source); return; }
+            load.addAll(crafted != null ? crafted.crafter.handOver(crafted, maxStacks()) : wh.take(want.test(), want.amount(), maxStacks()));
+            if (load.isEmpty()) drop(); // gone meanwhile
             w.swing();
             cooldown = 10;
         } else { // collect surplus from the hut
@@ -98,15 +103,27 @@ public final class Courier extends Job {
         }
     }
 
-    /** Picks the next job: a want the warehouse can fill, else a hut with surplus. @return false if there is none. */
+    /**
+     * Picks the next job: something a crafter made for a hut (the mod's delivery requests: straight from the crafter),
+     * then a want the warehouse can fill, else a hut with surplus. @return false if there is none.
+     */
     private boolean pickTask(Warehouse wh) {
-        for (Job j : colony.jobs) {
-            if (j instanceof Courier || taken(j)) continue;
-            for (Want wt : j.wants()) if (wt.amount() > 0 && wh.count(wt.test()) > 0) {
-                serving = j; want = wt; toWarehouse = false;
-                note = "Bringing " + wt.label() + " to the " + j.hut.type.title + ".";
-                return true;
-            }
+        for (Requests.Request r : colony.requests.all()) {
+            if (!craftedReady(r) || taken(r.job)) continue;
+            serving = r.job; crafted = r; toWarehouse = false;
+            want = new Want(r.label(), r.test(), r.amount());
+            note = "Bringing " + r.label() + " from the " + r.crafter.hut.type.title + " to the " + r.job.hut.type.title + ".";
+            return true;
+        }
+        crafted = null;
+        if (wh == null) return false; // the rest is to or from the warehouse
+        for (Requests.Request r : colony.requests.all()) { // the warehouse's part of each request (the mod's deliveries)
+            int n = Requests.fromWarehouse(r);
+            if (n <= 0 || taken(r.job) || wh.count(r.test()) <= 0) continue;
+            serving = r.job; toWarehouse = false;
+            want = new Want(r.label(), r.test(), n);
+            note = "Bringing " + r.label() + " to the " + r.job.hut.type.title + ".";
+            return true;
         }
         for (Job j : colony.jobs) {
             if (j instanceof Courier || taken(j) || !hasSurplus(j)) continue;
@@ -115,6 +132,24 @@ public final class Courier extends Job {
             return true;
         }
         return false;
+    }
+
+    /** A crafter has something made for this request, ready for a courier to take to the hut. */
+    private static boolean craftedReady(Requests.Request r) {
+        return r.state == Requests.State.CRAFTING && r.crafter != null && r.crafter.ready(r.test()) > 0;
+    }
+
+    /** Forgets its task: nothing to fetch, nothing to deliver. */
+    private void drop() {
+        serving = null; want = null; crafted = null; toWarehouse = false; note = null;
+    }
+
+    /** How many items matching {@code test} it is carrying to {@code to} now, crafted or from the warehouse. */
+    public int carrying(Job to, java.util.function.Predicate<ItemStack> test) {
+        if (serving != to || toWarehouse) return 0;
+        int n = 0;
+        for (ItemStack i : load) if (test.test(i)) n += i.getAmount();
+        return n;
     }
 
     /** Another courier is already on its way for this hut. */

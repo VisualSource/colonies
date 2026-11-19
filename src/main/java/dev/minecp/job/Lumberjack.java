@@ -59,7 +59,7 @@ public final class Lumberjack extends Job {
     }
 
     @Override
-    List<Want> wants() {
+    public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         wantTool(wants, Tool.AXE);
         wantTool(wants, Tool.HOE);

@@ -52,14 +52,14 @@ public final class Cook extends Job {
     }
 
     @Override
-    List<Want> wants() {
+    public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
         // Ask once below half, for a full stock, so couriers come with a load rather than a few at a time.
         int meals = inChest(Food::isMeal), raw = inChest(i -> Food.cooked().containsKey(i.getType()));
-        if (meals < STOCK / 2) wants.add(new Want("food", Food::isMeal, STOCK - meals));
-        if (raw < STOCK / 2) wants.add(new Want("raw food to cook", i -> Food.cooked().containsKey(i.getType()), STOCK - raw));
-        if (!furnaces.isEmpty() && inChest(Cook::isFuel) < STOCK / 2) wants.add(new Want("fuel", Cook::isFuel, STOCK / 2));
+        if (meals < STOCK / 2) wants.add(new Want("food", Food::isMeal, STOCK - meals, 1)); // the mod's Food request: minimum 1
+        if (raw < STOCK / 2) wants.add(new Want("raw food to cook", i -> Food.cooked().containsKey(i.getType()), STOCK - raw, 1)); // ours
+        if (!furnaces.isEmpty() && inChest(Cook::isFuel) < STOCK / 2) wants.add(new Want("fuel", Cook::isFuel, STOCK / 2, 1)); // the mod's fuel request: minimum 1
         return wants;
     }
 

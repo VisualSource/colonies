@@ -102,10 +102,12 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 
 ## Logistics
 
-- [~] Requests: huts list what they want (`Job.wants`) and couriers fill it from the warehouse
-  - No request objects with a state (open, in progress, done, cancelled)
-  - Players can't see or fill requests (no request screen, no clipboard)
-  - Crafters can't fill requests by crafting; no request priorities
+- [~] Requests (the mod's request system, `api/colony/requestsystem`): what each hut wants (`Job.wants`) becomes a request, worked out again each second. As the mod's resolvers: the warehouse takes a request once it holds at least the request's minimum, and a courier brings what it has; if that isn't all of it, or the warehouse has less than the minimum, a crafter that knows a recipe makes the rest (the mod's child request for the remainder); else it waits for a player. Minimums as the mod's requesters: the builder's and miner's materials, seeds, food and fuel 1; a crafter's ingredients the whole amount; tools 1. Couriers fetch only the warehouse's part of each request, so the warehouse never also sends what a crafter is making. A crafter keeps a request it took until its share is made and handed over, even if the warehouse fills up meanwhile, and across restarts (requests a crafter holds are saved). No crafter takes a request whose recipe uses up something a crafter further up the chain is making (the mod's crafting-cycle check). What couriers are carrying to a hut counts toward its requests, so nothing is sent twice. A crafter keeps the ingredients its requests need; extra ingredients go to the warehouse
+  - Four states shown to players (in the warehouse, being crafted at a hut, on its way, waiting for a player) instead of the mod's thirteen (created, assigned, in progress, completed, cancelled...)
+  - The Town Hall's "Requests" button lists every open request; each hut's menu shows its own. Players fill one by putting the items in that hut's chest (the mod: its request screen, and the clipboard, which comes later)
+  - What a crafter makes waits in its chest until a courier takes it straight to the hut that asked (the mod's delivery requests); couriers do this first, and without a warehouse too (a load that doesn't fit waits until the hut has room). What couriers are carrying counts toward a request, so crafters stop once enough is made or on its way
+  - The cook's raw food request (ours: the mod's cook gets what it cooks through smelting requests) uses a minimum of 1
+  - No request priorities, no cancelling or overruling a request, no "follow-up" requests
 - [~] Warehouse and courier
   - No request screen
   - No sorting (the mod sorts from level 3)
@@ -176,7 +178,13 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No restaurant menu setting (which foods it serves)
   - Doesn't feed players
   - No Kitchen (cook assistant)
-- [ ] Crafters (need recipes taught, as in the mod's request system): sawmill, stonemason, stone smeltery, smeltery, blacksmith, fletcher, dyer, glassblower, concrete mixer, crusher, sifter, mechanic, alchemist, enchanter, baker
+- [~] Crafters (`AbstractEntityAICrafting`, `AbstractCraftingBuildingModule`): taught crafting-table recipes of their kind, up to 2^level x 5 (the mod's limit with its extra-recipe multiplier of 5; no research). They take the requests they have a recipe for, ask for the ingredients like any hut, and craft one batch in 3 hits, 10 ticks apart (the mod's HIT_DELAY; its hits per craft fall from 30 with no skill to 3 for a typical citizen, and we have no skills)
+  - Teaching: "Teach a recipe" in the crafter's hut menu opens a crafting table window; lay the recipe out (with real items) and click the result to teach it; nothing is used up. "Recipes" lists them, each with a Forget button (the mod's teaching screen takes ghost items)
+  - Crafting-table recipes only (no smelting, brewing or the mod's special crafting types yet); no recipe settings (priority, max stock), no disabling a recipe, no pre-taught recipes from data packs
+- [~] Sawmill (`BuildingSawmill`, job "Carpenter"): learns recipes by the mod's rule: wood ingredients (planks, logs, and items with "wood" in a tag: sticks, wooden slabs and so on) over every ingredient that isn't planks or logs, above 0.75 (so 2 planks + 2 iron passes, as in the mod); hut recipe as the mod's (three wooden axes across the middle)
+  - MineCP's own recipes (huts, racks, goggles) can't be taught to any crafter
+  - The mod's data-pack tag lists that add or remove recipes for each crafter aren't read
+- [ ] Other crafters: stonemason, stone smeltery, smeltery, blacksmith, fletcher, dyer, glassblower, concrete mixer, crusher, sifter, mechanic, alchemist, enchanter, baker
 
 ## Education and research
 

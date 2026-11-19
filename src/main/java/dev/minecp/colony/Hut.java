@@ -3,6 +3,7 @@ package dev.minecp.colony;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Cook;
 import dev.minecp.job.Courier;
+import dev.minecp.job.Crafter;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
@@ -44,6 +45,9 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS), "Courier", Courier::new, false),
         MINER("Miner's Hut", Material.CHEST, "fundamentals/miner", "miner", "A citizen digs a mine below the hut",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_PICKAXE), "Miner", Miner::new, false),
+        SAWMILL("Sawmill", Material.CHEST, "craftsmanship/carpentry/sawmill", "sawmill", "A carpenter crafts the wooden things the colony needs",
+                () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), true, "Carpenter", // wooden axes across the middle row
+                (h, c) -> new Crafter(h, Crafter.SAWMILL, "things made mostly of wood"), false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
                 null, false);
@@ -57,9 +61,16 @@ public final class Hut {
         public final String worker;   // the job's name ("Cook"), null for huts without a worker
         final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without a worker
         public final boolean unique;  // one per colony
+        public final boolean centreRow; // its recipe's centre ingredient fills the whole middle row (the mod's sawmill: three wooden axes)
 
         Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre,
              String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
+            this(title, block, path, command, lore, centre, false, worker, job, unique);
+        }
+
+        Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre,
+             boolean centreRow, String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
+            this.centreRow = centreRow;
             this.title = title;
             this.block = block;
             this.path = path;

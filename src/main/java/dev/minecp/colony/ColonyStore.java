@@ -56,6 +56,7 @@ public final class ColonyStore {
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
         }
         for (Job j : colony.jobs) j.save(s.createSection("jobs." + colony.huts.indexOf(j.hut)), colony);
+        colony.requests.save(s.createSection("requests")); // crafters keep the requests they took
         for (Colonist c : colony.colonists) {
             var cs = s.createSection("citizens." + c.id);
             cs.set("name", c.name);
@@ -128,6 +129,7 @@ public final class ColonyStore {
             var js = s.getConfigurationSection("jobs." + colony.huts.indexOf(j.hut));
             if (js != null) j.load(js, colony);
         }
+        if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         colony.assignHomes();
         colony.assignJobs();
         return colony;

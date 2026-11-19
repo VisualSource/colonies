@@ -8,6 +8,7 @@ import dev.minecp.job.Cook;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Job;
 import dev.minecp.logistics.Rack;
+import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
 
 import org.bukkit.Bukkit;
@@ -57,6 +58,7 @@ public final class Colony {
     public final Health health = new Health(this);
     final Routine routine = new Routine(this);
     public final Permissions permissions;
+    public final Requests requests = new Requests(this);
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
     public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
     private java.util.Set<Long> claims;
@@ -318,6 +320,7 @@ public final class Colony {
         routine.clock(time);
         boolean raining = townHall().block.getWorld().hasStorm();
         if (growth % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
+        if (growth % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             Job job = jobOf(c);

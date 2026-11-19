@@ -66,17 +66,27 @@ public final class Warehouse {
     /** Takes up to {@code amount} items matching {@code test}, as many as fit in {@code maxStacks} stacks. */
     public List<ItemStack> take(Predicate<ItemStack> test, int amount, int maxStacks) {
         List<ItemStack> taken = new ArrayList<>();
-        for (Inventory inv : inventories()) for (int slot = 0; slot < inv.getSize() && amount > 0; slot++) {
+        for (Inventory inv : inventories()) amount -= take(inv, test, amount, maxStacks, taken);
+        return taken;
+    }
+
+    /**
+     * Moves up to {@code amount} items matching {@code test} out of {@code inv} into {@code taken}, without the load
+     * going over {@code maxStacks} stacks. @return how many it took.
+     */
+    public static int take(Inventory inv, Predicate<ItemStack> test, int amount, int maxStacks, List<ItemStack> taken) {
+        int took = 0;
+        for (int slot = 0; slot < inv.getSize() && took < amount; slot++) {
             ItemStack i = inv.getItem(slot);
-            if (i == null || !test.test(i)) continue;
-            int n = Math.min(Math.min(amount, i.getAmount()), room(taken, i, maxStacks));
+            if (i == null || i.isEmpty() || !test.test(i)) continue;
+            int n = Math.min(Math.min(amount - took, i.getAmount()), room(taken, i, maxStacks));
             if (n <= 0) continue;
             taken.add(i.asQuantity(n));
-            amount -= n;
+            took += n;
             i.subtract(n);
             inv.setItem(slot, i.isEmpty() ? null : i);
         }
-        return taken;
+        return took;
     }
 
     /**

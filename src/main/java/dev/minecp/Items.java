@@ -47,7 +47,7 @@ public final class Items implements Listener {
             RecipeChoice centre = type == Hut.Type.TOWN_HALL ? tool : type.centre == null ? null : type.centre.get();
             if (centre == null) continue;
             ShapedRecipe r = new ShapedRecipe(key(type.name().toLowerCase()), hutItem(type));
-            r.shape("PTP", "PXP", "PPP");
+            r.shape("PTP", type.centreRow ? "XXX" : "PXP", "PPP");
             r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
             r.setIngredient('T', tool);
             r.setIngredient('X', centre);

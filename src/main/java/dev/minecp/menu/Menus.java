@@ -10,8 +10,10 @@ import dev.minecp.colony.Permissions;
 import dev.minecp.colony.Rank;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Courier;
+import dev.minecp.job.Crafter;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Job;
+import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
 
 import io.papermc.paper.registry.data.dialog.ActionButton;
@@ -98,6 +100,7 @@ public final class Menus {
                     : worker.name + " — " + worker.status())));
             job.info(c).forEach(line -> body.add(text(line)));
             if (job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
+            for (Requests.Request r : c.requests.of(job)) body.add(text(request(r, false)));
         }
 
         List<ActionButton> buttons = new ArrayList<>();
@@ -118,8 +121,13 @@ public final class Menus {
             var missing = job.materials(); // null once the work ended while the menu was open
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
+        if (job instanceof Crafter cr && h.level > 0) {
+            buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
+            buttons.add(button("Teach a recipe", p, c, h, Action.MANAGE_HUTS, player -> plugin.teaching.start(player, c, cr)));
+        }
         if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
+            buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
         }
         if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
@@ -226,6 +234,42 @@ public final class Menus {
                         .showTooltip(true).build()));
         List<ActionButton> buttons = List.of(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, "Materials needed", body, List.of(), buttons, 1);
+    }
+
+    /** "Builder's Hut: 40 × oak planks — being crafted at the Sawmill"; waiting ones stand out. */
+    private static Component request(Requests.Request r, boolean withHut) {
+        return Component.text((withHut ? r.job.hut.type.title + ": " : "Waiting for ") + r.amount() + " × " + r.label() + " — " + r.stateText(),
+                r.state == Requests.State.WAITING ? NamedTextColor.YELLOW : NamedTextColor.GRAY);
+    }
+
+    /** Every open request in the colony, from the town hall (the mod's request list; the clipboard comes later). */
+    void requests(Player p, Colony c, Hut townHall) {
+        List<DialogBody> body = new ArrayList<>();
+        if (c.requests.all().isEmpty()) body.add(text(Component.text("No hut is waiting for anything.", NamedTextColor.GREEN)));
+        for (Requests.Request r : c.requests.all()) body.add(text(request(r, true)));
+        body.add(text(Component.text("Fill a request by putting the items in that hut's chest.", NamedTextColor.GRAY)));
+        Dialogs.show(p, "Requests", body, List.of(), List.of(button("Back", p, c, townHall, player -> hut(player, c, townHall))), 1);
+    }
+
+    /** A crafter's taught recipes, each with a button to forget it. */
+    void recipes(Player p, Colony c, Hut h, Crafter cr) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text(cr.recipes.size() + " of " + cr.maxRecipes() + " recipes. The " + h.type.worker.toLowerCase()
+                + " makes " + cr.makes + ".", NamedTextColor.GOLD)));
+        List<ActionButton> buttons = new ArrayList<>();
+        for (var key : List.copyOf(cr.recipes)) {
+            ItemStack result = Crafter.resultOf(key);
+            if (result == null) continue;
+            body.add(DialogBody.item(result).description(DialogBody.plainMessage(Component.text(result.getAmount() + " × ")
+                    .append(result.effectiveName()), 250)).showTooltip(true).build());
+            buttons.add(button("Forget " + Job.name(result.getType()), p, c, h, Action.MANAGE_HUTS, player -> {
+                cr.recipes.remove(key);
+                plugin.save(c);
+                recipes(player, c, h, cr);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Recipes", body, List.of(), buttons, 1);
     }
 
     private static DialogBody text(Component c) {

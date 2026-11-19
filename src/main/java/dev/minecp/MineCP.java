@@ -13,6 +13,7 @@ import dev.minecp.colony.Hut;
 import dev.minecp.job.Job;
 import dev.minecp.logistics.Rack;
 import dev.minecp.menu.Menus;
+import dev.minecp.menu.Teaching;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -51,6 +52,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public final Items items = new Items(this);
     private Saves saves;
     private final Menus menus = new Menus(this);
+    public final Teaching teaching = new Teaching(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
@@ -76,6 +78,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(protection, this);
         getServer().getPluginManager().registerEvents(items, this);
+        getServer().getPluginManager().registerEvents(teaching, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
