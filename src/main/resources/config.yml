@@ -1,0 +1,20 @@
+# MineCP settings. Restart the server after changing them.
+
+# Chunk claims: a colony's border. The numbers are MineColonies' defaults.
+claims:
+  # Chunks claimed in every direction from the town hall's chunk when a colony is founded.
+  initial-size: 4
+  # A new town hall must be at least this many chunks (x16 blocks) from another colony's town hall.
+  min-distance: 8
+  # No claim reaches farther than this many chunks from the town hall's chunk.
+  max-size: 20
+
+protection:
+  # Inside a colony's border, other players can only do what their rank there allows.
+  enabled: true
+  # What explosions may damage inside a colony's border. Hut blocks and graves are never damaged.
+  #   everything - vanilla: blocks, mobs and players
+  #   entities   - mobs and players, but not blocks (MineColonies' default)
+  #   players    - only players and hostile mobs
+  #   nothing    - only players
+  explosions: everything

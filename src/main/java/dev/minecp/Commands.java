@@ -2,7 +2,9 @@ package dev.minecp;
 
 import dev.minecp.build.BuildOrder;
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.Rank;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Rack;
 
@@ -17,12 +19,18 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-/** /colony: info, the token, test builds, movement stats, and (admins) hut items and racks. */
+/** /colony: info, the Build Tool, test builds, movement stats, and (admins) hut items and racks. */
 final class Commands implements CommandExecutor {
     private final MineCP plugin;
 
     Commands(MineCP plugin) {
         this.plugin = plugin;
+    }
+
+    /** The colony whose land the player stands on, else their own. */
+    private Colony here(Player p) {
+        Colony c = plugin.claims.colonyAt(p.getLocation());
+        return c != null ? c : plugin.colonyOf(p);
     }
 
     @Override
@@ -39,16 +47,16 @@ final class Commands implements CommandExecutor {
         }
         Colony c = plugin.colonyOf(player);
         switch (args[0]) {
-            case "token" -> {
+            case "buildtool" -> {
                 ItemStack hand = player.getInventory().getItemInMainHand();
-                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or tokens already
-                    player.sendMessage(Component.text("Hold a stick to turn it into a Colony Token.", NamedTextColor.RED));
+                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or Build Tools already
+                    player.sendMessage(Component.text("Hold a stick to turn it into a Build Tool.", NamedTextColor.RED));
                     return true;
                 }
-                hand.subtract(); // one is enough: the token is kept when crafting
+                hand.subtract(); // one is enough: the Build Tool is kept when crafting
                 player.getInventory().setItemInMainHand(hand.isEmpty() ? null : hand);
-                player.getInventory().addItem(plugin.items.token()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
-                player.sendMessage(Component.text("Colony Token made. It's kept when you craft huts.", NamedTextColor.GREEN));
+                player.getInventory().addItem(plugin.items.buildTool()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
+                player.sendMessage(Component.text("Build Tool made. Right-click the ground to place a hut; it's kept when you craft huts.", NamedTextColor.GREEN));
             }
             case "build" -> {
                 if (c == null || c.builder == null) {
@@ -96,6 +104,41 @@ final class Commands implements CommandExecutor {
                 player.sendMessage("Town hall: " + th.getX() + " " + th.getY() + " " + th.getZ()
                         + " (right-click it for the colony menu)");
                 player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
+            }
+            case "members" -> {
+                Colony here = here(player);
+                if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }
+                if (!here.permissions.isMember(player.getUniqueId()) && !player.hasPermission("minecp.admin")) {
+                    player.sendMessage(Component.text("Only members of " + here.name + " can see its members.", NamedTextColor.RED));
+                    return true;
+                }
+                player.sendMessage(Component.text(here.name + ": owner " + plugin.getServer().getOfflinePlayer(here.owner).getName(), NamedTextColor.GOLD));
+                here.permissions.members().values().forEach(m -> player.sendMessage(m.name() + " — " + m.rank().title()));
+            }
+            case "member" -> { // member add <player> [officer|friend|hostile], member remove <player>
+                Colony here = here(player);
+                if (args.length < 3 || !(args[1].equals("add") || args[1].equals("remove"))) return false;
+                if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }
+                if (!here.permissions.has(player, Action.EDIT_PERMISSIONS)) {
+                    player.sendMessage(Component.text("You can't change members of " + here.name + ".", NamedTextColor.RED));
+                    return true;
+                }
+                Rank rank = Rank.NEUTRAL;
+                if (args[1].equals("add")) {
+                    try {
+                        rank = args.length > 3 ? Rank.valueOf(args[3].toUpperCase()) : Rank.FRIEND;
+                    } catch (IllegalArgumentException e) {
+                        return false;
+                    }
+                    if (rank == Rank.OWNER || rank == Rank.NEUTRAL) return false;
+                }
+                String problem = here.permissions.add(args[2], rank);
+                if (problem != null) {
+                    player.sendMessage(Component.text(problem, NamedTextColor.RED));
+                    return true;
+                }
+                plugin.save(here);
+                player.sendMessage(args[2] + " is now " + rank.title() + " in " + here.name + ".");
             }
             case "movement" -> { // how often each citizen's walking went wrong
                 if (c == null) {

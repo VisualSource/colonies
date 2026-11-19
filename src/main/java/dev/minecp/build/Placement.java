@@ -42,7 +42,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * The build tool (the Colony Token stands in for Structurize's): right-click a block to pick a hut from your inventory,
+ * The build tool (our Build Tool item stands in for Structurize's): right-click a block to pick a hut from your inventory,
  * then a preview of its level 1 building stays in view, only for you, until you confirm or cancel. Right-click again
  * for the mod's controls: move relative to where you face, up/down, rotate, mirror, confirm, cancel.
  */
@@ -76,7 +76,7 @@ public final class Placement implements Listener {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isToken(e.getItem())) return;
+        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isBuildTool(e.getItem())) return;
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK && e.getAction() != Action.RIGHT_CLICK_AIR) return;
         e.setCancelled(true);
         Player p = e.getPlayer();
@@ -114,19 +114,20 @@ public final class Placement implements Listener {
             buttons.add(button(type.title + (creative ? "" : " (" + have + ")"), p, null, player -> start(player, type, anchor)));
         }
         if (buttons.isEmpty()) {
-            p.sendMessage(Component.text("Carry a hut item (crafted with the Colony Token) to place its building.", NamedTextColor.RED));
+            p.sendMessage(Component.text("Carry a hut item (crafted with the Build Tool) to place its building.", NamedTextColor.RED));
             return;
         }
         show(p, "Build tool", List.of(text("Which building goes here?")), buttons);
     }
 
     private void start(Player p, Hut.Type type, Block anchor) {
-        Colony c = plugin.colonyOf(p);
+        Colony c = plugin.claims.colonyAt(anchor.getLocation()); // the style of the colony it would join
+        if (c == null) c = plugin.colonyOf(p);
         end(p);
         Session s = new Session(type, c == null ? Colony.DEFAULT_STYLE : c.style, anchor);
         sessions.put(p.getUniqueId(), s);
         if (draw(p, s)) p.sendMessage(Component.text("Placing the " + type.title
-                + ". Right-click with the Colony Token to move, turn or confirm it.", NamedTextColor.GREEN));
+                + ". Right-click with the Build Tool to move, turn or confirm it.", NamedTextColor.GREEN));
     }
 
     /** The building as it would stand now. Null if its structure is missing. */
@@ -164,7 +165,7 @@ public final class Placement implements Listener {
             }));
         }
         // The building's boundary, as the tape will show it once placed.
-        s.shown.addAll(Tape.around(s.anchor.getWorld(), new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1}, s.anchor.getY() + 0.01, false));
+        s.shown.addAll(Tape.around(s.anchor.getWorld(), o.footprint(), s.anchor.getY() + 0.01, false));
         for (BlockDisplay d : s.shown) p.showEntity(plugin, d);
         return true;
     }
@@ -199,7 +200,10 @@ public final class Placement implements Listener {
 
     /** As in the mod: the hut item is used up and the hut block put down; the builder builds it from the hut's menu. */
     private void confirm(Player p, Session s) {
-        String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build." : plugin.placeProblem(p, s.type, s.anchor);
+        BuildOrder o = order(s);
+        String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build."
+                : o == null ? "No structure for the " + s.type.title + "."
+                : plugin.placeProblem(p, s.type, s.anchor, o.footprint(), true);
         if (problem == null && plugin.colonyAt(s.anchor) != null) problem = "Another hut is in that spot.";
         if (problem == null && (plugin.graveColony(s.anchor) != null || !Job.contents(s.anchor).isEmpty()))
             problem = "Clear the block at the hut spot first.";
@@ -207,8 +211,6 @@ public final class Placement implements Listener {
         var inv = p.getInventory();
         for (int i = 0; i < inv.getSize() && slot < 0; i++) if (inv.getItem(i) != null && plugin.items.hutType(inv.getItem(i)) == s.type) slot = i;
         if (problem == null && slot < 0 && p.getGameMode() != GameMode.CREATIVE) problem = "You no longer carry a " + s.type.title + ".";
-        BuildOrder o = problem == null ? order(s) : null;
-        if (problem == null && o == null) problem = "No structure for the " + s.type.title + ".";
         // Last, so it is only asked when the block really goes: as a player break, so protection plugins can refuse it.
         var broken = s.anchor.isEmpty() ? null : new org.bukkit.event.block.BlockBreakEvent(s.anchor, p);
         if (problem == null && broken != null && !broken.callEvent()) problem = "You can't break the block at the hut spot.";

@@ -56,17 +56,45 @@ public final class Colony {
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
     final Routine routine = new Routine(this);
+    public final Permissions permissions;
+    public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
+    public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
+    private java.util.Set<Long> claims;
 
     Colony(UUID owner, String name, Block townHall, int townHallLevel) {
         this.owner = owner;
         this.name = name;
+        this.permissions = new Permissions(owner);
         huts.add(new Hut(Hut.Type.TOWN_HALL, townHall, townHallLevel));
     }
 
     public static Colony found(UUID owner, String name, Block townHall) {
         Colony colony = new Colony(owner, name, townHall, 0);
+        colony.founded = System.currentTimeMillis();
         for (int i = 0; i < STARTING_CITIZENS; i++) colony.addCitizen();
         return colony;
+    }
+
+    /** The chunks this colony claims, as {@link Claims#key} values in its town hall's world. */
+    public java.util.Set<Long> claims() {
+        if (claims == null) claims = Claims.of(this);
+        return claims;
+    }
+
+    /** Huts or their levels changed: the claims are worked out again. */
+    void claimsChanged() {
+        claims = null;
+        onClaimsChanged.run();
+    }
+
+    /** The box the hut's building covers as built (minX, maxX+1, minZ, maxZ+1), or null before level 1. */
+    int[] footprint(Hut h) {
+        if (!h.type.isBuilding() || h.level == 0) return null;
+        if (h.builtBoxLevel != h.level) {
+            h.builtBox = BuildOrder.footprint(h.structure(style, h.level), h.block, h.rotation, h.mirror);
+            h.builtBoxLevel = h.level;
+        }
+        return h.builtBox;
     }
 
     public Hut townHall() {
@@ -120,6 +148,7 @@ public final class Colony {
         huts.add(hut);
         addJob(hut);
         assignJobs();
+        claimsChanged();
         return hut;
     }
 
@@ -185,6 +214,7 @@ public final class Colony {
         removeTape(hut);
         huts.remove(hut);
         assignHomes();
+        claimsChanged();
     }
 
     /** The builder tells the colony when an order is done, and never builds over a hut block. */
@@ -200,6 +230,7 @@ public final class Colony {
             if (done == null) { tell("Your builder finished the build."); return; }
             done.hut().level = done.level();
             assignHomes();
+            claimsChanged(); // a higher level claims more
             tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
         });
         b.protect = this::isHutBlock;
@@ -228,7 +259,7 @@ public final class Colony {
             if (h.footprintLevel != level) { // the structure is loaded once per level, not every second
                 BuildOrder o = BuildOrder.create(h.structure(style, level), h.block.getLocation(), h.rotation, h.mirror, h.block);
                 if (o == null) continue;
-                h.footprint = new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1};
+                h.footprint = o.footprint();
                 h.footprintLevel = level;
                 removeTape(h); // the next level may be bigger
             }
@@ -266,9 +297,10 @@ public final class Colony {
         if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
     }
 
+    /** A message to every online member allowed colony messages (the mod's RECEIVE_MESSAGES). */
     void tell(String message) {
-        Player p = Bukkit.getPlayer(owner);
-        if (p != null) p.sendMessage(message);
+        for (Player p : Bukkit.getOnlinePlayers())
+            if (permissions.has(permissions.rank(p.getUniqueId()), Action.RECEIVE_MESSAGES)) p.sendMessage(message);
     }
 
     public void tick() {
