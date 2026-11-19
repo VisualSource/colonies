@@ -27,16 +27,16 @@ import java.util.concurrent.ThreadLocalRandom;
  * bend, T or crossroad, picked at random) that opens the next nodes. What it digs up goes to the hut chest.
  */
 final class Miner extends Job {
-    private static final int SHAFT_RADIUS = 3;     // 7x7 shaft, the ladder on its edge
-    private static final int SAFE_RANGE = 5;       // the floor under each new shaft layer is made solid 11x11
+    private static final int SHAFT_RADIUS = 3;     // the mod's: 7x7 shaft, the ladder on its edge
+    private static final int SAFE_RANGE = 5;       // the mod's SAFE_CHECK_RANGE: the floor under each new shaft layer is made solid 11x11
     private static final int NODE_DISTANCE = 7;    // the mod's
     private static final int LEVEL_SPACING = 6;    // ours: the mod's spacing comes from its shaft and level pieces (not checked)
     private static final int[] MINING_LEVELS = {48, 16, -16, -100}; // the mod's: each hut level reaches the next (copper, iron, gold, diamond)
-    private static final int REACH = 6;            // the first layer under the shaft room is only 1 high: work from the room's hole
-    private static final int FAR_REACH = 8;        // if there is nowhere to stand nearer
+    private static final int REACH = 6;            // ours: the first layer under the shaft room is only 1 high: work from the room's hole
+    private static final int FAR_REACH = 8;        // ours: if there is nowhere to stand nearer
     private static final int COBBLE_STOCK = 64, LADDER_STOCK = 16; // ours: the mod requests 32 cobblestone and 10 ladders at a time
-    private static final int DELIVER_AT = 256;
-    private static final int HUT_RANGE = 12;
+    private static final int DELIVER_AT = 256;     // ours: loot carried before a trip up
+    private static final int HUT_RANGE = 12;       // ours: how far from the hut block the shaft's ladder may be
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
     /** Node shapes, with their structure and their exits relative to the way in (0 straight on, 1 and 3 the sides). */
@@ -424,7 +424,7 @@ final class Miner extends Job {
         if (!near(w, b)) return;
         neededTool = null;
         // A chest in the way spills what it holds, as when a player breaks it (its items can't go in the miner's carried counts).
-        for (ItemStack i : contents(b, true)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
+        for (ItemStack i : takeContents(b)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
         for (ItemStack drop : breakWith(tool, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
         var data = b.getBlockData();
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);
@@ -474,7 +474,7 @@ final class Miner extends Job {
 
     /** What the level or node being built still needs to place, up to a full load. */
     private Map<Material, Integer> needs() {
-        return nextLoad(order, BuildOrder.Step::cost);
+        return order == null ? new LinkedHashMap<>() : order.nextLoad(BuildOrder.Step::cost, CARRY_LIMIT);
     }
 
     /** For the menu: tools, shaft stock and the current level or tunnel's materials that are neither carried nor in the hut chest. */

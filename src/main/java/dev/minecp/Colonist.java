@@ -37,12 +37,13 @@ import java.util.concurrent.ThreadLocalRandom;
  * Entities are not saved by the world; they are spawned from colony data whenever the chunk is loaded.
  */
 final class Colonist {
+    // Ours, not the mod's:
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
-    private static final int WANDER_RADIUS = 12;    // ours
+    private static final int WANDER_RADIUS = 12;
     private static final int CLIMB_TICKS = 100;     // a ladder climb taking longer than this, plus 10 a block, has failed
     private static final double CLIMB_SPEED = 0.4;  // MoveControl speed on and off ladders
-    private static final int STUCK_TICKS = 60; // 3 seconds without moving half a block while walking
+    private static final int STUCK_TICKS = 60; // ours (not checked against the mod): 3 seconds without moving half a block while walking
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
     /** Vanilla default skins, shipped with every client, so no resource pack or skin lookups are needed. */
     private static final String[] SKINS = {"alex", "ari", "efe", "makena", "noor", "kai", "steve", "sunny", "zuri"};

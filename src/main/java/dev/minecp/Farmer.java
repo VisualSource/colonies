@@ -285,5 +285,4 @@ final class Farmer extends Job {
         if (soil.getType() == Material.FARMLAND) return Kind.PLANT;
         return TILLABLE.contains(soil.getType()) ? Kind.TILL : null;
     }
-
-    /** Nothing to do (or it can't): wait at the hut, as the mod's workers do, and look again in 5 seconds. */}
+}

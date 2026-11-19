@@ -244,6 +244,19 @@ final class BuildOrder {
         return other != null && s.cost() == null && other.cost() != null && !other.done() && !keep.test(other.block) ? other : s;
     }
 
+    /** What the next steps use up, by {@code item} (null: free), counted up to {@code limit} items: one trip's load. */
+    <K> Map<K, Integer> nextLoad(java.util.function.Function<Step, K> item, int limit) {
+        Map<K, Integer> want = new java.util.LinkedHashMap<>();
+        int total = 0;
+        for (Step s : upcoming()) {
+            K k = item.apply(s);
+            if (k == null || s.done()) continue;
+            want.merge(k, 1, Integer::sum);
+            if (++total >= limit) break;
+        }
+        return want;
+    }
+
     /** Steps from the current one on, for planning what materials to carry. */
     List<Step> upcoming() {
         return steps.subList(cursor, steps.size());

@@ -19,11 +19,11 @@ final class Hut {
      */
     enum Type {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall", "townhall", "Place to found a colony",
-                null, null, null, true), // its recipe has the Colony Token in the middle (Items)
+                null, true), // its recipe has the Colony Token in the middle (Items)
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder", "builderhut", "Its chest holds building materials",
                 () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", (h, c) -> new Builder(h), true),
         HOUSE("House", Material.CHEST, "fundamentals/residence", "house", "Room for more citizens",
-                () -> new RecipeChoice.MaterialChoice(Material.TORCH), null, null, false),
+                () -> new RecipeChoice.MaterialChoice(Material.TORCH), false),
         LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack", "lumberjack", "A citizen cuts and replants trees nearby",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), "Lumberjack", (h, c) -> new Lumberjack(h), false),
         FARMER("Farmer's Hut", Material.CHEST, "agriculture/horticulture/farmer", "farmer", "A citizen works the colony's fields",
@@ -31,14 +31,14 @@ final class Hut {
         COOK("Cook's Hut", Material.CHEST, "fundamentals/cook", "cook", "A restaurant: its cook cooks and serves food",
                 () -> new RecipeChoice.MaterialChoice(Material.APPLE), "Cook", (h, c) -> new Cook(h), false),
         WAREHOUSE("Warehouse", Material.CHEST, "craftsmanship/storage/warehouse", "warehouse", "The colony's store, which couriers work from",
-                () -> new RecipeChoice.MaterialChoice(Material.CHEST), null, null, true),
+                () -> new RecipeChoice.MaterialChoice(Material.CHEST), true),
         COURIER("Courier's Hut", Material.CHEST, "craftsmanship/storage/deliveryman", "courier", "A courier carries goods between the warehouse and huts",
                 () -> new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS), "Courier", Courier::new, false),
         MINER("Miner's Hut", Material.CHEST, "fundamentals/miner", "miner", "A citizen digs a mine below the hut",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_PICKAXE), "Miner", Miner::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
-                null, null, null, false);
+                null, false);
 
         final String title;
         final Material block;
@@ -61,6 +61,11 @@ final class Hut {
             this.worker = worker;
             this.job = job;
             this.unique = unique;
+        }
+
+        /** A hut without a worker. */
+        Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre, boolean unique) {
+            this(title, block, path, command, lore, centre, null, null, unique);
         }
 
         boolean isBuilding() {

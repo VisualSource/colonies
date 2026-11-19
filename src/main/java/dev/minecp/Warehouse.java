@@ -87,14 +87,17 @@ final class Warehouse {
         for (ItemStack l : load)
             if (l.isSimilar(item)) same += l.getAmount();
             else kinds.merge(l.asOne(), l.getAmount(), Integer::sum);
-        List<int[]> others = kinds.entrySet().stream().map(e -> new int[]{e.getValue(), e.getKey().getMaxStackSize()}).toList();
+        List<Kind> others = kinds.entrySet().stream().map(e -> new Kind(e.getValue(), e.getKey().getMaxStackSize())).toList();
         return room(others, same, item.getMaxStackSize(), maxStacks);
     }
 
-    /** The arithmetic of {@link #room}, without items (unit tested): {@code others} holds {amount, stack size} per other kind. */
-    static int room(List<int[]> others, int same, int stackSize, int maxStacks) {
+    /** How many of one kind of item a load holds, and that item's stack size. */
+    record Kind(int amount, int stackSize) {}
+
+    /** The arithmetic of {@link #room}, without items (unit tested). */
+    static int room(List<Kind> others, int same, int stackSize, int maxStacks) {
         int used = 0;
-        for (int[] o : others) used += (o[0] + o[1] - 1) / o[1]; // each kind fills whole stacks of its own size
+        for (Kind o : others) used += (o.amount() + o.stackSize() - 1) / o.stackSize(); // each kind fills whole stacks of its own size
         return Math.max(0, (maxStacks - used) * stackSize - same);
     }
 

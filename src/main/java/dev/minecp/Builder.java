@@ -301,7 +301,7 @@ final class Builder extends Job {
         Tool kind = Tool.forBlock(b.getType(), false);
         ItemStack tool = kind == null ? null : tools.get(kind);
         List<ItemStack> drops = new ArrayList<>(tool == null ? b.getDrops() : b.getDrops(tool));
-        drops.addAll(contents(b, false)); // what a chest in the way holds goes to the hut chest too
+        drops.addAll(contents(b)); // what a chest in the way holds goes to the hut chest too
         return drops;
     }
 
@@ -322,7 +322,7 @@ final class Builder extends Job {
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
         else if (!b.isEmpty()) { // clear whatever is in the way, drops go to the hut
-            store(chest, contents(b, true)); // emptied first, or its contents would be lost
+            store(chest, takeContents(b)); // emptied first, or its contents would be lost
             store(chest, breakWith(Tool.forBlock(b.getType(), false), b, w));
             b.setType(Material.AIR, false);
         }
@@ -342,7 +342,7 @@ final class Builder extends Job {
 
     /** Takes what the next steps need from the chest, up to {@link #CARRY_LIMIT} items. */
     private void restock(Inventory chest) {
-        Map<ItemStack, Integer> want = nextLoad(order, BuildOrder.Step::item);
+        Map<ItemStack, Integer> want = order.nextLoad(BuildOrder.Step::item, CARRY_LIMIT);
         want.forEach((item, n) -> {
             int missing = n - carrying(item);
             if (missing <= 0) return;

@@ -100,8 +100,10 @@ final class Menus {
                 plugin.save(c);
                 hut(player, c, h);
             }));
-        if (job != null && job.materials() != null)
-            buttons.add(button("Materials needed", p, c, h, player -> materials(player, c, h, job.materials())));
+        if (job != null && job.materials() != null) buttons.add(button("Materials needed", p, c, h, player -> {
+            var missing = job.materials(); // null once the work ended while the menu was open
+            materials(player, c, h, missing == null ? Map.of() : missing);
+        }));
         if (h.type == Hut.Type.TOWN_HALL)
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
         if (h.block.getState(false) instanceof Container)

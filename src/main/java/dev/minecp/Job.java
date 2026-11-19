@@ -13,11 +13,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /** A job at a worker hut: one colonist works it, using the hut's chest. */
@@ -86,20 +84,6 @@ abstract class Job {
     /** An item's name as players read it: "oak planks". */
     static String name(Material m) {
         return m.name().toLowerCase().replace('_', ' ');
-    }
-
-    /** What the next steps of {@code order} use up, by {@code item} (null: free), counted up to {@link #CARRY_LIMIT}. */
-    static <K> Map<K, Integer> nextLoad(BuildOrder order, Function<BuildOrder.Step, K> item) {
-        Map<K, Integer> want = new LinkedHashMap<>();
-        if (order == null) return want;
-        int total = 0;
-        for (BuildOrder.Step s : order.upcoming()) {
-            K k = item.apply(s);
-            if (k == null || s.done()) continue;
-            want.merge(k, 1, Integer::sum);
-            if (++total >= CARRY_LIMIT) break;
-        }
-        return want;
     }
 
     /** Something the hut wants a courier to bring to its chest: items matching {@code test}, {@code amount} more. */
@@ -209,16 +193,27 @@ abstract class Job {
     }
 
     /**
-     * What a block that holds items (chest, barrel, shulker box, furnace…) has inside: its own half only for a double
-     * chest. {@code take}: also emptied, so breaking it afterwards drops just the block. getDrops leaves contents out.
+     * What a block that holds items (chest, barrel, shulker box, furnace…) has inside, as copies: its own half only
+     * for a double chest. getDrops leaves contents out.
      */
-    static List<ItemStack> contents(Block b, boolean take) {
-        if (!(b.getState(false) instanceof org.bukkit.inventory.BlockInventoryHolder holder)) return List.of();
-        Inventory inv = holder instanceof org.bukkit.block.Chest chest ? chest.getBlockInventory() : holder.getInventory();
+    static List<ItemStack> contents(Block b) {
+        Inventory inv = inventoryOf(b);
         List<ItemStack> items = new ArrayList<>();
-        for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) items.add(i.clone());
-        if (take) inv.clear();
+        if (inv != null) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) items.add(i.clone());
         return items;
+    }
+
+    /** Same, and empties the block, so breaking it afterwards drops just the block. */
+    static List<ItemStack> takeContents(Block b) {
+        List<ItemStack> items = contents(b);
+        Inventory inv = inventoryOf(b);
+        if (inv != null) inv.clear();
+        return items;
+    }
+
+    private static Inventory inventoryOf(Block b) {
+        if (!(b.getState(false) instanceof org.bukkit.inventory.BlockInventoryHolder holder)) return null;
+        return holder instanceof org.bukkit.block.Chest chest ? chest.getBlockInventory() : holder.getInventory();
     }
 
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */
