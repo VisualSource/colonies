@@ -50,8 +50,8 @@ public final class Health {
         Entity source = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null;
         if (source instanceof Projectile p && p.getShooter() instanceof Entity shooter) source = shooter;
         if (source != null && colony.colonistOf(source) != null) return;
-        // Only the owner hurts its citizens properly (the mod: players need the HURT_CITIZEN permission for more than 1).
-        if (source instanceof Player p && !p.getUniqueId().equals(colony.owner) && e.getDamage() > 1) return;
+        // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
+        if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_CITIZEN)) return;
         double damage = cause == DamageCause.VOID || cause == DamageCause.KILL
                 ? c.health : Math.min(e.getDamage(), Colonist.MAX_HEALTH * MAX_HIT);
         if (damage <= 0) return;

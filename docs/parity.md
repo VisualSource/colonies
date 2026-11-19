@@ -5,22 +5,27 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 ## Core colony
 
 - [~] Town Hall: founds the colony, levels gate other huts' levels, citizen list
-  - No claimed area or colony border; huts just have to be within 64 blocks of the town hall (see Chunk claims below)
-  - No permissions for friends (only the owner can use huts)
+  - Breaking the town hall disbands the colony, so only its owner may (ours: the mod lets BREAK_HUTS decide)
   - No colony events or statistics (advancements are listed below)
-- [ ] Chunk claims (`core/util/ChunkDataHelper.java`, each building's `getClaimRadius`; server config `claims` section)
-  - Founding: the colony claims chunks within 4 of the town hall's chunk (`initialColonySize`, default 4, radius in chunks); these first chunks are never given up unless forced
-  - A new colony must be at least 8 chunks from another colony (`minColonyDistance`, default 8), or the initial claim size if that is larger
-  - No claim reaches more than 20 chunks from the colony centre (`maxColonySize`, default 20)
-  - Each building claims a radius of chunks around its own chunk when placed and when an upgrade finishes, plus every chunk its building's box touches; a destroyed building gives its claims back. Radius by building level:
-    - Most buildings: 0 at level 0, 1 at levels 1-3, 2 at levels 4-5
-    - Town hall: 0, 1, 1, 2, 3, 5 (levels 0-5)
-    - Guard tower: 2, 3, 3, 4, 5 (levels 1-5)
-    - Barracks (level 1+): 3, or 2 while any of its towers is below level 4; barracks towers claim nothing
-    - Gate house: 1, 1, 2 (levels 1-3)
-  - The claimed chunks are the colony border: other players' building and breaking there follow the colony's permissions, and huts and their buildings must be inside it (not checked in the mod's source yet)
-  - Optional server setting: keep the colony's chunks loaded while an owner or officer is near (`forceloadcolony`, with a strictness setting for how many chunks)
-  - Stand-in to decide: keep the claimed chunks as a set per colony in the save file, check it in the plugin's block, interact and explosion events, and show the border with particles as the field menu does
+- [~] Chunk claims (`core/util/ChunkDataHelper.java`, each building's `getClaimRadius`): the claimed chunks are the colony's border. Numbers are the mod's server config defaults, set in `config.yml` (`claims`)
+  - Founding claims every chunk within 4 of the town hall's chunk (`initialColonySize` 4)
+  - A new town hall must be at least 128 blocks (`max(minColonyDistance 8, initialColonySize 4)` chunks) from every other town hall, and none of its first chunks may be claimed already (the mod's `isFarEnoughFromColonies`)
+  - No claim reaches more than 20 chunks from the town hall's chunk (`maxColonySize` 20)
+  - Each hut claims a square around its own chunk by its level, plus every chunk its built building covers; a removed hut gives them back. Radius: most huts 0 at level 0, 1 at levels 1-3, 2 at levels 4-5; town hall 0, 1, 1, 2, 3, 5; fields none
+  - Any hut but a town hall goes inside a colony's border, its whole building too (checked for its level 1 building), and joins the colony that owns that ground, so an officer can place huts for someone else's colony (the mod's `SurvivalHandler` and `AbstractBlockHut.canPaste`)
+  - Claims are worked out from the huts, not stored. Where two colonies' buildings claim the same chunk, the older colony keeps it (the mod: whichever claimed it first)
+  - "Show border" in the town hall menu (or `/colony border`) draws the border near you with particles for 10 seconds (the mod draws it on its map)
+  - Guard tower, barracks and gate house radii wait for those buildings (guard tower 2, 3, 3, 4, 5; barracks 3, or 2 while a tower is below level 4; gate house 1, 1, 2)
+  - Not done: keeping the colony's chunks loaded (`forceloadcolony`); claiming chunks with commands
+- [~] Permissions (`core/colony/permissions/Permissions.java`, `ColonyPermissionEventHandler`): the mod's five ranks (owner, officer, friend, neutral for everyone else, hostile) with its default actions; each colony can change what each rank may do. The owner edits members and ranks from the town hall menu ("Permissions") or with `/colony member add|remove` and `/colony members`
+  - Inside the border, other players' block breaking and placing, lighting fires, using doors and gates, containers and other blocks, buckets, dropping and picking up items, throwing potions, shooting arrows, using and attacking entities (hostile mobs excepted) and breaking item frames follow their rank; hut menus need ACCESS_HUTS, their buttons MANAGE_HUTS, placing huts PLACE_HUTS (build tool: MANAGE_HUTS), breaking them BREAK_HUTS; graves follow OPEN_CONTAINER and BREAK_BLOCKS wherever they are
+  - Attacking a citizen while standing in the colony needs ATTACK_CITIZEN, and a player's hit of more than 1 needs HURT_CITIZEN (by default only hostile has it, so even the owner deals 1), as in the mod
+  - Colony messages go to every online member with RECEIVE_MESSAGES (owner and officers by default)
+  - A server operator in creative mode gets the mod's OP actions on top of their rank (the mod: permission level 2; ours: `minecp.admin`)
+  - Explosions inside the border: `config.yml` `protection.explosions`, the mod's four choices; defaults to vanilla (everything is damaged) rather than the mod's "entities"; hut blocks and graves are never damaged
+  - Only the five built-in ranks: no custom ranks yet
+  - Players are added by name only if they have played on the server (the mod: its profile cache)
+  - Not done: the scan tool, guard rally, map, visitor, teleport and explosion actions (their features don't exist yet), free blocks and positions (the mod's lists of blocks anyone may use), PvP mode, the "abandoned colony" rules, denial messages to the owner
 - [ ] Supply camp and supply ship starts
 - [ ] Colony flag and banner
 - [ ] Colony connections (`core/colony/managers/ColonyConnectionManager.java`, `api/colony/connections/`): colony signs and gate houses link two colonies, with a diplomacy status of allies, neutral or hostile
@@ -78,7 +83,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No "all citizens are asleep" message, sleeping particles, off-to-bed sounds, or "home too far" complaint
   - No research that lets citizens work longer or in the rain
   - Sleep isn't checked by health, sickness, raids or mourning yet (those come first in the mod)
-- [~] Health and death (`EntityCitizen` hurt/die/checkHeal, `GraveManager`, `TileEntityGrave`): 20 health; a hit takes at most 20% (4), so it takes several to kill; stuck in a wall it is moved out instead; a hit of more than 1 from a player other than the owner does nothing (the mod's `EntityCitizen.checkIfValidDamageSource`: without the HURT_CITIZEN permission); void and `/kill` take all its health, past the cap; hurt by a mob or player it runs 15 blocks away from it; hurt by anything else but a fall (a block, drowning, starving) it moves 5 blocks from where it stands, as in the mod (`EntityCitizen.performMoveAway`: `walkAwayFrom(blockPosition(), 5)`, skipped for falls); a hurt sleeper wakes, as vanilla does, then goes back to bed; it heals every 5 seconds unless a mob or player hurt it in the last 5: 2 when full, 1 normally, saturation/20/2 below 6. On death the owner is told where and why, and a grave is put on the nearest free ground within 10 blocks with everything it carried (none in lava: items drop); the grave decays after 10 minutes and is gone 10 minutes later, dropping its items; the timer only runs while its chunk is loaded (the mod's grave ticks as a block entity)
+- [~] Health and death (`EntityCitizen` hurt/die/checkHeal, `GraveManager`, `TileEntityGrave`): 20 health; a hit takes at most 20% (4), so it takes several to kill; stuck in a wall it is moved out instead; a player's hit of more than 1 does nothing without the HURT_CITIZEN permission (the mod's `EntityCitizen.checkIfValidDamageSource`; see Permissions); void and `/kill` take all its health, past the cap; hurt by a mob or player it runs 15 blocks away from it; hurt by anything else but a fall (a block, drowning, starving) it moves 5 blocks from where it stands, as in the mod (`EntityCitizen.performMoveAway`: `walkAwayFrom(blockPosition(), 5)`, skipped for falls); a hurt sleeper wakes, as vanilla does, then goes back to bed; it heals every 5 seconds unless a mob or player hurt it in the last 5: 2 when full, 1 normally, saturation/20/2 below 6. On death the colony's members are told where and why, and a grave is put on the nearest free ground within 10 blocks with everything it carried (none in lava: items drop); the grave decays after 10 minutes and is gone 10 minutes later, dropping its items; the timer only runs while its chunk is loaded (the mod's grave ticks as a block entity)
   - Hut blocks and graves survive explosions
   - Breaking the Town Hall drops what every worker carried and what every grave holds
   - The hidden legs mob takes the hits (mobs that hunt villagers, like zombies, go for it); the hits themselves are cancelled
@@ -126,7 +131,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - The dialog covers the screen, so each button closes it to show the change
   - Picks huts only: no style packs or categories to browse, no decorations (`/colony build` stays the stand-in), only the colony's style
   - No ground-level offset: the hut block goes where you click (the converter drops the blueprints' ground tags)
-  - No check that the building stays inside the colony's claimed chunks (we have no claims); hut blocks must be within 64 blocks of the town hall
+  - The building must fit inside the colony's border (see Chunk claims)
   - The block at the hut spot is broken as a player break (protection plugins can refuse it); graves and blocks holding items are refused
 - [ ] Scan tool
 - [~] Hut recipes: MineColonies' shapes, with the Colony Token in place of the build tool

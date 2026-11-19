@@ -3,8 +3,11 @@ package dev.minecp.menu;
 import dev.minecp.MineCP;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Food;
+import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.colony.Permissions;
+import dev.minecp.colony.Rank;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Courier;
 import dev.minecp.job.Farmer;
@@ -99,14 +102,14 @@ public final class Menus {
 
         List<ActionButton> buttons = new ArrayList<>();
         if (h.type.isBuilding() && up == null && h.level < Hut.MAX_LEVEL)
-            buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, player -> {
+            buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, Action.MANAGE_HUTS, player -> {
                 String problem = c.requestUpgrade(h);
                 if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
                 plugin.save(c);
                 hut(player, c, h);
             }));
         if (up != null)
-            buttons.add(button("Cancel upgrade", p, c, h, player -> {
+            buttons.add(button("Cancel upgrade", p, c, h, Action.MANAGE_HUTS, player -> {
                 c.cancelUpgrade(h);
                 plugin.save(c);
                 hut(player, c, h);
@@ -115,10 +118,13 @@ public final class Menus {
             var missing = job.materials(); // null once the work ended while the menu was open
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
-        if (h.type == Hut.Type.TOWN_HALL)
+        if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
-        if (h.block.getState(false) instanceof Container)
-            buttons.add(button("Open storage", p, c, h, player -> {
+            buttons.add(button("Show border", p, c, h, player -> border(player, c)));
+            if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
+        }
+        if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
+            buttons.add(button("Open storage", p, c, h, Action.OPEN_CONTAINER, player -> {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
             }));
         Dialogs.show(p, h.type.title, body, List.of(), buttons, 1);
@@ -154,6 +160,7 @@ public final class Menus {
                     .step(1f).initial((float) h.extent[i]).width(200).build());
 
         List<ActionButton> buttons = List.of(button("Save", p, c, h, (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
             String crop = view.getText("crop");
             Material chosen = crop == null ? null : Material.matchMaterial(crop);
             h.seed = chosen != null && Farmer.CROPS.containsKey(chosen) ? chosen : null; // a modified client can send any name
@@ -224,6 +231,124 @@ public final class Menus {
 
     private static DialogBody text(Component c) {
         return Dialogs.text(c);
+    }
+
+    // ---- border and permissions --------------------------------------------------------------------------------
+
+    private static final int BORDER_CHUNKS = 6; // drawn this many chunks around the player
+
+    /** Draws the colony's border (its claimed chunks' outer edges) near the player with particles for 10 seconds. */
+    public void border(Player p, Colony c) {
+        var world = c.townHall().block.getWorld();
+        if (!p.getWorld().equals(world)) { p.sendMessage(Component.text(c.name + " is in another world.", NamedTextColor.RED)); return; }
+        var dust = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 60, 60), 1.5f);
+        int[] runs = {0};
+        plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
+            if (++runs[0] > 20 || !p.isOnline() || !p.getWorld().equals(world)) { task.cancel(); return; }
+            int pcx = p.getLocation().getBlockX() >> 4, pcz = p.getLocation().getBlockZ() >> 4;
+            double y = p.getLocation().getY() + 1;
+            for (int cx = pcx - BORDER_CHUNKS; cx <= pcx + BORDER_CHUNKS; cx++) for (int cz = pcz - BORDER_CHUNKS; cz <= pcz + BORDER_CHUNKS; cz++) {
+                if (!plugin.owns(c, world, cx, cz)) continue;
+                int x0 = cx << 4, z0 = cz << 4;
+                for (int i = 0; i < 16; i++) {
+                    if (!plugin.owns(c, world, cx, cz - 1)) p.spawnParticle(Particle.DUST, x0 + i, y, z0, 1, 0, 0, 0, 0, dust);
+                    if (!plugin.owns(c, world, cx, cz + 1)) p.spawnParticle(Particle.DUST, x0 + i, y, z0 + 16, 1, 0, 0, 0, 0, dust);
+                    if (!plugin.owns(c, world, cx - 1, cz)) p.spawnParticle(Particle.DUST, x0, y, z0 + i, 1, 0, 0, 0, 0, dust);
+                    if (!plugin.owns(c, world, cx + 1, cz)) p.spawnParticle(Particle.DUST, x0 + 16, y, z0 + i, 1, 0, 0, 0, 0, dust);
+                }
+            }
+        }, 0, 10);
+        p.sendMessage(Component.text("Showing " + c.name + "'s border near you (" + c.claims().size() + " chunks claimed).", NamedTextColor.GREEN));
+    }
+
+    /** The colony's members and their ranks, from the town hall menu (needs EDIT_PERMISSIONS). */
+    void permissions(Player p, Colony c, Hut townHall) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text("Owner: " + plugin.getServer().getOfflinePlayer(c.owner).getName(), NamedTextColor.GOLD)));
+        var members = c.permissions.members();
+        if (members.isEmpty()) body.add(text(Component.text("No other members. Everyone else is Neutral.", NamedTextColor.GRAY)));
+        List<ActionButton> buttons = new ArrayList<>();
+        members.forEach((id, m) -> buttons.add(button(m.name() + " — " + m.rank().title(), p, c, townHall, Action.EDIT_PERMISSIONS,
+                player -> member(player, c, townHall, id, m))));
+        buttons.add(button("Add a player", p, c, townHall, Action.EDIT_PERMISSIONS, player -> addMember(player, c, townHall)));
+        buttons.add(button("What each rank may do", p, c, townHall, Action.EDIT_PERMISSIONS, player -> ranks(player, c, townHall)));
+        buttons.add(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
+        Dialogs.show(p, "Permissions", body, List.of(), buttons, 1);
+    }
+
+    private static final List<Rank> MEMBER_RANKS = List.of(Rank.OFFICER, Rank.FRIEND, Rank.HOSTILE);
+
+    private void member(Player p, Colony c, Hut townHall, java.util.UUID id, Permissions.Member m) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Rank r : MEMBER_RANKS) if (r != m.rank())
+            buttons.add(button("Make " + r.title(), p, c, townHall, Action.EDIT_PERMISSIONS, player -> setRank(player, c, townHall, id, m.name(), r)));
+        buttons.add(button("Remove (Neutral)", p, c, townHall, Action.EDIT_PERMISSIONS, player -> setRank(player, c, townHall, id, m.name(), Rank.NEUTRAL)));
+        buttons.add(button("Back", p, c, townHall, player -> permissions(player, c, townHall)));
+        Dialogs.show(p, m.name(), List.of(text(Component.text(m.name() + " is " + m.rank().title() + " in " + c.name + "."))), List.of(), buttons, 1);
+    }
+
+    private void setRank(Player p, Colony c, Hut townHall, java.util.UUID id, String name, Rank r) {
+        c.permissions.setRank(id, name, r);
+        plugin.save(c);
+        permissions(p, c, townHall);
+    }
+
+    /** Adds a player who has been on the server, by name, at a rank. */
+    private void addMember(Player p, Colony c, Hut townHall) {
+        List<SingleOptionDialogInput.OptionEntry> ranks = new ArrayList<>();
+        for (Rank r : MEMBER_RANKS) ranks.add(SingleOptionDialogInput.OptionEntry.create(r.name(), Component.text(r.title()), r == Rank.FRIEND));
+        List<DialogInput> inputs = List.of(DialogInput.text("name", Component.text("Player name")).width(200).build(),
+                DialogInput.singleOption("rank", Component.text("Rank"), ranks).width(200).build());
+        List<ActionButton> buttons = List.of(button("Add", p, c, townHall, (player, view) -> {
+            if (!c.permissions.has(player, Action.EDIT_PERMISSIONS)) { refuse(player, c, Action.EDIT_PERMISSIONS); return; }
+            String name = view.getText("name") == null ? "" : view.getText("name").trim();
+            var target = plugin.getServer().getOfflinePlayerIfCached(name); // players who have been here; no web lookup
+            Rank r = Rank.FRIEND;
+            for (Rank m : MEMBER_RANKS) if (m.name().equals(view.getText("rank"))) r = m;
+            if (target == null) player.sendMessage(Component.text("No player called " + name + " has played on this server.", NamedTextColor.RED));
+            else if (!c.permissions.setRank(target.getUniqueId(), target.getName(), r)) player.sendMessage(Component.text("That's the owner.", NamedTextColor.RED));
+            else plugin.save(c);
+            permissions(player, c, townHall);
+        }), button("Back", p, c, townHall, player -> permissions(player, c, townHall)));
+        Dialogs.show(p, "Add a player", List.of(text(Component.text("They join " + c.name + " at this rank."))), inputs, buttons, 1);
+    }
+
+    private void ranks(Player p, Colony c, Hut townHall) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Rank r : Rank.values()) if (r != Rank.OWNER)
+            buttons.add(button(r.title(), p, c, townHall, Action.EDIT_PERMISSIONS, player -> rankActions(player, c, townHall, r)));
+        buttons.add(button("Back", p, c, townHall, player -> permissions(player, c, townHall)));
+        Dialogs.show(p, "Ranks", List.of(text(Component.text("Neutral is everyone who isn't a member. Pick a rank to change what it may do inside "
+                + c.name + "'s border.", NamedTextColor.GRAY))), List.of(), buttons, 1);
+    }
+
+    private void rankActions(Player p, Colony c, Hut townHall, Rank r) {
+        List<Action> shown = new ArrayList<>(List.of(Action.values()));
+        if (r == Rank.NEUTRAL || r == Rank.HOSTILE) shown.remove(Action.EDIT_PERMISSIONS); // never theirs, as in the mod
+        List<DialogInput> inputs = new ArrayList<>();
+        for (Action a : shown) inputs.add(DialogInput.bool(a.name().toLowerCase(), Component.text(a.label)).initial(c.permissions.has(r, a)).build());
+        List<ActionButton> buttons = List.of(button("Save", p, c, townHall, (player, view) -> {
+            if (!c.permissions.has(player, Action.EDIT_PERMISSIONS)) { refuse(player, c, Action.EDIT_PERMISSIONS); return; }
+            for (Action a : shown) {
+                Boolean on = view.getBoolean(a.name().toLowerCase());
+                if (on != null) c.permissions.allow(r, a, on);
+            }
+            plugin.save(c);
+            ranks(player, c, townHall);
+        }), button("Back", p, c, townHall, player -> ranks(player, c, townHall)));
+        Dialogs.show(p, r.title(), List.of(text(Component.text("What a " + r.title() + " may do inside " + c.name + "'s border."))), inputs, buttons, 1);
+    }
+
+    private static void refuse(Player p, Colony c, Action a) {
+        p.sendMessage(Component.text("You can't " + a.label.toLowerCase() + " in " + c.name + ".", NamedTextColor.RED));
+    }
+
+    /** A button that also needs {@code need} when clicked: ranks can change while the menu is open. */
+    private ActionButton button(String label, Player shownTo, Colony c, Hut h, Action need, Consumer<Player> action) {
+        return button(label, shownTo, c, h, player -> {
+            if (c.permissions.has(player, need)) action.accept(player);
+            else refuse(player, c, need);
+        });
     }
 
     /** A button that runs only while the hut still exists (it may be removed while the menu is open). */

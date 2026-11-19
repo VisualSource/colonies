@@ -24,6 +24,8 @@ public final class ColonyStore {
         s.set("name", colony.name);
         s.set("style", colony.style);
         s.set("day", colony.day);
+        s.set("founded", colony.founded);
+        colony.permissions.save(s.createSection("permissions"));
         for (int i = 0; i < colony.graves.size(); i++) {
             Grave g = colony.graves.get(i);
             var gs = s.createSection("graves." + i);
@@ -88,6 +90,8 @@ public final class ColonyStore {
         colony.huts.addAll(huts.subList(1, huts.size()));
         colony.style = s.getString("style", colony.style);
         colony.day = s.getInt("day");
+        colony.founded = s.getLong("founded");
+        if (s.isConfigurationSection("permissions")) colony.permissions.load(s.getConfigurationSection("permissions"));
         var graveSections = s.getConfigurationSection("graves");
         if (graveSections != null) for (String i : graveSections.getKeys(false)) {
             var gs = graveSections.getConfigurationSection(i);

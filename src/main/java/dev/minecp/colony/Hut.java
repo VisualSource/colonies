@@ -76,6 +76,15 @@ public final class Hut {
             this(title, block, path, command, lore, centre, null, null, unique);
         }
 
+        /** Chunks claimed around the hut's chunk at this level (the mod's getClaimRadius). */
+        public int claimRadius(int level) {
+            return switch (this) {
+                case TOWN_HALL -> new int[]{0, 1, 1, 2, 3, 5}[level];
+                case FIELD -> 0;
+                default -> level == 0 ? 0 : level <= 3 ? 1 : 2;
+            };
+        }
+
         public boolean isBuilding() {
             return path != null;
         }
@@ -98,6 +107,8 @@ public final class Hut {
     int[] footprint;          // minX, maxX+1, minZ, maxZ+1 of the building at footprintLevel, for the particle tape
     int footprintLevel = -1;
     final java.util.List<org.bukkit.entity.BlockDisplay> tape = new java.util.ArrayList<>(); // shown while waiting for the builder
+    int[] builtBox;           // the box its building covers at builtBoxLevel, for claims (Colony.footprint)
+    int builtBoxLevel = -1;
     java.util.List<Block> beds; // houses only: bed heads nearest first, from the last scan (Colony.bedOf)
     int bedsAt;
     // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.

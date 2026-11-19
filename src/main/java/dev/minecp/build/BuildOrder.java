@@ -200,6 +200,12 @@ public final class BuildOrder {
     /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
     public final List<Block> fields = new ArrayList<>();
 
+    /** The box (minX, maxX+1, minZ, maxZ+1) a hut's building covers, placed on its hut block; null if it has none. */
+    public static int[] footprint(String structure, Block hut, StructureRotation rotation, boolean mirror) {
+        BuildOrder o = create(structure, hut.getLocation(), rotation, mirror, hut);
+        return o == null ? null : new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1};
+    }
+
     public static boolean exists(String structure) {
         return load(structure) != null;
     }

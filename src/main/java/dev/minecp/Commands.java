@@ -2,7 +2,9 @@ package dev.minecp;
 
 import dev.minecp.build.BuildOrder;
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.Rank;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Rack;
 
@@ -23,6 +25,12 @@ final class Commands implements CommandExecutor {
 
     Commands(MineCP plugin) {
         this.plugin = plugin;
+    }
+
+    /** The colony whose land the player stands on, else their own. */
+    private Colony here(Player p) {
+        Colony c = plugin.colonyClaiming(p.getLocation());
+        return c != null ? c : plugin.colonyOf(p);
     }
 
     @Override
@@ -96,6 +104,43 @@ final class Commands implements CommandExecutor {
                 player.sendMessage("Town hall: " + th.getX() + " " + th.getY() + " " + th.getZ()
                         + " (right-click it for the colony menu)");
                 player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
+            }
+            case "border" -> {
+                Colony here = here(player);
+                if (here == null) player.sendMessage("You aren't in a colony and don't have one.");
+                else plugin.menus.border(player, here);
+            }
+            case "members" -> {
+                Colony here = here(player);
+                if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }
+                player.sendMessage(Component.text(here.name + ": owner " + plugin.getServer().getOfflinePlayer(here.owner).getName(), NamedTextColor.GOLD));
+                here.permissions.members().values().forEach(m -> player.sendMessage(m.name() + " — " + m.rank().title()));
+            }
+            case "member" -> { // member add <player> [officer|friend|hostile], member remove <player>
+                Colony here = here(player);
+                if (args.length < 3 || !(args[1].equals("add") || args[1].equals("remove"))) return false;
+                if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }
+                if (!here.permissions.has(player, Action.EDIT_PERMISSIONS)) {
+                    player.sendMessage(Component.text("You can't change members of " + here.name + ".", NamedTextColor.RED));
+                    return true;
+                }
+                var target = plugin.getServer().getOfflinePlayerIfCached(args[2]); // players who have been here; no web lookup
+                if (target == null) { player.sendMessage(Component.text("No player called " + args[2] + " has played on this server.", NamedTextColor.RED)); return true; }
+                Rank rank = Rank.NEUTRAL;
+                if (args[1].equals("add")) {
+                    try {
+                        rank = args.length > 3 ? Rank.valueOf(args[3].toUpperCase()) : Rank.FRIEND;
+                    } catch (IllegalArgumentException e) {
+                        rank = null;
+                    }
+                    if (rank == null || rank == Rank.OWNER || rank == Rank.NEUTRAL) return false;
+                }
+                if (!here.permissions.setRank(target.getUniqueId(), target.getName(), rank)) {
+                    player.sendMessage(Component.text("That's the owner.", NamedTextColor.RED));
+                    return true;
+                }
+                plugin.save(here);
+                player.sendMessage(target.getName() + " is now " + rank.title() + " in " + here.name + ".");
             }
             case "movement" -> { // how often each citizen's walking went wrong
                 if (c == null) {

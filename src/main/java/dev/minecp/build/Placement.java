@@ -121,7 +121,8 @@ public final class Placement implements Listener {
     }
 
     private void start(Player p, Hut.Type type, Block anchor) {
-        Colony c = plugin.colonyOf(p);
+        Colony c = plugin.colonyClaiming(anchor.getLocation()); // the style of the colony it would join
+        if (c == null) c = plugin.colonyOf(p);
         end(p);
         Session s = new Session(type, c == null ? Colony.DEFAULT_STYLE : c.style, anchor);
         sessions.put(p.getUniqueId(), s);
@@ -199,7 +200,10 @@ public final class Placement implements Listener {
 
     /** As in the mod: the hut item is used up and the hut block put down; the builder builds it from the hut's menu. */
     private void confirm(Player p, Session s) {
-        String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build." : plugin.placeProblem(p, s.type, s.anchor);
+        BuildOrder o = order(s);
+        String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build."
+                : o == null ? "No structure for the " + s.type.title + "."
+                : plugin.placeProblem(p, s.type, s.anchor, new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1}, true);
         if (problem == null && plugin.colonyAt(s.anchor) != null) problem = "Another hut is in that spot.";
         if (problem == null && (plugin.graveColony(s.anchor) != null || !Job.contents(s.anchor).isEmpty()))
             problem = "Clear the block at the hut spot first.";
@@ -207,8 +211,6 @@ public final class Placement implements Listener {
         var inv = p.getInventory();
         for (int i = 0; i < inv.getSize() && slot < 0; i++) if (inv.getItem(i) != null && plugin.items.hutType(inv.getItem(i)) == s.type) slot = i;
         if (problem == null && slot < 0 && p.getGameMode() != GameMode.CREATIVE) problem = "You no longer carry a " + s.type.title + ".";
-        BuildOrder o = problem == null ? order(s) : null;
-        if (problem == null && o == null) problem = "No structure for the " + s.type.title + ".";
         // Last, so it is only asked when the block really goes: as a player break, so protection plugins can refuse it.
         var broken = s.anchor.isEmpty() ? null : new org.bukkit.event.block.BlockBreakEvent(s.anchor, p);
         if (problem == null && broken != null && !broken.callEvent()) problem = "You can't break the block at the hut spot.";
