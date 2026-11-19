@@ -27,7 +27,7 @@ public final class Hut {
      */
     public enum Type {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall", "townhall", "Place to found a colony",
-                null, true), // its recipe has the Colony Token in the middle (Items)
+                null, true), // its recipe has the Build Tool in the middle (Items)
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder", "builderhut", "Its chest holds building materials",
                 () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", (h, c) -> new Builder(h), true),
         HOUSE("House", Material.CHEST, "fundamentals/residence", "house", "Room for more citizens",
@@ -53,7 +53,7 @@ public final class Hut {
         public final String path;     // structure path inside a style pack, + level; null for blocks that aren't buildings
         final String command;  // /colony <command> gives an admin its item
         public final String lore;     // on its item
-        public final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, token on top); null: none or special
+        public final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, Build Tool on top); null: none or special
         public final String worker;   // the job's name ("Cook"), null for huts without a worker
         final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without a worker
         public final boolean unique;  // one per colony

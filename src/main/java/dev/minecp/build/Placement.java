@@ -42,7 +42,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * The build tool (the Colony Token stands in for Structurize's): right-click a block to pick a hut from your inventory,
+ * The build tool (our Build Tool item stands in for Structurize's): right-click a block to pick a hut from your inventory,
  * then a preview of its level 1 building stays in view, only for you, until you confirm or cancel. Right-click again
  * for the mod's controls: move relative to where you face, up/down, rotate, mirror, confirm, cancel.
  */
@@ -76,7 +76,7 @@ public final class Placement implements Listener {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isToken(e.getItem())) return;
+        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isBuildTool(e.getItem())) return;
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK && e.getAction() != Action.RIGHT_CLICK_AIR) return;
         e.setCancelled(true);
         Player p = e.getPlayer();
@@ -114,7 +114,7 @@ public final class Placement implements Listener {
             buttons.add(button(type.title + (creative ? "" : " (" + have + ")"), p, null, player -> start(player, type, anchor)));
         }
         if (buttons.isEmpty()) {
-            p.sendMessage(Component.text("Carry a hut item (crafted with the Colony Token) to place its building.", NamedTextColor.RED));
+            p.sendMessage(Component.text("Carry a hut item (crafted with the Build Tool) to place its building.", NamedTextColor.RED));
             return;
         }
         show(p, "Build tool", List.of(text("Which building goes here?")), buttons);
@@ -127,7 +127,7 @@ public final class Placement implements Listener {
         Session s = new Session(type, c == null ? Colony.DEFAULT_STYLE : c.style, anchor);
         sessions.put(p.getUniqueId(), s);
         if (draw(p, s)) p.sendMessage(Component.text("Placing the " + type.title
-                + ". Right-click with the Colony Token to move, turn or confirm it.", NamedTextColor.GREEN));
+                + ". Right-click with the Build Tool to move, turn or confirm it.", NamedTextColor.GREEN));
     }
 
     /** The building as it would stand now. Null if its structure is missing. */

@@ -104,7 +104,7 @@ final class Protection implements Listener {
     public void onUse(PlayerInteractEvent e) {
         Block b = e.getClickedBlock();
         if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || b == null || e.getHand() != EquipmentSlot.HAND) return;
-        if (e.useInteractedBlock() == Event.Result.DENY || plugin.items.isToken(e.getItem()) || plugin.graveColony(b) != null) return;
+        if (e.useInteractedBlock() == Event.Result.DENY || plugin.items.isBuildTool(e.getItem()) || plugin.graveColony(b) != null) return;
         if (plugin.colonyAt(b) != null && !e.getPlayer().isSneaking()) return; // a hut's menu: ACCESS_HUTS in MineCP
         Action action = b.getBlockData() instanceof Openable ? Action.ACCESS_TOGGLEABLES
                 : b.getState(false) instanceof BlockInventoryHolder ? Action.OPEN_CONTAINER

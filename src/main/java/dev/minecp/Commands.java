@@ -19,7 +19,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
-/** /colony: info, the token, test builds, movement stats, and (admins) hut items and racks. */
+/** /colony: info, the Build Tool, test builds, movement stats, and (admins) hut items and racks. */
 final class Commands implements CommandExecutor {
     private final MineCP plugin;
 
@@ -47,16 +47,16 @@ final class Commands implements CommandExecutor {
         }
         Colony c = plugin.colonyOf(player);
         switch (args[0]) {
-            case "token" -> {
+            case "buildtool" -> {
                 ItemStack hand = player.getInventory().getItemInMainHand();
-                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or tokens already
-                    player.sendMessage(Component.text("Hold a stick to turn it into a Colony Token.", NamedTextColor.RED));
+                if (!hand.isSimilar(new ItemStack(Material.STICK))) { // plain sticks only, not renamed or Build Tools already
+                    player.sendMessage(Component.text("Hold a stick to turn it into a Build Tool.", NamedTextColor.RED));
                     return true;
                 }
-                hand.subtract(); // one is enough: the token is kept when crafting
+                hand.subtract(); // one is enough: the Build Tool is kept when crafting
                 player.getInventory().setItemInMainHand(hand.isEmpty() ? null : hand);
-                player.getInventory().addItem(plugin.items.token()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
-                player.sendMessage(Component.text("Colony Token made. It's kept when you craft huts.", NamedTextColor.GREEN));
+                player.getInventory().addItem(plugin.items.buildTool()).values().forEach(o -> player.getWorld().dropItem(player.getLocation(), o));
+                player.sendMessage(Component.text("Build Tool made. Right-click the ground to place a hut; it's kept when you craft huts.", NamedTextColor.GREEN));
             }
             case "build" -> {
                 if (c == null || c.builder == null) {

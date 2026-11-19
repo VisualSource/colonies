@@ -14,7 +14,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Each hut claims a square around its own chunk by its level, plus every chunk its built building covers; a removed hut gives them back. Radius: most huts 0 at level 0, 1 at levels 1-3, 2 at levels 4-5; town hall 0, 1, 1, 2, 3, 5; fields none
   - Any hut but a town hall goes inside a colony's border, its whole building too (checked for its level 1 building), and joins the colony that owns that ground, so an officer can place huts for someone else's colony (the mod's `SurvivalHandler` and `AbstractBlockHut.canPaste`)
   - Claims are worked out from the huts, not stored. Where two colonies' buildings claim the same chunk, the older colony keeps it (the mod: whichever claimed it first)
-  - Build Goggles (the mod's recipe, the Colony Token standing in for the build tool; a dyed leather helmet with a tag stands in for its model): while worn, colony borders within 4 chunks stand as see-through glass panes 40 blocks tall around you, lime for colonies you belong to and red for others, only for you; they follow as you walk (the mod draws the border with its own client renderer)
+  - Build Goggles (the mod's recipe; a dyed leather helmet with a tag stands in for its model): while worn, colony borders within 4 chunks stand as see-through glass panes 40 blocks tall around you, lime for colonies you belong to and red for others, only for you; they follow as you walk (the mod draws the border with its own client renderer)
   - Not done: the goggles' other uses in the mod (showing buildings' outlines)
   - Guard tower, barracks and gate house radii wait for those buildings (guard tower 2, 3, 3, 4, 5; barracks 3, or 2 while a tower is below level 4; gate house 1, 1, 2)
   - Not done: keeping the colony's chunks loaded (`forceloadcolony`); claiming chunks with commands
@@ -127,7 +127,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Blueprints: medieval oak converted to vanilla structures (`tools/convert_blueprints.py`)
   - Other styles not converted
   - Modded blocks approximated (see `docs/structures/medievaloak.md`)
-- [~] Build tool (Structurize `ItemBuildTool`, `AbstractBlueprintManipulationWindow`; MineColonies `SurvivalHandler`): the Colony Token is the tool. Right-click a block, pick a hut you carry; a preview of its level 1 building stays until confirmed or cancelled. Right-click again for the mod's controls in a dialog: move forward/back/left/right from where you face, up/down, rotate left/right, mirror (front to back, as the mod), confirm, cancel. Confirming checks the same rules as placing by hand, uses up the hut item, places the hut block and keeps the turn and mirror for every level
+- [~] Build tool (Structurize `ItemBuildTool`, `AbstractBlueprintManipulationWindow`; MineColonies `SurvivalHandler`): the Build Tool item is the tool (a stick with a tag, made with `/colony buildtool`). Right-click a block, pick a hut you carry; a preview of its level 1 building stays until confirmed or cancelled. Right-click again for the mod's controls in a dialog: move forward/back/left/right from where you face, up/down, rotate left/right, mirror (front to back, as the mod), confirm, cancel. Confirming checks the same rules as placing by hand, uses up the hut item, places the hut block and keeps the turn and mirror for every level
   - Preview is block displays at 90% size, only for the placing player (the mod draws see-through blocks); blocks walled in on all sides are skipped
   - The dialog covers the screen, so each button closes it to show the change
   - Picks huts only: no style packs or categories to browse, no decorations (`/colony build` stays the stand-in), only the colony's style
@@ -135,7 +135,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - The building must fit inside the colony's border (see Chunk claims)
   - The block at the hut spot is broken as a player break (protection plugins can refuse it); graves and blocks holding items are refused
 - [ ] Scan tool
-- [~] Hut recipes: MineColonies' shapes, with the Colony Token in place of the build tool
+- [~] Hut recipes: MineColonies' shapes, with our Build Tool in place of the mod's
   - Only huts that are built so far have recipes
 
 ## Resource jobs
@@ -251,7 +251,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 
 ### Items
 
-- [~] Build tool (Structurize): the Colony Token (see Build tool above); `/colony build` for free builds
+- [~] Build tool (Structurize): the Build Tool (see Build tool above); `/colony build` for free builds
 - [ ] Scan tool (Structurize)
 - [ ] Supply chest and supply camp deployers (colony starts)
 - [ ] Clipboard (the colony's open requests)

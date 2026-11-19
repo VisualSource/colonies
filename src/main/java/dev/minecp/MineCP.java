@@ -294,7 +294,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent e) {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
-        if (items.isToken(e.getItem())) return; // the build tool (Placement)
+        if (items.isBuildTool(e.getItem())) return; // the build tool (Placement)
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();
