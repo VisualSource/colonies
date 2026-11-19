@@ -1,4 +1,6 @@
-package dev.minecp;
+package dev.minecp.citizen;
+
+import dev.minecp.colony.Hut;
 
 import io.papermc.paper.datacomponent.item.ResolvableProfile;
 import net.kyori.adventure.key.Key;
@@ -36,7 +38,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * The legs mob is moved along our own routes ({@link Route}) by steering its MoveControl ({@link Nms}).
  * Entities are not saved by the world; they are spawned from colony data whenever the chunk is loaded.
  */
-final class Colonist {
+public final class Colonist {
     // Ours, not the mod's:
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
@@ -48,34 +50,34 @@ final class Colonist {
     /** Vanilla default skins, shipped with every client, so no resource pack or skin lookups are needed. */
     private static final String[] SKINS = {"alex", "ari", "efe", "makena", "noor", "kai", "steve", "sunny", "zuri"};
     private static final int FEMALE_SKINS = 5; // the first five above
-    static final String LEGS_TAG = "minecp_legs";
+    public static final String LEGS_TAG = "minecp_legs";
 
     /** A skin index: which default character, and wide or slim arms (index >= SKINS.length means slim). */
-    static int randomSkin(boolean female) {
+    public static int randomSkin(boolean female) {
         var rnd = ThreadLocalRandom.current();
         int character = female ? rnd.nextInt(FEMALE_SKINS) : rnd.nextInt(FEMALE_SKINS, SKINS.length);
         return character + (rnd.nextBoolean() ? SKINS.length : 0);
     }
 
-    final UUID id;
-    final String name;
-    final int skin;
-    Hut home; // the house the colonist lives in, or null
-    double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
-    static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
-    double health = MAX_HEALTH;               // saved with the colony
-    int hurtTicks;   // ticks since a mob or player last hurt it are still counted down: no healing meanwhile
-    int fleeTicks;   // running away: no work until it runs out
-    int healTicks;
-    Meal meal;              // while it is getting something to eat
-    String hungerNote;      // why its last meal failed, for the menus
-    int foodRetry, hungerTicks;
+    public final UUID id;
+    public final String name;
+    public final int skin;
+    public Hut home; // the house the colonist lives in, or null
+    public double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
+    public static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
+    public double health = MAX_HEALTH;               // saved with the colony
+    public int hurtTicks;   // ticks since a mob or player last hurt it are still counted down: no healing meanwhile
+    public int fleeTicks;   // running away: no work until it runs out
+    public int healTicks;
+    public Meal meal;              // while it is getting something to eat
+    public String hungerNote;      // why its last meal failed, for the menus
+    public int foodRetry, hungerTicks;
     private Location last; // where the colonist is, kept while despawned
     private Mannequin body;
     private WanderingTrader legs;
     private Location target; // wander destination
     private Block bed;       // head of the bed it is asleep in
-    boolean bedtime;         // on its way to bed or asleep (the mod keeps a citizen in its sleep state once there)
+    public boolean bedtime;         // on its way to bed or asleep (the mod keeps a citizen in its sleep state once there)
     private String status = "Unemployed";
     private int wait = 0;
     private Climb climb;            // on a ladder
@@ -89,29 +91,29 @@ final class Colonist {
     private Route.Goal routeGoal;
     private Location routeFrom;
     private int routeIdle, replans;
-    final Stats stats = new Stats(); // movement counters for /colony movement; not saved
+    public final Stats stats = new Stats(); // movement counters for /colony movement; not saved
 
     /** How often moving went wrong, to compare movement systems. */
-    static final class Stats {
-        int teleports, stuck, searches;
-        long searchNanos;
+    public static final class Stats {
+        public int teleports, stuck, searches;
+        public long searchNanos;
     }
     private double walked = 0;
     private final List<Block> opened = new ArrayList<>(); // doors it opened, to close behind it
 
-    Colonist(UUID id, String name, int skin, Location at) {
+    public Colonist(UUID id, String name, int skin, Location at) {
         this.id = id;
         this.name = name;
         this.skin = skin;
         this.last = at.clone();
     }
 
-    Location location() {
+    public Location location() {
         return last.clone();
     }
 
     /** One server tick: keeps the entities spawned and the body on the legs. @return false while despawned. */
-    boolean tick() {
+    public boolean tick() {
         if (legs == null || !body.isValid() || !legs.isValid()) {
             despawn();
             if (!entitiesTicking(last)) return false;
@@ -261,35 +263,35 @@ final class Colonist {
         }
     }
 
-    String status() {
+    public String status() {
         return status;
     }
 
-    void setStatus(String status) {
+    public void setStatus(String status) {
         if (status.equals(this.status)) return;
         this.status = status;
         if (body != null) body.setDescription(Component.text(status));
     }
 
     /** Shows {@code item} (null: nothing) in the colonist's main hand. */
-    void hold(ItemStack item) {
+    public void hold(ItemStack item) {
         if (body != null) body.getEquipment().setItemInMainHand(item);
     }
 
-    LivingEntity living() {
+    public LivingEntity living() {
         return body;
     }
 
-    boolean onGround() {
+    public boolean onGround() {
         return legs.isOnGround();
     }
 
-    void stopWalking() {
+    public void stopWalking() {
         climb = null;
         route = null;
     }
 
-    boolean isMoving() {
+    public boolean isMoving() {
         return climb != null || route != null;
     }
 
@@ -297,7 +299,7 @@ final class Colonist {
      * Walks as close to {@code to} as any path leads, if that ends within {@code within} blocks of it.
      * @return false if no path gets that close, or it already stands at the closest point.
      */
-    boolean approach(Location to, double within) {
+    public boolean approach(Location to, double within) {
         // Partial paths can take turns ending in two dead ends near the target (a ledge and the pocket beside it),
         // each one far enough from the other to pass the check below: give up once they stop getting it closer.
         double now = legs.getLocation().distance(to);
@@ -351,12 +353,12 @@ final class Colonist {
     }
 
     /** Whether {@code e} is this citizen's body or legs. */
-    boolean owns(org.bukkit.entity.Entity e) {
+    public boolean owns(org.bukkit.entity.Entity e) {
         return e != null && (e.equals(body) || e.equals(legs));
     }
 
     /** The hurt flash and sound a player would make. */
-    void showHurt() {
+    public void showHurt() {
         if (body == null) return;
         body.playHurtAnimation(0);
         body.getWorld().playSound(body.getLocation(), Sound.ENTITY_PLAYER_HURT, SoundCategory.NEUTRAL, 1, 1);
@@ -366,7 +368,7 @@ final class Colonist {
      * Runs {@code distance} blocks away from {@code from} (the mod: 15 from an attacker, 5 from a hurting block),
      * trying straight away first, then a little to either side.
      */
-    void flee(Location from, int distance) {
+    public void flee(Location from, int distance) {
         Location at = legs.getLocation();
         org.bukkit.util.Vector away = at.toVector().subtract(from.toVector()).setY(0);
         if (away.lengthSquared() < 0.01) away = new org.bukkit.util.Vector(ThreadLocalRandom.current().nextDouble(-1, 1), 0, ThreadLocalRandom.current().nextDouble(-1, 1));
@@ -384,7 +386,7 @@ final class Colonist {
     }
 
     /** Whether the colonist's body is (partly) inside {@code b}; a mob is 0.6 wide, so it can overlap neighbours. */
-    boolean overlaps(Block b) {
+    public boolean overlaps(Block b) {
         return legs.getBoundingBox().overlaps(BoundingBox.of(b));
     }
 
@@ -392,7 +394,7 @@ final class Colonist {
      * Teleports to the nearest free spot at least 1.5 blocks from {@code avoid} (e.g. a block about to be placed),
      * or with {@code avoid} null, to the nearest free spot other than where it stands. Climbs up if there is none.
      */
-    void hopAside(Block avoid) {
+    public void hopAside(Block avoid) {
         Block here = legs.getLocation().getBlock(), best = null;
         for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = -1; dy <= 2; dy++) {
             Block b = here.getRelative(dx, dy, dz);
@@ -417,12 +419,12 @@ final class Colonist {
     }
 
     /** The head half of the bed it sleeps in, or null while awake. */
-    Block bed() {
+    public Block bed() {
         return bed;
     }
 
     /** Lies down in the bed whose head half is {@code head}. */
-    void sleepIn(Block head) {
+    public void sleepIn(Block head) {
         bed = head;
         stopWalking();
         hold(null);
@@ -439,7 +441,7 @@ final class Colonist {
     }
 
     /** Gets up and steps out beside the bed. */
-    void wake() {
+    public void wake() {
         if (bed == null) return;
         Block head = bed;
         bed = null;
@@ -450,7 +452,7 @@ final class Colonist {
     }
 
     /** Teleports onto {@code spot} (a block it can stand in). */
-    void teleportTo(Block spot) {
+    public void teleportTo(Block spot) {
         stopWalking();
         warp(spot.getLocation().add(0.5, 0, 0.5));
     }
@@ -466,7 +468,7 @@ final class Colonist {
     }
 
     /** Whether it stands on a spot {@link #walkBeside} would walk to for {@code block} (up to 2 out, 2 below to 1 above). */
-    boolean isBeside(Block block) {
+    public boolean isBeside(Block block) {
         Block at = last.getBlock();
         int dy = at.getY() - block.getY();
         return Math.abs(at.getX() - block.getX()) <= 2 && Math.abs(at.getZ() - block.getZ()) <= 2 && dy >= -2 && dy <= 1;
@@ -476,14 +478,14 @@ final class Colonist {
      * Walks beside {@code block}. Paths only reach ~48 blocks, so farther away it walks as far toward it as a path
      * leads and goes on from there; it teleports only when no path gets it any closer.
      */
-    void goBeside(Block block) {
+    public void goBeside(Block block) {
         if (walkBeside(block) != null) return;
         if (approach(block.getLocation().toCenterLocation(), Double.MAX_VALUE)) return;
         teleportNear(block);
     }
 
     /** Starving citizens walk slowly, as in the mod. */
-    void setStarving(boolean starving) {
+    public void setStarving(boolean starving) {
         if (legs == null || starving == legs.hasPotionEffect(PotionEffectType.SLOWNESS)) return;
         if (starving) legs.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false, false));
         else legs.removePotionEffect(PotionEffectType.SLOWNESS);
@@ -502,11 +504,11 @@ final class Colonist {
         return spots;
     }
 
-    void swing() {
+    public void swing() {
         body.swingMainHand();
     }
 
-    void wander(Location center) {
+    public void wander(Location center) {
         if (target != null) {
             if (near(target) || !isMoving()) {
                 target = null;
@@ -532,14 +534,14 @@ final class Colonist {
     }
 
     /** Room to stand in {@code b}, on solid ground that isn't a fence, wall or gate (1.5 tall: no mob walks there). */
-    static boolean canStandIn(Block b) {
+    public static boolean canStandIn(Block b) {
         Material below = b.getRelative(BlockFace.DOWN).getType();
         return b.isPassable() && b.getRelative(BlockFace.UP).isPassable() && below.isSolid()
                 && !Tag.FENCES.isTagged(below) && !Tag.WALLS.isTagged(below) && !Tag.FENCE_GATES.isTagged(below);
     }
 
     /** Walks to exactly {@code to}. @return false if no full path leads there. */
-    boolean walk(Location to) {
+    public boolean walk(Location to) {
         Block b = to.getBlock();
         int bx = b.getX(), by = b.getY(), bz = b.getZ();
         Route.Goal goal = (x, y, z) -> x == bx && y == by && z == bz;
@@ -553,7 +555,7 @@ final class Colonist {
      * Walks to the nearest reachable free spot within 2 blocks of {@code block} (e.g. a chest or a tree).
      * @return the spot it is walking to, or null if none can be reached.
      */
-    Location walkBeside(Block block) {
+    public Location walkBeside(Block block) {
         Route.Goal goal = besideGoal(block);
         Route.Result r = plan(block.getX(), block.getY(), block.getZ(), goal);
         if (r == null || !r.reached()) return null;
@@ -627,7 +629,7 @@ final class Colonist {
         wait = 20;
     }
 
-    void despawn() {
+    public void despawn() {
         for (Block b : opened) // doors and fence gates it opened
             if (toggles(b) && b.getBlockData() instanceof org.bukkit.block.data.Openable d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();

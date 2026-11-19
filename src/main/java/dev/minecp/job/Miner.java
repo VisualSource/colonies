@@ -1,4 +1,9 @@
-package dev.minecp;
+package dev.minecp.job;
+
+import dev.minecp.build.BuildOrder;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -26,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * the hut level allows, tunnel nodes 7 blocks apart on the deepest level, each a mineshaft structure (straight,
  * bend, T or crossroad, picked at random) that opens the next nodes. What it digs up goes to the hut chest.
  */
-final class Miner extends Job {
+public final class Miner extends Job {
     private static final int SHAFT_RADIUS = 3;     // the mod's: 7x7 shaft, the ladder on its edge
     private static final int SAFE_RANGE = 5;       // the mod's SAFE_CHECK_RANGE: the floor under each new shaft layer is made solid 11x11
     private static final int NODE_DISTANCE = 7;    // the mod's
@@ -91,13 +96,13 @@ final class Miner extends Job {
 
     private final Colony colony;
 
-    Miner(Hut hut, Colony colony) {
+    public Miner(Hut hut, Colony colony) {
         super(hut);
         this.colony = colony;
     }
 
     @Override
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.2; // the mod's miner
     }
 
@@ -162,7 +167,7 @@ final class Miner extends Job {
     }
 
     @Override
-    List<Component> info(Colony c) {
+    public List<Component> info(Colony c) {
         if (hut.level == 0) return List.of(Component.text("The miner starts once level 1 is built.", NamedTextColor.GRAY));
         Depth d = depth();
         return List.of(
@@ -176,14 +181,14 @@ final class Miner extends Job {
     }
 
     @Override
-    Map<ItemStack, Integer> materials() {
+    public Map<ItemStack, Integer> materials() {
         return hut.level > 0 ? missing() : null;
     }
 
     // ---- the work ----------------------------------------------------------------------------------------
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Miner: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());
@@ -572,7 +577,7 @@ final class Miner extends Job {
     // ---- saving --------------------------------------------------------------------------------------------
 
     @Override
-    void save(ConfigurationSection js, Colony c) {
+    public void save(ConfigurationSection js, Colony c) {
         super.save(js, c);
         var s = js.createSection("mine");
         s.set("level-target", levelTarget);
@@ -585,7 +590,7 @@ final class Miner extends Job {
     }
 
     @Override
-    void load(ConfigurationSection js, Colony c) {
+    public void load(ConfigurationSection js, Colony c) {
         super.load(js, c);
         var s = js.getConfigurationSection("mine");
         if (s == null) return;

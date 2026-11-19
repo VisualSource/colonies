@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.colony;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.job.Job;
 
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -17,7 +21,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.List;
 
 /** A colony's citizens' health and death (the mod's EntityCitizen hurt/die and checkHeal, GraveManager). */
-final class Health {
+public final class Health {
     private static final int HEAL_TICKS = 100;     // the mod's HEAL_CITIZENS_AFTER
     private static final double MAX_HIT = 0.2;     // a hit takes at most this share of max health, as in the mod
 
@@ -39,7 +43,7 @@ final class Health {
     }
 
     /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
-    void hurt(Colonist c, EntityDamageEvent e) {
+    public void hurt(Colonist c, EntityDamageEvent e) {
         e.setCancelled(true);
         var cause = e.getCause();
         if (cause == DamageCause.SUFFOCATION) { c.hopAside(null); return; } // the mod teleports it out

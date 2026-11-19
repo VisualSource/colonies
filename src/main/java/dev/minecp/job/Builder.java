@@ -1,4 +1,11 @@
-package dev.minecp;
+package dev.minecp.job;
+
+import dev.minecp.build.BuildOrder;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.ColonyStore;
+import dev.minecp.colony.Hut;
+import dev.minecp.logistics.Rack;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -23,36 +30,36 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
-final class Builder extends Job {
+public final class Builder extends Job {
     // Ours, not the mod's:
     private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
 
-    BuildOrder order;
-    Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
+    public BuildOrder order;
+    public Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
     private Block workFrom; // ground spot it is working from
     private Tool neededTool; // a tool it is waiting for, for couriers
     private Block neededFor;
     private BiConsumer<Hut.WorkOrder, BuildOrder> onFinish = (w, o) -> {};
-    Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets its hut blocks
+    public Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets its hut blocks
 
-    Builder(Hut hut) {
+    public Builder(Hut hut) {
         super(hut);
     }
 
     /** Called when an order is finished, with its work order (null for a plain structure) and the order. */
-    void onFinish(BiConsumer<Hut.WorkOrder, BuildOrder> r) {
+    public void onFinish(BiConsumer<Hut.WorkOrder, BuildOrder> r) {
         onFinish = r;
     }
 
-    void start(BuildOrder o, Hut.WorkOrder w) {
+    public void start(BuildOrder o, Hut.WorkOrder w) {
         order = o;
         work = w;
         needed = null;
     }
 
-    void cancel() {
+    public void cancel() {
         order = null;
         work = null;
         needed = null;
@@ -115,7 +122,7 @@ final class Builder extends Job {
     }
 
     @Override
-    List<Component> info(Colony c) {
+    public List<Component> info(Colony c) {
         List<Component> lines = new ArrayList<>();
         if (order == null) return lines;
         if (work == null) lines.add(Component.text("Building " + order.structure + "."));
@@ -126,12 +133,12 @@ final class Builder extends Job {
     }
 
     @Override
-    Map<ItemStack, Integer> materials() {
+    public Map<ItemStack, Integer> materials() {
         return order != null ? missing() : null;
     }
 
     @Override
-    void save(ConfigurationSection s, Colony c) {
+    public void save(ConfigurationSection s, Colony c) {
         super.save(s, c);
         if (order == null) return;
         s.set("order.structure", order.structure);
@@ -145,7 +152,7 @@ final class Builder extends Job {
     }
 
     @Override
-    void load(ConfigurationSection s, Colony c) {
+    public void load(ConfigurationSection s, Colony c) {
         super.load(s, c);
         Location origin = ColonyStore.getLocation(s, "order.origin");
         if (origin == null) return;
@@ -183,7 +190,7 @@ final class Builder extends Job {
 
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (order == null) {
             note = null;
             w.setStatus("Builder");

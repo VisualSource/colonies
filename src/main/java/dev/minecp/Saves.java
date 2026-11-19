@@ -1,5 +1,8 @@
 package dev.minecp;
 
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.ColonyStore;
+
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 

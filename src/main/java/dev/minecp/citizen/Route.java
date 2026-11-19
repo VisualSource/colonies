@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.citizen;
 
 import org.bukkit.Material;
 import org.bukkit.Tag;

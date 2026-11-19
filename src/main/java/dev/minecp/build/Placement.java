@@ -1,4 +1,10 @@
-package dev.minecp;
+package dev.minecp.build;
+
+import dev.minecp.MineCP;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+import dev.minecp.job.Job;
+import dev.minecp.menu.Dialogs;
 
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
@@ -40,7 +46,7 @@ import java.util.function.Consumer;
  * then a preview of its level 1 building stays in view, only for you, until you confirm or cancel. Right-click again
  * for the mod's controls: move relative to where you face, up/down, rotate, mirror, confirm, cancel.
  */
-final class Placement implements Listener {
+public final class Placement implements Listener {
     private static final float SCALE = 0.9f; // a bit smaller than real blocks, so it reads as a preview
     private static final StructureRotation[] TURNS = {StructureRotation.NONE, StructureRotation.CLOCKWISE_90,
             StructureRotation.CLOCKWISE_180, StructureRotation.COUNTERCLOCKWISE_90};
@@ -64,7 +70,7 @@ final class Placement implements Listener {
     private final MineCP plugin;
     private final Map<UUID, Session> sessions = new HashMap<>();
 
-    Placement(MineCP plugin) {
+    public Placement(MineCP plugin) {
         this.plugin = plugin;
     }
 
@@ -90,7 +96,7 @@ final class Placement implements Listener {
         end(e.getPlayer());
     }
 
-    void endAll() {
+    public void endAll() {
         for (Session s : sessions.values()) s.shown.forEach(org.bukkit.entity.Entity::remove);
         sessions.clear();
     }

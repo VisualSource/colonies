@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.colony;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.job.Job;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -13,10 +17,10 @@ import java.util.List;
 import java.util.UUID;
 
 /** A colony in its save file, and back. Each job saves its own state (Job.save). */
-final class ColonyStore {
+public final class ColonyStore {
     private ColonyStore() {}
 
-    static void save(Colony colony, ConfigurationSection s) {
+    public static void save(Colony colony, ConfigurationSection s) {
         s.set("name", colony.name);
         s.set("style", colony.style);
         s.set("day", colony.day);
@@ -62,7 +66,7 @@ final class ColonyStore {
     }
 
     /** @return null if the colony's world is not loaded. */
-    static Colony load(UUID owner, ConfigurationSection s) {
+    public static Colony load(UUID owner, ConfigurationSection s) {
         var hutSections = s.getConfigurationSection("huts");
         if (hutSections == null) return null;
         List<Hut> huts = new ArrayList<>();
@@ -127,7 +131,7 @@ final class ColonyStore {
 
 
     // Plain fields, not Bukkit's Location serialization: that one drops the value at file load when the world is missing.
-    static void putLocation(ConfigurationSection s, String key, Location l) {
+    public static void putLocation(ConfigurationSection s, String key, Location l) {
         var ls = s.createSection(key);
         ls.set("world", l.getWorld().getName());
         ls.set("x", l.getX());
@@ -135,7 +139,7 @@ final class ColonyStore {
         ls.set("z", l.getZ());
     }
 
-    static Location getLocation(ConfigurationSection s, String key) {
+    public static Location getLocation(ConfigurationSection s, String key) {
         var ls = s.getConfigurationSection(key);
         World world = ls == null ? null : Bukkit.getWorld(ls.getString("world", ""));
         return world == null ? null : new Location(world, ls.getDouble("x"), ls.getDouble("y"), ls.getDouble("z"));

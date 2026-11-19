@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.menu;
 
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.dialog.DialogResponseView;
@@ -19,13 +19,13 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /** Dialog screens (vanilla client, Minecraft 1.21.6+): the pieces the hut menus and the build tool share. */
-final class Dialogs {
+public final class Dialogs {
     private static final ClickCallback.Options ONCE = ClickCallback.Options.builder()
             .uses(1).lifetime(Duration.ofMinutes(10)).build();
 
     private Dialogs() {}
 
-    static DialogBody text(Component c) {
+    public static DialogBody text(Component c) {
         return DialogBody.plainMessage(c, 300);
     }
 
@@ -33,7 +33,7 @@ final class Dialogs {
      * A button whose action runs on the main thread, only for the player it was shown to, and only while
      * {@code stillValid} holds (the hut may be gone, or another placement started, while the dialog was open).
      */
-    static ActionButton button(Plugin plugin, String label, int width, Player shownTo, BooleanSupplier stillValid,
+    public static ActionButton button(Plugin plugin, String label, int width, Player shownTo, BooleanSupplier stillValid,
                                BiConsumer<Player, DialogResponseView> action) {
         return ActionButton.builder(Component.text(label)).width(width).action(DialogAction.customClick((view, audience) -> {
             if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
@@ -44,7 +44,7 @@ final class Dialogs {
     }
 
     /** Shows a dialog of text, optional inputs and buttons, with a Close button. */
-    static void show(Player p, String title, List<DialogBody> body, List<DialogInput> inputs, List<ActionButton> buttons, int columns) {
+    public static void show(Player p, String title, List<DialogBody> body, List<DialogInput> inputs, List<ActionButton> buttons, int columns) {
         p.showDialog(Dialog.create(f -> f.empty()
                 .base(DialogBase.builder(Component.text(title)).body(body).inputs(inputs).build())
                 .type(DialogType.multiAction(buttons).columns(columns)

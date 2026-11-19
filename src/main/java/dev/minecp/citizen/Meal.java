@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.citizen;
+
+import dev.minecp.colony.Colony;
+import dev.minecp.job.Cook;
+import dev.minecp.job.Job;
 
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -14,42 +18,42 @@ import java.util.List;
  * A hungry citizen getting a meal, as in the mod: food from its work hut's chest, else its house chest, else it
  * waits at the restaurant (Cook's Hut) for the cook to serve it. Then it eats until full.
  */
-final class Meal {
+public final class Meal {
     private static final int WAIT_TICKS = 20 * 60 * 2; // the mod's citizens wait 2 minutes to be served
     private static final int BITE_TICKS = 8;            // ours
     private static final int BITES = 5;                 // the mod's time to eat one item
 
     private enum State { FIND, TO_CHEST, TO_RESTAURANT, WAITING, EAT }
 
-    final Colonist colonist;
+    public final Colonist colonist;
     private State state = State.FIND;
     private Block source;        // chest it takes food from
     private Cook restaurant;     // cook it waits for
     private final List<ItemStack> food = new ArrayList<>();
     private int timer;
-    String why;                  // set when it found no food
+    public String why;                  // set when it found no food
 
-    Meal(Colonist colonist) {
+    public Meal(Colonist colonist) {
         this.colonist = colonist;
     }
 
-    boolean isWaiting() {
+    public boolean isWaiting() {
         return state == State.WAITING;
     }
 
     /** The cook hands over food. */
-    void serve(List<ItemStack> items) {
+    public void serve(List<ItemStack> items) {
         food.addAll(items);
         state = State.EAT;
         timer = 0;
     }
 
-    double hunger() {
+    public double hunger() {
         return Food.MAX_SATURATION - colonist.saturation;
     }
 
     /** @return true when the meal is over: eaten, or no food could be had ({@link #why} says why). */
-    boolean tick(Colony colony, Job job) {
+    public boolean tick(Colony colony, Job job) {
         Colonist c = colonist;
         switch (state) {
             case FIND -> {
@@ -124,7 +128,7 @@ final class Meal {
     }
 
     /** A meal cut short (the citizen despawned or the colony stops): leftovers are put back. */
-    void abandon() {
+    public void abandon() {
         if (restaurant != null) restaurant.waiting.remove(this);
         finish();
     }

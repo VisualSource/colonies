@@ -1,4 +1,10 @@
-package dev.minecp;
+package dev.minecp.colony;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.citizen.Meal;
+import dev.minecp.job.Job;
+import dev.minecp.job.Miner;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

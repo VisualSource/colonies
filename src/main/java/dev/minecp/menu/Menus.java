@@ -1,4 +1,15 @@
-package dev.minecp;
+package dev.minecp.menu;
+
+import dev.minecp.MineCP;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Food;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+import dev.minecp.job.Builder;
+import dev.minecp.job.Courier;
+import dev.minecp.job.Farmer;
+import dev.minecp.job.Job;
+import dev.minecp.logistics.Warehouse;
 
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
@@ -21,15 +32,15 @@ import org.bukkit.Particle;
 import org.bukkit.block.Block;
 
 /** Dialog screens (vanilla client, Minecraft 1.21.6+) for the colony's huts. */
-final class Menus {
+public final class Menus {
     private final MineCP plugin;
 
-    Menus(MineCP plugin) {
+    public Menus(MineCP plugin) {
         this.plugin = plugin;
     }
 
     /** The menu of any hut: level and upgrade, plus what that kind of hut shows. */
-    void hut(Player p, Colony c, Hut h) {
+    public void hut(Player p, Colony c, Hut h) {
         List<DialogBody> body = new ArrayList<>();
         if (h.type == Hut.Type.TOWN_HALL) body.add(text(Component.text(c.name, NamedTextColor.GOLD)));
         if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,

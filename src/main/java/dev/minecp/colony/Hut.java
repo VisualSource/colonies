@@ -1,4 +1,12 @@
-package dev.minecp;
+package dev.minecp.colony;
+
+import dev.minecp.job.Builder;
+import dev.minecp.job.Cook;
+import dev.minecp.job.Courier;
+import dev.minecp.job.Farmer;
+import dev.minecp.job.Job;
+import dev.minecp.job.Lumberjack;
+import dev.minecp.job.Miner;
 
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -10,14 +18,14 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /** A colony building anchored on its hut block. Level 0 is just the block; level N means level N is built. */
-final class Hut {
-    static final int MAX_LEVEL = 5;
+public final class Hut {
+    public static final int MAX_LEVEL = 5;
 
     /**
      * Everything about one kind of hut. Adding a hut is a line here plus, for a worker hut, its {@link Job} class
      * (and its name in plugin.yml's usage line).
      */
-    enum Type {
+    public enum Type {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall", "townhall", "Place to found a colony",
                 null, true), // its recipe has the Colony Token in the middle (Items)
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder", "builderhut", "Its chest holds building materials",
@@ -40,15 +48,15 @@ final class Hut {
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
                 null, false);
 
-        final String title;
-        final Material block;
-        final String path;     // structure path inside a style pack, + level; null for blocks that aren't buildings
+        public final String title;
+        public final Material block;
+        public final String path;     // structure path inside a style pack, + level; null for blocks that aren't buildings
         final String command;  // /colony <command> gives an admin its item
-        final String lore;     // on its item
-        final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, token on top); null: none or special
-        final String worker;   // the job's name ("Cook"), null for huts without a worker
+        public final String lore;     // on its item
+        public final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, token on top); null: none or special
+        public final String worker;   // the job's name ("Cook"), null for huts without a worker
         final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without a worker
-        final boolean unique;  // one per colony
+        public final boolean unique;  // one per colony
 
         Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre,
              String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
@@ -68,35 +76,35 @@ final class Hut {
             this(title, block, path, command, lore, centre, null, null, unique);
         }
 
-        boolean isBuilding() {
+        public boolean isBuilding() {
             return path != null;
         }
 
-        static Type byCommand(String command) {
+        public static Type byCommand(String command) {
             for (Type t : values()) if (t.command.equals(command)) return t;
             return null;
         }
     }
 
     /** An upgrade of a hut to a level, waiting for or being built by the builder. */
-    record WorkOrder(Hut hut, int level) {}
+    public record WorkOrder(Hut hut, int level) {}
 
-    final Type type;
-    final Block block;
-    int level;
+    public final Type type;
+    public final Block block;
+    public int level;
     // How the building is turned and mirrored, chosen with the build tool; rotation null: from the hut block's facing.
-    StructureRotation rotation;
-    boolean mirror;
+    public StructureRotation rotation;
+    public boolean mirror;
     int[] footprint;          // minX, maxX+1, minZ, maxZ+1 of the building at footprintLevel, for the particle tape
     int footprintLevel = -1;
     final java.util.List<org.bukkit.entity.BlockDisplay> tape = new java.util.ArrayList<>(); // shown while waiting for the builder
     java.util.List<Block> beds; // houses only: bed heads nearest first, from the last scan (Colony.bedOf)
     int bedsAt;
     // Fields only, set in the field's menu: the seed to plant (null: none chosen) and how far the soil reaches.
-    Material seed;
-    final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
-    int stage;            // what the farmer does here next: till, plant, harvest (Farmer.Kind order)
-    int workedDay = -1;   // colony day the farmer last worked it (one action a day, as in the mod)
+    public Material seed;
+    public final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
+    public int stage;            // what the farmer does here next: till, plant, harvest (Farmer.Kind order)
+    public int workedDay = -1;   // colony day the farmer last worked it (one action a day, as in the mod)
 
     Hut(Type type, Block block, int level) {
         this.type = type;

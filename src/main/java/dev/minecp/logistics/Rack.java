@@ -1,4 +1,6 @@
-package dev.minecp;
+package dev.minecp.logistics;
+
+import dev.minecp.build.BuildOrder;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -14,10 +16,10 @@ import java.util.List;
  * The mod's storage rack, stood in for by a chest tagged {@link BuildOrder#RACK_MARKER} (block and item), so it can get
  * a custom model later. Buildings need racks, not plain chests, and only racks count as warehouse storage.
  */
-final class Rack {
+public final class Rack {
     private Rack() {}
 
-    static ItemStack item() {
+    public static ItemStack item() {
         ItemStack item = new ItemStack(Material.CHEST);
         item.editMeta(m -> {
             m.itemName(Component.text("Storage Rack", NamedTextColor.GOLD));
@@ -27,16 +29,16 @@ final class Rack {
         return item;
     }
 
-    static boolean is(ItemStack item) {
+    public static boolean is(ItemStack item) {
         return item != null && item.getType() == Material.CHEST && item.getPersistentDataContainer().has(BuildOrder.RACK_MARKER);
     }
 
-    static boolean is(Block b) {
+    public static boolean is(Block b) {
         return b.getType() == Material.CHEST && b.getState(false) instanceof TileState ts && ts.getPersistentDataContainer().has(BuildOrder.RACK_MARKER);
     }
 
     /** Marks a chest in the world as a rack. */
-    static void tag(Block b) {
+    public static void tag(Block b) {
         if (!(b.getState() instanceof TileState ts) || ts.getPersistentDataContainer().has(BuildOrder.RACK_MARKER)) return;
         ts.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
         ts.update(true, false);

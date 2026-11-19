@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.job;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -20,11 +24,11 @@ import java.util.Set;
  * harvests ripe crops, and brings the harvest to the hut chest. Seeds to plant come from what it harvested,
  * then from the hut chest. A Farmer's Hut works one field per level.
  */
-final class Farmer extends Job {
+public final class Farmer extends Job {
     /** A field is the soil around its block, at the level the block stands on, up to this far out each way (as in the mod). */
-    static final int MAX_EXTENT = 5;
+    public static final int MAX_EXTENT = 5;
     /** Seed item -> crop block, for the crops a farmer plants. */
-    static final Map<Material, Material> CROPS = Map.of(Material.WHEAT_SEEDS, Material.WHEAT, Material.CARROT, Material.CARROTS,
+    public static final Map<Material, Material> CROPS = Map.of(Material.WHEAT_SEEDS, Material.WHEAT, Material.CARROT, Material.CARROTS,
             Material.POTATO, Material.POTATOES, Material.BEETROOT_SEEDS, Material.BEETROOTS,
             Material.PUMPKIN_SEEDS, Material.PUMPKIN_STEM, Material.MELON_SEEDS, Material.MELON_STEM);
     /** Stems -> the fruit they grow beside them, which is what gets harvested. */
@@ -33,7 +37,7 @@ final class Farmer extends Job {
             Material.ATTACHED_MELON_STEM, Material.MELON);
 
     /** What the player sees as the crop of a seed: the fruit for stems, else the crop. */
-    static Material produce(Material seed) {
+    public static Material produce(Material seed) {
         Material crop = CROPS.get(seed);
         return FRUIT.getOrDefault(crop, crop);
     }
@@ -54,13 +58,13 @@ final class Farmer extends Job {
     private boolean didWork;  // whether it did this field's stage
     private boolean delivering;
 
-    Farmer(Hut hut, Colony colony) {
+    public Farmer(Hut hut, Colony colony) {
         super(hut);
         this.colony = colony;
     }
 
     /** The seed the field is planted with, chosen in its menu; null if none. */
-    static Material seedOf(Hut field) {
+    public static Material seedOf(Hut field) {
         return field.seed;
     }
 
@@ -90,7 +94,7 @@ final class Farmer extends Job {
     }
 
     /** The ground of the field's plot at this offset from the field block, or null. */
-    static Block plot(Hut field, int dx, int dz) {
+    public static Block plot(Hut field, int dx, int dz) {
         return surface(field.block.getRelative(dx, -1, dz));
     }
 
@@ -100,7 +104,7 @@ final class Farmer extends Job {
     }
 
     /** {usable, total} plots of the field: soil with room above it (or a crop already). */
-    static int[] plots(Hut field) {
+    public static int[] plots(Hut field) {
         int usable = 0, total = 0;
         int[] e = field.extent;
         for (int dx = -e[3]; dx <= e[1]; dx++) for (int dz = -e[0]; dz <= e[2]; dz++) {
@@ -116,7 +120,7 @@ final class Farmer extends Job {
     }
 
     @Override
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.2;
     }
 
@@ -149,7 +153,7 @@ final class Farmer extends Job {
     }
 
     @Override
-    List<Component> info(Colony c) {
+    public List<Component> info(Colony c) {
         return List.of(Component.text(hut.level == 0 ? "The farmer starts once level 1 is built."
                 : "Works " + c.fieldsOf(this).size() + " of up to " + hut.level + " fields (one per level). Seeds to plant go in this chest.",
                 NamedTextColor.GRAY));
@@ -160,7 +164,7 @@ final class Farmer extends Job {
     }
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Farmer: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());

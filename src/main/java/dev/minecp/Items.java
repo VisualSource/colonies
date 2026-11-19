@@ -1,5 +1,8 @@
 package dev.minecp;
 
+import dev.minecp.colony.Hut;
+import dev.minecp.logistics.Rack;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
@@ -22,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** The plugin's items: the Colony Token, hut items, and their recipes (the token is kept when crafting). */
-final class Items implements Listener {
+public final class Items implements Listener {
     private final Plugin plugin;
     private final NamespacedKey hutKey, tokenKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
@@ -88,7 +91,7 @@ final class Items implements Listener {
         return item;
     }
 
-    boolean isToken(ItemStack item) {
+    public boolean isToken(ItemStack item) {
         return item != null && item.getPersistentDataContainer().has(tokenKey);
     }
 
@@ -103,7 +106,7 @@ final class Items implements Listener {
     }
 
     /** The hut an item places, or null. */
-    Hut.Type hutType(ItemStack item) {
+    public Hut.Type hutType(ItemStack item) {
         String type = item.getPersistentDataContainer().get(hutKey, PersistentDataType.STRING);
         return type == null ? null : Hut.Type.valueOf(type);
     }

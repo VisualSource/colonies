@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.colony;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -18,13 +18,13 @@ import java.util.List;
  * it turns mossy when it decays after 10 minutes, and 10 minutes later drops what is left and is gone, as in the mod.
  * Players open it to take things out.
  */
-final class Grave implements InventoryHolder {
+public final class Grave implements InventoryHolder {
     static final int DECAY_TICKS = 20 * 60 * 10; // the mod's DEFAULT_DECAY_TIMER
     static final Material BLOCK = Material.STONE_BRICK_WALL, DECAYED_BLOCK = Material.MOSSY_STONE_BRICK_WALL;
 
     final Block block;
     final String name, job; // who lies here, for the undertaker's named grave
-    final Inventory items;
+    public final Inventory items;
     int timer = DECAY_TICKS;
     boolean decayed;
 
@@ -62,7 +62,7 @@ final class Grave implements InventoryHolder {
         return block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4);
     }
 
-    void dropAll() {
+    public void dropAll() {
         Location at = block.getLocation().toCenterLocation();
         for (ItemStack i : items.getContents()) if (i != null) at.getWorld().dropItemNaturally(at, i);
         items.clear();

@@ -1,5 +1,14 @@
 package dev.minecp;
 
+import dev.minecp.build.Placement;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Grave;
+import dev.minecp.colony.Hut;
+import dev.minecp.job.Job;
+import dev.minecp.logistics.Rack;
+import dev.minecp.menu.Menus;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
@@ -34,7 +43,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private static final int HUT_RANGE = 64;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private final Set<UUID> tickFailed = new HashSet<>();
-    final Items items = new Items(this);
+    public final Items items = new Items(this);
     private Saves saves;
     private final Menus menus = new Menus(this);
     private final Placement placement = new Placement(this);
@@ -71,23 +80,23 @@ public final class MineCP extends JavaPlugin implements Listener {
         colonies.values().forEach(this::save);
     }
 
-    void save(Colony c) {
+    public void save(Colony c) {
         if (colonies.get(c.owner) != c) return; // disbanded while one of its menus was still open: don't bring its file back
         saves.save(c);
     }
 
     /** The colony {@code p} owns, or null. */
-    Colony colonyOf(Player p) {
+    public Colony colonyOf(Player p) {
         return colonies.get(p.getUniqueId());
     }
 
     /** The colony one of whose huts (town hall included) is this block. */
-    Colony colonyAt(Block block) {
+    public Colony colonyAt(Block block) {
         for (Colony c : colonies.values()) if (c.hutAt(block) != null) return c;
         return null;
     }
 
-    Colony graveColony(Block b) {
+    public Colony graveColony(Block b) {
         for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
         return null;
     }
@@ -108,7 +117,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     }
 
     /** Why {@code p} can't put a {@code type} hut at {@code at}, or null if it can. */
-    String placeProblem(Player p, Hut.Type type, Block at) {
+    public String placeProblem(Player p, Hut.Type type, Block at) {
         Colony c = colonies.get(p.getUniqueId());
         if (type == Hut.Type.TOWN_HALL) return c != null ? "You already have a colony."
                 : saves.isUnloaded(p.getUniqueId()) ? "Your colony's save couldn't be loaded; ask an admin to check the server log." : null;
@@ -123,7 +132,7 @@ public final class MineCP extends JavaPlugin implements Listener {
      * Registers a hut block just put at {@code at} (by hand, or by the build tool with the building's turn and mirror;
      * rotation null: from the block's facing). Check {@link #placeProblem} first.
      */
-    void placed(Player p, Hut.Type type, Block at, StructureRotation rotation, boolean mirror) {
+    public void placed(Player p, Hut.Type type, Block at, StructureRotation rotation, boolean mirror) {
         Colony c = colonies.get(p.getUniqueId());
         Hut hut;
         if (type == Hut.Type.TOWN_HALL) {

@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.job;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -25,7 +29,7 @@ import java.util.Set;
  * A tree is logs standing on soil with at least {@link #MIN_LEAVES} naturally grown leaves, so the logs
  * in buildings are left alone.
  */
-final class Lumberjack extends Job {
+public final class Lumberjack extends Job {
     // Ours, not the mod's (its tree detection works differently):
     private static final int MIN_LEAVES = 4;
     private static final int MAX_TREE_LOGS = 200; // more connected logs than this is a build, not a tree
@@ -45,12 +49,12 @@ final class Lumberjack extends Job {
     private boolean onLeaves;
     private final Set<Block> unreachable = new HashSet<>();
 
-    Lumberjack(Hut hut) {
+    public Lumberjack(Hut hut) {
         super(hut);
     }
 
     @Override
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.2;
     }
 
@@ -69,7 +73,7 @@ final class Lumberjack extends Job {
     }
 
     @Override
-    List<Component> info(Colony c) {
+    public List<Component> info(Colony c) {
         return List.of(Component.text(hut.level == 0 ? "The lumberjack starts once level 1 is built."
                 : "Cuts natural trees within " + radius() + " blocks and replants them.", NamedTextColor.GRAY));
     }
@@ -83,7 +87,7 @@ final class Lumberjack extends Job {
     }
 
     @Override
-    void tick(Colonist w) {
+    public void tick(Colonist w) {
         if (hut.level < 1) {
             w.setStatus("Lumberjack: idle"); // the hut menu says it starts at level 1
             w.wander(hut.block.getLocation().toCenterLocation());

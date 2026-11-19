@@ -1,4 +1,8 @@
-package dev.minecp;
+package dev.minecp.job;
+
+import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
@@ -19,14 +23,14 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 /** A job at a worker hut: one colonist works it, using the hut's chest. */
-abstract class Job {
-    final Hut hut;
-    UUID worker; // colonist id, or null while nobody has the job
+public abstract class Job {
+    public final Hut hut;
+    public UUID worker; // colonist id, or null while nobody has the job
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
     final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
-    String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
+    public String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
     // Whole items in hand, kept as items (a courier's delivery, the builder's storage racks); saved with the colony.
-    final List<ItemStack> load = new ArrayList<>();
+    public final List<ItemStack> load = new ArrayList<>();
     int cooldown; // ticks until the worker acts again
 
     /** Items fetched per trip: a citizen's 27-slot inventory, as in the mod. */
@@ -35,17 +39,17 @@ abstract class Job {
     // ---- what a kind of job adds: the hut menu, saving, shutting down ----------------------------------------
 
     /** Lines for the hut menu, under the worker and its status (the note is added after them). */
-    List<Component> info(Colony c) {
+    public List<Component> info(Colony c) {
         return List.of();
     }
 
     /** What the hut menu's "Materials needed" lists, or null for no such button. */
-    Map<ItemStack, Integer> materials() {
+    public Map<ItemStack, Integer> materials() {
         return null;
     }
 
     /** Saves what this job holds; kinds of job add their own state. */
-    void save(ConfigurationSection s, Colony c) {
+    public void save(ConfigurationSection s, Colony c) {
         if (worker != null) s.set("worker", worker.toString());
         carried.forEach((m, n) -> s.set("carried." + m.name(), n));
         // Tools keep durability and enchantments, so they are stored as whole items.
@@ -54,7 +58,7 @@ abstract class Job {
     }
 
     /** Loads what {@link #save} wrote. Called once every hut and job of the colony exists. */
-    void load(ConfigurationSection s, Colony c) {
+    public void load(ConfigurationSection s, Colony c) {
         String w = s.getString("worker");
         if (w != null) worker = UUID.fromString(w);
         var ts = s.getConfigurationSection("tools");
@@ -69,7 +73,7 @@ abstract class Job {
     }
 
     /** The colony's entities are going away (shutdown, disband): put back what isn't saved. */
-    void stow() {}
+    public void stow() {}
 
     // ---- shared helpers --------------------------------------------------------------------------------------
 
@@ -117,20 +121,20 @@ abstract class Job {
     }
 
     /** How much faster than others this job makes a citizen hungry (the mod: farmer and lumberjack 1.2). */
-    double hungerFactor() {
+    public double hungerFactor() {
         return 1.0;
     }
 
     /** One tick of work for the worker, whose entities are spawned. */
-    abstract void tick(Colonist w);
+    public abstract void tick(Colonist w);
 
     /** Called each tick while work stops (night, rain). @return false while it is still getting out of its work place. */
-    boolean leaveWork(Colonist w) {
+    public boolean leaveWork(Colonist w) {
         return true;
     }
 
     /** The mod lets only the cook and fully upgraded huts' workers work in the rain. */
-    boolean worksInRain() {
+    public boolean worksInRain() {
         return hut.level >= Hut.MAX_LEVEL;
     }
 
@@ -151,7 +155,7 @@ abstract class Job {
     }
 
     /** The hut is gone or the job ends: drop what the worker carries, tools included, at the hut. */
-    void dropCarried() {
+    public void dropCarried() {
         Location at = hut.block.getLocation().toCenterLocation();
         carried.forEach((m, n) -> { if (n > 0) at.getWorld().dropItemNaturally(at, new ItemStack(m, n)); });
         carried.clear();
@@ -181,7 +185,7 @@ abstract class Job {
     }
 
     /** Everything the worker carries, tools included, taken off it (it died: it all goes into its grave). */
-    List<ItemStack> takeCarried() {
+    public List<ItemStack> takeCarried() {
         List<ItemStack> all = new ArrayList<>();
         carried.forEach((m, n) -> { for (int left = n; left > 0; left -= m.getMaxStackSize()) all.add(new ItemStack(m, Math.min(left, m.getMaxStackSize()))); });
         carried.clear();
@@ -196,7 +200,7 @@ abstract class Job {
      * What a block that holds items (chest, barrel, shulker box, furnace…) has inside, as copies: its own half only
      * for a double chest. getDrops leaves contents out.
      */
-    static List<ItemStack> contents(Block b) {
+    public static List<ItemStack> contents(Block b) {
         Inventory inv = inventoryOf(b);
         List<ItemStack> items = new ArrayList<>();
         if (inv != null) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) items.add(i.clone());

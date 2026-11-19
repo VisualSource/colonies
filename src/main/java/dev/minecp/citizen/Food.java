@@ -1,4 +1,4 @@
-package dev.minecp;
+package dev.minecp.citizen;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import org.bukkit.Bukkit;
@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.Set;
 
 /** What citizens eat, and what the cook cooks. */
-final class Food {
-    static final double MAX_SATURATION = 20;
-    static final double LOW_SATURATION = 6; // below this a citizen goes to eat (the mod's "low saturation")
+public final class Food {
+    public static final double MAX_SATURATION = 20;
+    public static final double LOW_SATURATION = 6; // below this a citizen goes to eat (the mod's "low saturation")
 
     /** Edible, but citizens won't eat it: harmful, or too precious to eat as a meal. */
     private static final Set<Material> NEVER = EnumSet.of(Material.ROTTEN_FLESH, Material.SPIDER_EYE, Material.POISONOUS_POTATO,
@@ -26,7 +26,7 @@ final class Food {
     private Food() {}
 
     /** Raw food a furnace turns into food, mapped to the result (built from the server's furnace recipes). */
-    static Map<Material, Material> cooked() {
+    public static Map<Material, Material> cooked() {
         if (cooked == null) {
             cooked = new EnumMap<>(Material.class);
             Bukkit.recipeIterator().forEachRemaining(r -> {
@@ -39,7 +39,7 @@ final class Food {
     }
 
     /** Food a citizen eats as it is: good food that isn't waiting to be cooked (raw meat, potatoes). */
-    static boolean isMeal(ItemStack item) {
+    public static boolean isMeal(ItemStack item) {
         if (item == null || item.isEmpty()) return false;
         Material m = item.getType();
         return m.isEdible() && !NEVER.contains(m) && !cooked().containsKey(m) && nutrition(item) > 0;
@@ -57,7 +57,7 @@ final class Food {
     }
 
     /** Takes meals from {@code inv} worth at least {@code need} nutrition (fewer if there isn't that much). */
-    static java.util.List<ItemStack> take(Inventory inv, double need) {
+    public static java.util.List<ItemStack> take(Inventory inv, double need) {
         java.util.List<ItemStack> taken = new java.util.ArrayList<>();
         for (int slot = 0; slot < inv.getSize() && need > 0; slot++) {
             ItemStack i = inv.getItem(slot);

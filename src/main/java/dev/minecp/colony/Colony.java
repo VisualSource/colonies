@@ -1,4 +1,14 @@
-package dev.minecp;
+package dev.minecp.colony;
+
+import dev.minecp.build.BuildOrder;
+import dev.minecp.build.Tape;
+import dev.minecp.citizen.Colonist;
+import dev.minecp.job.Builder;
+import dev.minecp.job.Cook;
+import dev.minecp.job.Farmer;
+import dev.minecp.job.Job;
+import dev.minecp.logistics.Rack;
+import dev.minecp.logistics.Warehouse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -21,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * {@link #STARTING_CITIZENS} plus the total level of all houses, and a citizen moves in every
  * {@link #GROWTH_TICKS} while there is room.
  */
-final class Colony {
+public final class Colony {
     private static final int STARTING_CITIZENS = 4; // the mod's initialcitizenamount default
     // Ours: the mod spawns only the starting citizens on a timer; the rest come from the tavern and children.
     private static final int GROWTH_TICKS = 20 * 120;
@@ -32,19 +42,19 @@ final class Colony {
     private static final String[] LAST = {"Ashdown", "Brook", "Carter", "Dale", "Fairweather", "Fletcher", "Hale",
             "Holt", "Miller", "Oakley", "Reed", "Thatcher", "Underhill", "Wells"};
 
-    final UUID owner;
-    final String name;
-    final List<Hut> huts = new ArrayList<>(); // huts.getFirst() is the town hall
-    final List<Colonist> colonists = new ArrayList<>();
-    final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
-    final List<Job> jobs = new ArrayList<>(); // one per worker hut
-    final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
-    Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
-    static final String DEFAULT_STYLE = "medievaloak";
-    String style = DEFAULT_STYLE; // structure pack hut buildings come from
+    public final UUID owner;
+    public final String name;
+    public final List<Hut> huts = new ArrayList<>(); // huts.getFirst() is the town hall
+    public final List<Colonist> colonists = new ArrayList<>();
+    public final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
+    public final List<Job> jobs = new ArrayList<>(); // one per worker hut
+    public final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
+    public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
+    public static final String DEFAULT_STYLE = "medievaloak";
+    public String style = DEFAULT_STYLE; // structure pack hut buildings come from
     private int growth = 0;
-    int day; // colony days passed (saved)
-    final Health health = new Health(this);
+    public int day; // colony days passed (saved)
+    public final Health health = new Health(this);
     final Routine routine = new Routine(this);
 
     Colony(UUID owner, String name, Block townHall, int townHallLevel) {
@@ -53,27 +63,27 @@ final class Colony {
         huts.add(new Hut(Hut.Type.TOWN_HALL, townHall, townHallLevel));
     }
 
-    static Colony found(UUID owner, String name, Block townHall) {
+    public static Colony found(UUID owner, String name, Block townHall) {
         Colony colony = new Colony(owner, name, townHall, 0);
         for (int i = 0; i < STARTING_CITIZENS; i++) colony.addCitizen();
         return colony;
     }
 
-    Hut townHall() {
+    public Hut townHall() {
         return huts.getFirst();
     }
 
-    Hut hutAt(Block block) {
+    public Hut hutAt(Block block) {
         for (Hut h : huts) if (h.block.equals(block)) return h;
         return null;
     }
 
-    Hut hut(Hut.Type type) {
+    public Hut hut(Hut.Type type) {
         for (Hut h : huts) if (h.type == type) return h;
         return null;
     }
 
-    int capacity() {
+    public int capacity() {
         return STARTING_CITIZENS + huts.stream().filter(h -> h.type == Hut.Type.HOUSE).mapToInt(h -> h.level).sum();
     }
 
@@ -93,7 +103,7 @@ final class Colony {
         }
     }
 
-    List<Colonist> residents(Hut house) {
+    public List<Colonist> residents(Hut house) {
         return colonists.stream().filter(c -> c.home == house).toList();
     }
 
@@ -105,7 +115,7 @@ final class Colony {
         }
     }
 
-    Hut addHut(Hut.Type type, Block block) {
+    public Hut addHut(Hut.Type type, Block block) {
         Hut hut = new Hut(type, block, 0);
         huts.add(hut);
         addJob(hut);
@@ -121,7 +131,7 @@ final class Colony {
     }
 
     /** The fields a farmer works: farmers, oldest hut first, each take the oldest fields left, one per hut level. */
-    List<Hut> fieldsOf(Job farmer) {
+    public List<Hut> fieldsOf(Job farmer) {
         List<Hut> fields = huts.stream().filter(h -> h.type == Hut.Type.FIELD).toList();
         int taken = 0;
         for (Job j : jobs) {
@@ -134,12 +144,12 @@ final class Colony {
     }
 
     /** The farmer job working this field, or null if no farmer has room for it. */
-    Job farmerOf(Hut field) {
+    public Job farmerOf(Hut field) {
         for (Job j : jobs) if (j instanceof Farmer && fieldsOf(j).contains(field)) return j;
         return null;
     }
 
-    Job jobAt(Hut hut) {
+    public Job jobAt(Hut hut) {
         for (Job j : jobs) if (j.hut == hut) return j;
         return null;
     }
@@ -149,7 +159,7 @@ final class Colony {
         return null;
     }
 
-    Colonist worker(Job j) {
+    public Colonist worker(Job j) {
         for (Colonist c : colonists) if (c.id.equals(j.worker)) return c;
         return null;
     }
@@ -162,7 +172,7 @@ final class Colony {
         }
     }
 
-    void removeHut(Hut hut) {
+    public void removeHut(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
         if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
         Job job = jobAt(hut);
@@ -200,7 +210,7 @@ final class Colony {
     }
 
     /** The queued or in-progress upgrade of this hut, or null. */
-    Hut.WorkOrder upgradeOf(Hut hut) {
+    public Hut.WorkOrder upgradeOf(Hut hut) {
         if (builder != null && builder.work != null && builder.work.hut() == hut) return builder.work;
         for (Hut.WorkOrder w : workOrders) if (w.hut() == hut) return w;
         return null;
@@ -210,7 +220,7 @@ final class Colony {
      * The mod puts construction tape around a building waiting for the builder; we put yellow bars along its footprint
      * at the hut block's floor while the hut is unbuilt or has an upgrade queued or under way. Called once a second.
      */
-    void tape() {
+    public void tape() {
         for (Hut h : huts) {
             Hut.WorkOrder up = h.type.isBuilding() ? upgradeOf(h) : null;
             if (up == null && (h.level > 0 || !h.type.isBuilding())) { removeTape(h); continue; }
@@ -239,7 +249,7 @@ final class Colony {
     }
 
     /** Queues the hut's next level for the builder. @return why it can't, or null when queued. */
-    String requestUpgrade(Hut hut) {
+    public String requestUpgrade(Hut hut) {
         int next = hut.level + 1;
         if (builder == null) return "Place a Builder's Hut first: the builder builds every hut.";
         if (hut.level >= Hut.MAX_LEVEL) return "The " + hut.type.title + " is at the highest level.";
@@ -251,7 +261,7 @@ final class Colony {
         return null;
     }
 
-    void cancelUpgrade(Hut hut) {
+    public void cancelUpgrade(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
         if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
     }
@@ -261,7 +271,7 @@ final class Colony {
         if (p != null) p.sendMessage(message);
     }
 
-    void tick() {
+    public void tick() {
         if (builder != null && builder.order == null && !workOrders.isEmpty()) startNextWorkOrder();
         if (++growth >= GROWTH_TICKS) {
             growth = 0;
@@ -311,7 +321,7 @@ final class Colony {
     private Warehouse warehouse;
 
     /** The colony's built warehouse (level 1 or higher), or null. */
-    Warehouse warehouse() {
+    public Warehouse warehouse() {
         for (Hut h : huts) if (h.type == Hut.Type.WAREHOUSE && h.level >= 1) {
             if (warehouse == null || warehouse.hut != h) warehouse = new Warehouse(h, this);
             return warehouse;
@@ -320,7 +330,7 @@ final class Colony {
     }
 
     /** A Cook's Hut that is built and has a cook, where hungry citizens can be served; null if none. */
-    Cook restaurant() {
+    public Cook restaurant() {
         for (Job j : jobs) if (j instanceof Cook cook && cook.hut.level >= 1 && worker(cook) != null) return cook;
         return null;
     }
@@ -334,24 +344,24 @@ final class Colony {
         else builder.start(o, w);
     }
 
-    void despawn() {
+    public void despawn() {
         for (Colonist c : colonists) if (c.meal != null) { c.meal.abandon(); c.meal = null; } // food back in its chest
         jobs.forEach(Job::stow);
         colonists.forEach(Colonist::despawn);
         huts.forEach(Colony::removeTape);
     }
 
-    Hut hutByIndex(int i) {
+    public Hut hutByIndex(int i) {
         return i >= 0 && i < huts.size() ? huts.get(i) : null;
     }
 
     /** The citizen whose body or legs {@code e} is, or null. */
-    Colonist colonistOf(org.bukkit.entity.Entity e) {
+    public Colonist colonistOf(org.bukkit.entity.Entity e) {
         for (Colonist c : colonists) if (c.owns(e)) return c;
         return null;
     }
 
-    Grave graveAt(Block b) {
+    public Grave graveAt(Block b) {
         for (Grave g : graves) if (g.block.equals(b)) return g;
         return null;
     }
