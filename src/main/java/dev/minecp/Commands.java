@@ -105,11 +105,6 @@ final class Commands implements CommandExecutor {
                         + " (right-click it for the colony menu)");
                 player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
             }
-            case "border" -> {
-                Colony here = here(player);
-                if (here == null) player.sendMessage("You aren't in a colony and don't have one.");
-                else plugin.menus.border(player, here);
-            }
             case "members" -> {
                 Colony here = here(player);
                 if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }

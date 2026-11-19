@@ -45,11 +45,13 @@ public final class MineCP extends JavaPlugin implements Listener {
     private static final long AUTOSAVE_TICKS = 20 * 30;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     private final Map<UUID, Map<Long, Colony>> claimed = new HashMap<>(); // by world, then chunk (Claims.key)
+    public int claimsVersion; // goes up whenever any colony's claims change (Border redraws)
     private final Set<UUID> tickFailed = new HashSet<>();
     public final Items items = new Items(this);
     private Saves saves;
-    final Menus menus = new Menus(this);
+    private final Menus menus = new Menus(this);
     private final Placement placement = new Placement(this);
+    private final dev.minecp.build.Border border = new dev.minecp.build.Border(this);
     final Protection protection = new Protection(this);
 
     @Override
@@ -74,6 +76,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(protection, this);
         getServer().getPluginManager().registerEvents(items, this);
         getServer().getPluginManager().registerEvents(placement, this);
+        getServer().getPluginManager().registerEvents(border, this);
+        getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
         Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this));
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
             try {
@@ -89,6 +93,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         placement.endAll();
+        border.endAll();
         saveAll();
         saves.finish();
         colonies.values().forEach(Colony::despawn);
@@ -113,6 +118,7 @@ public final class MineCP extends JavaPlugin implements Listener {
      * (the mod: whichever claimed it first).
      */
     void reindex() {
+        claimsVersion++;
         claimed.clear();
         colonies.values().stream().sorted(java.util.Comparator.comparingLong(c -> c.founded)).forEach(c -> {
             var chunks = claimed.computeIfAbsent(c.townHall().block.getWorld().getUID(), w -> new HashMap<>());
@@ -124,6 +130,12 @@ public final class MineCP extends JavaPlugin implements Listener {
     public Colony colonyClaiming(Location at) {
         var chunks = claimed.get(at.getWorld().getUID());
         return chunks == null ? null : chunks.get(Claims.key(at.getBlockX() >> 4, at.getBlockZ() >> 4));
+    }
+
+    /** The colony owning this chunk, or null. */
+    public Colony owner(org.bukkit.World world, int chunkX, int chunkZ) {
+        var chunks = claimed.get(world.getUID());
+        return chunks == null ? null : chunks.get(Claims.key(chunkX, chunkZ));
     }
 
     /** Whether this chunk is {@code c}'s (claimed by it and not by an older colony). */
@@ -175,7 +187,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             return tooClose(at);
         }
         Colony c = colonyClaiming(at.getLocation());
-        if (c == null) return "Place it inside a colony's border: its claimed chunks (Town Hall menu: Show border).";
+        if (c == null) return "Place it inside a colony's border: its claimed chunks (wear Build Goggles to see it).";
         if (!c.permissions.has(p, tool ? dev.minecp.colony.Action.MANAGE_HUTS : dev.minecp.colony.Action.PLACE_HUTS))
             return "You can't place huts in " + c.name + ".";
         if (type.unique && c.hut(type) != null) return c.name + " already has a " + type.title + ".";

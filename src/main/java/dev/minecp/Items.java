@@ -27,13 +27,14 @@ import java.util.List;
 /** The plugin's items: the Colony Token, hut items, and their recipes (the token is kept when crafting). */
 public final class Items implements Listener {
     private final Plugin plugin;
-    private final NamespacedKey hutKey, tokenKey;
+    private final NamespacedKey hutKey, tokenKey, gogglesKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
     Items(Plugin plugin) {
         this.plugin = plugin;
         hutKey = new NamespacedKey(plugin, "hut_item");
         tokenKey = new NamespacedKey(plugin, "token");
+        gogglesKey = new NamespacedKey(plugin, "build_goggles");
     }
 
     /**
@@ -59,6 +60,15 @@ public final class Items implements Listener {
         rack.setIngredient('I', new RecipeChoice.MaterialChoice(Material.IRON_NUGGET));
         rack.setIngredient('T', token);
         add(rack);
+        // MineColonies' build goggles: gold nuggets, an iron ingot, glass panes and leather around the build tool (our token).
+        ShapedRecipe goggles = new ShapedRecipe(key("build_goggles"), goggles());
+        goggles.shape("NIN", "GTG", "L L");
+        goggles.setIngredient('N', new RecipeChoice.MaterialChoice(Material.GOLD_NUGGET));
+        goggles.setIngredient('I', new RecipeChoice.MaterialChoice(Material.IRON_INGOT));
+        goggles.setIngredient('G', new RecipeChoice.MaterialChoice(Material.GLASS_PANE));
+        goggles.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
+        goggles.setIngredient('T', token);
+        add(goggles);
         // The field is MineColonies' scarecrow, whose recipe takes no build tool: hay bale or pumpkin on a stick body.
         ShapedRecipe field = new ShapedRecipe(key("field"), hutItem(Hut.Type.FIELD));
         field.shape(" H ", "SLS", " S ");
@@ -89,6 +99,22 @@ public final class Items implements Listener {
             m.getPersistentDataContainer().set(tokenKey, PersistentDataType.BOOLEAN, true);
         });
         return item;
+    }
+
+    /** Worn, they show colony borders (Border). A leather helmet stands in for the mod's goggles model. */
+    public ItemStack goggles() {
+        ItemStack item = new ItemStack(Material.LEATHER_HELMET);
+        item.editMeta(org.bukkit.inventory.meta.LeatherArmorMeta.class, m -> {
+            m.itemName(Component.text("Build Goggles", NamedTextColor.GOLD));
+            m.lore(List.of(Component.text("Wear them to see colony borders", NamedTextColor.GRAY)));
+            m.setColor(org.bukkit.Color.fromRGB(0x8B5A2B));
+            m.getPersistentDataContainer().set(gogglesKey, PersistentDataType.BOOLEAN, true);
+        });
+        return item;
+    }
+
+    public boolean isGoggles(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(gogglesKey);
     }
 
     public boolean isToken(ItemStack item) {

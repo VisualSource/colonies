@@ -5,7 +5,7 @@ api-version: '26.3'
 commands:
   colony:
     description: Colony commands.
-    usage: /colony <info | token | border | members | member add <player> [officer|friend|hostile] | member remove <player> | build <structure> | build cancel | townhall | builderhut | house | lumberjack | farmer | field | cook | warehouse | courier | miner | rack | movement>
+    usage: /colony <info | token | members | member add <player> [officer|friend|hostile] | member remove <player> | build <structure> | build cancel | townhall | builderhut | house | lumberjack | farmer | field | cook | warehouse | courier | miner | rack | movement>
 permissions:
   minecp.admin:
     default: op

@@ -120,7 +120,6 @@ public final class Menus {
         }));
         if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
-            buttons.add(button("Show border", p, c, h, player -> border(player, c)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
         }
         if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
@@ -233,33 +232,7 @@ public final class Menus {
         return Dialogs.text(c);
     }
 
-    // ---- border and permissions --------------------------------------------------------------------------------
-
-    private static final int BORDER_CHUNKS = 6; // drawn this many chunks around the player
-
-    /** Draws the colony's border (its claimed chunks' outer edges) near the player with particles for 10 seconds. */
-    public void border(Player p, Colony c) {
-        var world = c.townHall().block.getWorld();
-        if (!p.getWorld().equals(world)) { p.sendMessage(Component.text(c.name + " is in another world.", NamedTextColor.RED)); return; }
-        var dust = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 60, 60), 1.5f);
-        int[] runs = {0};
-        plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
-            if (++runs[0] > 20 || !p.isOnline() || !p.getWorld().equals(world)) { task.cancel(); return; }
-            int pcx = p.getLocation().getBlockX() >> 4, pcz = p.getLocation().getBlockZ() >> 4;
-            double y = p.getLocation().getY() + 1;
-            for (int cx = pcx - BORDER_CHUNKS; cx <= pcx + BORDER_CHUNKS; cx++) for (int cz = pcz - BORDER_CHUNKS; cz <= pcz + BORDER_CHUNKS; cz++) {
-                if (!plugin.owns(c, world, cx, cz)) continue;
-                int x0 = cx << 4, z0 = cz << 4;
-                for (int i = 0; i < 16; i++) {
-                    if (!plugin.owns(c, world, cx, cz - 1)) p.spawnParticle(Particle.DUST, x0 + i, y, z0, 1, 0, 0, 0, 0, dust);
-                    if (!plugin.owns(c, world, cx, cz + 1)) p.spawnParticle(Particle.DUST, x0 + i, y, z0 + 16, 1, 0, 0, 0, 0, dust);
-                    if (!plugin.owns(c, world, cx - 1, cz)) p.spawnParticle(Particle.DUST, x0, y, z0 + i, 1, 0, 0, 0, 0, dust);
-                    if (!plugin.owns(c, world, cx + 1, cz)) p.spawnParticle(Particle.DUST, x0 + 16, y, z0 + i, 1, 0, 0, 0, 0, dust);
-                }
-            }
-        }, 0, 10);
-        p.sendMessage(Component.text("Showing " + c.name + "'s border near you (" + c.claims().size() + " chunks claimed).", NamedTextColor.GREEN));
-    }
+    // ---- permissions --------------------------------------------------------------------------------------
 
     /** The colony's members and their ranks, from the town hall menu (needs EDIT_PERMISSIONS). */
     void permissions(Player p, Colony c, Hut townHall) {
