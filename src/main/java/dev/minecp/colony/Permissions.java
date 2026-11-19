@@ -1,5 +1,6 @@
 package dev.minecp.colony;
 
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -34,7 +35,7 @@ public final class Permissions {
     public boolean has(Rank rank, Action action) {
         // The owner can always reach the menus and these settings, whatever was saved (the mod's upgradePermissions).
         if (rank == Rank.OWNER && (action == Action.ACCESS_HUTS || action == Action.MANAGE_HUTS || action == Action.EDIT_PERMISSIONS)) return true;
-        if ((rank == Rank.NEUTRAL || rank == Rank.HOSTILE) && action == Action.EDIT_PERMISSIONS) return false; // as the mod
+        if (rank == Rank.NEUTRAL && action == Action.EDIT_PERMISSIONS) return false; // as the mod
         return actions.get(rank).contains(action);
     }
 
@@ -54,6 +55,22 @@ public final class Permissions {
         if (rank == Rank.NEUTRAL) members.remove(player);
         else members.put(player, new Member(name, rank));
         return true;
+    }
+
+    /**
+     * Adds a player who has played on this server, by name, at a member rank. @return why not, or null when added.
+     * (The mod looks players up in its profile cache too.)
+     */
+    public String add(String name, Rank rank) {
+        var target = Bukkit.getOfflinePlayerIfCached(name); // no web lookup
+        if (target == null) return "No player called " + name + " has played on this server.";
+        return setRank(target.getUniqueId(), target.getName(), rank) ? null : "That's the owner.";
+    }
+
+    /** Whether this player is a member (owner, officer or friend): hostile players are listed but aren't members. */
+    public boolean isMember(UUID player) {
+        Rank r = rank(player);
+        return r != Rank.NEUTRAL && r != Rank.HOSTILE;
     }
 
     public void allow(Rank rank, Action action, boolean on) {

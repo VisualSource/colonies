@@ -1,5 +1,5 @@
 .claude
 .gradle/
-build
+/build
 run
 __pycache__/

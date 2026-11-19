@@ -102,7 +102,7 @@ public final class Items implements Listener {
     }
 
     /** Worn, they show colony borders (Border). A leather helmet stands in for the mod's goggles model. */
-    public ItemStack goggles() {
+    private ItemStack goggles() {
         ItemStack item = new ItemStack(Material.LEATHER_HELMET);
         item.editMeta(org.bukkit.inventory.meta.LeatherArmorMeta.class, m -> {
             m.itemName(Component.text("Build Goggles", NamedTextColor.GOLD));

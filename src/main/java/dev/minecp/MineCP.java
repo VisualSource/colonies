@@ -3,6 +3,9 @@ package dev.minecp;
 import dev.minecp.build.BuildOrder;
 import dev.minecp.build.Placement;
 import dev.minecp.citizen.Colonist;
+import dev.minecp.build.Border;
+import dev.minecp.colony.Action;
+import dev.minecp.colony.ClaimMap;
 import dev.minecp.colony.Claims;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Grave;
@@ -21,7 +24,6 @@ import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
@@ -44,14 +46,13 @@ public final class MineCP extends JavaPlugin implements Listener {
     // Every colony is saved on this timer: citizens move and get hungry every tick, so a "changed" flag would always be set.
     private static final long AUTOSAVE_TICKS = 20 * 30;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
-    private final Map<UUID, Map<Long, Colony>> claimed = new HashMap<>(); // by world, then chunk (Claims.key)
-    public int claimsVersion; // goes up whenever any colony's claims change (Border redraws)
+    public final ClaimMap claims = new ClaimMap();
     private final Set<UUID> tickFailed = new HashSet<>();
     public final Items items = new Items(this);
     private Saves saves;
     private final Menus menus = new Menus(this);
     private final Placement placement = new Placement(this);
-    private final dev.minecp.build.Border border = new dev.minecp.build.Border(this);
+    private final Border border = new Border(this);
     final Protection protection = new Protection(this);
 
     @Override
@@ -113,35 +114,9 @@ public final class MineCP extends JavaPlugin implements Listener {
         return colonies.get(p.getUniqueId());
     }
 
-    /**
-     * Works out which colony owns each claimed chunk: where two colonies claim the same chunk, the older one keeps it
-     * (the mod: whichever claimed it first).
-     */
-    void reindex() {
-        claimsVersion++;
-        claimed.clear();
-        colonies.values().stream().sorted(java.util.Comparator.comparingLong(c -> c.founded)).forEach(c -> {
-            var chunks = claimed.computeIfAbsent(c.townHall().block.getWorld().getUID(), w -> new HashMap<>());
-            for (long k : c.claims()) chunks.putIfAbsent(k, c);
-        });
-    }
-
-    /** The colony whose claimed chunks hold {@code at}, or null. */
-    public Colony colonyClaiming(Location at) {
-        var chunks = claimed.get(at.getWorld().getUID());
-        return chunks == null ? null : chunks.get(Claims.key(at.getBlockX() >> 4, at.getBlockZ() >> 4));
-    }
-
-    /** The colony owning this chunk, or null. */
-    public Colony owner(org.bukkit.World world, int chunkX, int chunkZ) {
-        var chunks = claimed.get(world.getUID());
-        return chunks == null ? null : chunks.get(Claims.key(chunkX, chunkZ));
-    }
-
-    /** Whether this chunk is {@code c}'s (claimed by it and not by an older colony). */
-    public boolean owns(Colony c, org.bukkit.World world, int chunkX, int chunkZ) {
-        var chunks = claimed.get(world.getUID());
-        return chunks != null && chunks.get(Claims.key(chunkX, chunkZ)) == c;
+    /** Any colony's claims changed: work out again which colony owns each chunk. */
+    private void reindex() {
+        claims.update(colonies.values());
     }
 
     /** The colony one of whose huts (town hall included) is this block. */
@@ -162,9 +137,9 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (type == null) return;
         Player p = e.getPlayer();
         Block at = e.getBlockPlaced();
-        Colony c = type == Hut.Type.TOWN_HALL ? null : colonyClaiming(at.getLocation());
+        Colony c = type == Hut.Type.TOWN_HALL ? null : claims.colonyAt(at.getLocation());
         String style = c == null ? Colony.DEFAULT_STYLE : c.style;
-        int[] box = type.isBuilding() ? BuildOrder.footprint(style + "/" + type.path + 1, at, null, false) : null;
+        int[] box = c != null && type.isBuilding() ? BuildOrder.footprint(style + "/" + type.path + 1, at, null, false) : null; // a town hall's isn't checked
         String problem = placeProblem(p, type, at, box, false);
         if (problem != null) {
             e.setCancelled(true);
@@ -184,32 +159,14 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (type == Hut.Type.TOWN_HALL) {
             if (colonies.containsKey(p.getUniqueId())) return "You already have a colony.";
             if (saves.isUnloaded(p.getUniqueId())) return "Your colony's save couldn't be loaded; ask an admin to check the server log.";
-            return tooClose(at);
+            return claims.foundingProblem(at, colonies.values());
         }
-        Colony c = colonyClaiming(at.getLocation());
+        Colony c = claims.colonyAt(at.getLocation());
         if (c == null) return "Place it inside a colony's border: its claimed chunks (wear Build Goggles to see it).";
-        if (!c.permissions.has(p, tool ? dev.minecp.colony.Action.MANAGE_HUTS : dev.minecp.colony.Action.PLACE_HUTS))
+        if (!c.permissions.has(p, tool ? Action.MANAGE_HUTS : Action.PLACE_HUTS))
             return "You can't place huts in " + c.name + ".";
         if (type.unique && c.hut(type) != null) return c.name + " already has a " + type.title + ".";
-        if (box != null) for (int x = box[0] >> 4; x <= (box[1] - 1) >> 4; x++) for (int z = box[2] >> 4; z <= (box[3] - 1) >> 4; z++)
-            if (!owns(c, at.getWorld(), x, z)) return "The " + type.title + "'s building would reach outside " + c.name + "'s border.";
-        return null;
-    }
-
-    /** Why a new colony can't be founded here: too near another town hall, or its first chunks are claimed. */
-    private String tooClose(Block at) {
-        int range = Math.max(Claims.minDistance, Claims.initialSize) * 16; // the mod's isFarEnoughFromColonies
-        for (Colony c : colonies.values()) {
-            Block th = c.townHall().block;
-            if (th.getWorld().equals(at.getWorld()) && th.getLocation().distance(at.getLocation()) < range)
-                return "Too close to " + c.name + ": town halls must be at least " + range + " blocks apart.";
-        }
-        int cx = at.getX() >> 4, cz = at.getZ() >> 4, r = Claims.initialSize;
-        for (int x = cx - r; x <= cx + r; x++) for (int z = cz - r; z <= cz + r; z++) {
-            var chunks = claimed.get(at.getWorld().getUID());
-            Colony c = chunks == null ? null : chunks.get(Claims.key(x, z));
-            if (c != null) return "A colony here would claim land " + c.name + " already claims.";
-        }
+        if (box != null && !claims.ownsAll(c, at.getWorld(), box)) return "The " + type.title + "'s building would reach outside " + c.name + "'s border.";
         return null;
     }
 
@@ -228,7 +185,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             hut = c.townHall();
             p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
         } else {
-            c = colonyClaiming(at.getLocation()); // the colony whose land it is on, which may not be the placer's own
+            c = claims.colonyAt(at.getLocation()); // the colony whose land it is on, which may not be the placer's own
             hut = c.addHut(type, at);
             p.sendMessage(Component.text(type == Hut.Type.FIELD
                     ? "Field placed. Right-click it to choose the crop and the size of the field."
@@ -261,10 +218,10 @@ public final class MineCP extends JavaPlugin implements Listener {
         Player p = e.getPlayer();
         Hut hut = c.hutAt(e.getBlock());
         // Breaking the town hall disbands the colony: only its owner may (ours; huts follow BREAK_HUTS, as in the mod).
-        boolean may = hut.type == Hut.Type.TOWN_HALL ? p.getUniqueId().equals(c.owner) : c.permissions.has(p, dev.minecp.colony.Action.BREAK_HUTS);
+        boolean may = hut.type == Hut.Type.TOWN_HALL ? p.getUniqueId().equals(c.owner) : c.permissions.has(p, Action.BREAK_HUTS);
         if (!may) {
             e.setCancelled(true);
-            protection.deny(p, c, dev.minecp.colony.Action.BREAK_HUTS);
+            protection.deny(p, c, Action.BREAK_HUTS);
             return;
         }
         e.setDropItems(false);
@@ -293,15 +250,15 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** Right-click opens the colony menus; sneak + right-click keeps the normal action (open chest, ring bell). */
     @EventHandler
     public void onInteract(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
         if (items.isBuildTool(e.getItem())) return; // the build tool (Placement)
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();
         if (p.isSneaking()) return; // the block's own use (a chest): Protection checks it
         e.setCancelled(true);
-        if (!c.permissions.has(p, dev.minecp.colony.Action.ACCESS_HUTS)) {
-            protection.deny(p, c, dev.minecp.colony.Action.ACCESS_HUTS);
+        if (!c.permissions.has(p, Action.ACCESS_HUTS)) {
+            protection.deny(p, c, Action.ACCESS_HUTS);
             return;
         }
         menus.hut(p, c, c.hutAt(e.getClickedBlock()));
@@ -330,13 +287,13 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** Right-click a grave to take what is in it; breaking it drops everything. */
     @EventHandler(priority = org.bukkit.event.EventPriority.LOW)
     public void onGraveClick(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
         Colony c = graveColony(e.getClickedBlock());
         if (c == null) return;
         e.setCancelled(true);
         Grave g = c.graveAt(e.getClickedBlock());
-        if (!c.permissions.has(e.getPlayer(), dev.minecp.colony.Action.OPEN_CONTAINER)) {
-            protection.deny(e.getPlayer(), c, dev.minecp.colony.Action.OPEN_CONTAINER);
+        if (!c.permissions.has(e.getPlayer(), Action.OPEN_CONTAINER)) {
+            protection.deny(e.getPlayer(), c, Action.OPEN_CONTAINER);
             return;
         }
         e.getPlayer().openInventory(g.items);
@@ -346,9 +303,9 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void onGraveBreak(BlockBreakEvent e) {
         Colony c = graveColony(e.getBlock());
         if (c == null) return;
-        if (!c.permissions.has(e.getPlayer(), dev.minecp.colony.Action.BREAK_BLOCKS)) {
+        if (!c.permissions.has(e.getPlayer(), Action.BREAK_BLOCKS)) {
             e.setCancelled(true);
-            protection.deny(e.getPlayer(), c, dev.minecp.colony.Action.BREAK_BLOCKS);
+            protection.deny(e.getPlayer(), c, Action.BREAK_BLOCKS);
             return;
         }
         Grave g = c.graveAt(e.getBlock());

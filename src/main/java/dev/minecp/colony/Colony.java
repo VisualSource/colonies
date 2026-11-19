@@ -259,7 +259,7 @@ public final class Colony {
             if (h.footprintLevel != level) { // the structure is loaded once per level, not every second
                 BuildOrder o = BuildOrder.create(h.structure(style, level), h.block.getLocation(), h.rotation, h.mirror, h.block);
                 if (o == null) continue;
-                h.footprint = new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1};
+                h.footprint = o.footprint();
                 h.footprintLevel = level;
                 removeTape(h); // the next level may be bigger
             }

@@ -13,7 +13,7 @@ public enum Rank {
     OWNER, OFFICER, FRIEND, NEUTRAL, HOSTILE;
 
     /** The mod's default actions for this rank. */
-    public Set<Action> defaults() {
+    Set<Action> defaults() {
         Set<Action> a = EnumSet.noneOf(Action.class);
         switch (this) {
             case HOSTILE -> a.add(HURT_CITIZEN); // the mod lets hostile players hurt citizens properly

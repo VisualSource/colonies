@@ -77,7 +77,7 @@ public final class Hut {
         }
 
         /** Chunks claimed around the hut's chunk at this level (the mod's getClaimRadius). */
-        public int claimRadius(int level) {
+        int claimRadius(int level) {
             return switch (this) {
                 case TOWN_HALL -> new int[]{0, 1, 1, 2, 3, 5}[level];
                 case FIELD -> 0;

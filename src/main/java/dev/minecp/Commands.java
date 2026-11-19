@@ -29,7 +29,7 @@ final class Commands implements CommandExecutor {
 
     /** The colony whose land the player stands on, else their own. */
     private Colony here(Player p) {
-        Colony c = plugin.colonyClaiming(p.getLocation());
+        Colony c = plugin.claims.colonyAt(p.getLocation());
         return c != null ? c : plugin.colonyOf(p);
     }
 
@@ -108,6 +108,10 @@ final class Commands implements CommandExecutor {
             case "members" -> {
                 Colony here = here(player);
                 if (here == null) { player.sendMessage("You aren't in a colony and don't have one."); return true; }
+                if (!here.permissions.isMember(player.getUniqueId()) && !player.hasPermission("minecp.admin")) {
+                    player.sendMessage(Component.text("Only members of " + here.name + " can see its members.", NamedTextColor.RED));
+                    return true;
+                }
                 player.sendMessage(Component.text(here.name + ": owner " + plugin.getServer().getOfflinePlayer(here.owner).getName(), NamedTextColor.GOLD));
                 here.permissions.members().values().forEach(m -> player.sendMessage(m.name() + " — " + m.rank().title()));
             }
@@ -119,23 +123,22 @@ final class Commands implements CommandExecutor {
                     player.sendMessage(Component.text("You can't change members of " + here.name + ".", NamedTextColor.RED));
                     return true;
                 }
-                var target = plugin.getServer().getOfflinePlayerIfCached(args[2]); // players who have been here; no web lookup
-                if (target == null) { player.sendMessage(Component.text("No player called " + args[2] + " has played on this server.", NamedTextColor.RED)); return true; }
                 Rank rank = Rank.NEUTRAL;
                 if (args[1].equals("add")) {
                     try {
                         rank = args.length > 3 ? Rank.valueOf(args[3].toUpperCase()) : Rank.FRIEND;
                     } catch (IllegalArgumentException e) {
-                        rank = null;
+                        return false;
                     }
-                    if (rank == null || rank == Rank.OWNER || rank == Rank.NEUTRAL) return false;
+                    if (rank == Rank.OWNER || rank == Rank.NEUTRAL) return false;
                 }
-                if (!here.permissions.setRank(target.getUniqueId(), target.getName(), rank)) {
-                    player.sendMessage(Component.text("That's the owner.", NamedTextColor.RED));
+                String problem = here.permissions.add(args[2], rank);
+                if (problem != null) {
+                    player.sendMessage(Component.text(problem, NamedTextColor.RED));
                     return true;
                 }
                 plugin.save(here);
-                player.sendMessage(target.getName() + " is now " + rank.title() + " in " + here.name + ".");
+                player.sendMessage(args[2] + " is now " + rank.title() + " in " + here.name + ".");
             }
             case "movement" -> { // how often each citizen's walking went wrong
                 if (c == null) {

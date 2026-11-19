@@ -121,7 +121,7 @@ public final class Placement implements Listener {
     }
 
     private void start(Player p, Hut.Type type, Block anchor) {
-        Colony c = plugin.colonyClaiming(anchor.getLocation()); // the style of the colony it would join
+        Colony c = plugin.claims.colonyAt(anchor.getLocation()); // the style of the colony it would join
         if (c == null) c = plugin.colonyOf(p);
         end(p);
         Session s = new Session(type, c == null ? Colony.DEFAULT_STYLE : c.style, anchor);
@@ -165,7 +165,7 @@ public final class Placement implements Listener {
             }));
         }
         // The building's boundary, as the tape will show it once placed.
-        s.shown.addAll(Tape.around(s.anchor.getWorld(), new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1}, s.anchor.getY() + 0.01, false));
+        s.shown.addAll(Tape.around(s.anchor.getWorld(), o.footprint(), s.anchor.getY() + 0.01, false));
         for (BlockDisplay d : s.shown) p.showEntity(plugin, d);
         return true;
     }
@@ -203,7 +203,7 @@ public final class Placement implements Listener {
         BuildOrder o = order(s);
         String problem = s.anchor.getY() < s.anchor.getWorld().getMinHeight() ? "Too low to build."
                 : o == null ? "No structure for the " + s.type.title + "."
-                : plugin.placeProblem(p, s.type, s.anchor, new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1}, true);
+                : plugin.placeProblem(p, s.type, s.anchor, o.footprint(), true);
         if (problem == null && plugin.colonyAt(s.anchor) != null) problem = "Another hut is in that spot.";
         if (problem == null && (plugin.graveColony(s.anchor) != null || !Job.contents(s.anchor).isEmpty()))
             problem = "Clear the block at the hut spot first.";

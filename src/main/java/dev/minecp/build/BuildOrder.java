@@ -203,7 +203,12 @@ public final class BuildOrder {
     /** The box (minX, maxX+1, minZ, maxZ+1) a hut's building covers, placed on its hut block; null if it has none. */
     public static int[] footprint(String structure, Block hut, StructureRotation rotation, boolean mirror) {
         BuildOrder o = create(structure, hut.getLocation(), rotation, mirror, hut);
-        return o == null ? null : new int[]{o.minX, o.maxX + 1, o.minZ, o.maxZ + 1};
+        return o == null ? null : o.footprint();
+    }
+
+    /** The box this order covers: minX, maxX+1, minZ, maxZ+1. */
+    public int[] footprint() {
+        return new int[]{minX, maxX + 1, minZ, maxZ + 1};
     }
 
     public static boolean exists(String structure) {

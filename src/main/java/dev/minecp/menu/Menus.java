@@ -275,11 +275,10 @@ public final class Menus {
         List<ActionButton> buttons = List.of(button("Add", p, c, townHall, (player, view) -> {
             if (!c.permissions.has(player, Action.EDIT_PERMISSIONS)) { refuse(player, c, Action.EDIT_PERMISSIONS); return; }
             String name = view.getText("name") == null ? "" : view.getText("name").trim();
-            var target = plugin.getServer().getOfflinePlayerIfCached(name); // players who have been here; no web lookup
             Rank r = Rank.FRIEND;
             for (Rank m : MEMBER_RANKS) if (m.name().equals(view.getText("rank"))) r = m;
-            if (target == null) player.sendMessage(Component.text("No player called " + name + " has played on this server.", NamedTextColor.RED));
-            else if (!c.permissions.setRank(target.getUniqueId(), target.getName(), r)) player.sendMessage(Component.text("That's the owner.", NamedTextColor.RED));
+            String problem = c.permissions.add(name, r);
+            if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
             else plugin.save(c);
             permissions(player, c, townHall);
         }), button("Back", p, c, townHall, player -> permissions(player, c, townHall)));
@@ -297,14 +296,16 @@ public final class Menus {
 
     private void rankActions(Player p, Colony c, Hut townHall, Rank r) {
         List<Action> shown = new ArrayList<>(List.of(Action.values()));
-        if (r == Rank.NEUTRAL || r == Rank.HOSTILE) shown.remove(Action.EDIT_PERMISSIONS); // never theirs, as in the mod
+        if (r == Rank.NEUTRAL) shown.remove(Action.EDIT_PERMISSIONS); // never theirs, as in the mod
         List<DialogInput> inputs = new ArrayList<>();
         for (Action a : shown) inputs.add(DialogInput.bool(a.name().toLowerCase(), Component.text(a.label)).initial(c.permissions.has(r, a)).build());
         List<ActionButton> buttons = List.of(button("Save", p, c, townHall, (player, view) -> {
             if (!c.permissions.has(player, Action.EDIT_PERMISSIONS)) { refuse(player, c, Action.EDIT_PERMISSIONS); return; }
+            boolean own = c.permissions.rank(player.getUniqueId()) == r;
             for (Action a : shown) {
                 Boolean on = view.getBoolean(a.name().toLowerCase());
-                if (on != null) c.permissions.allow(r, a, on);
+                if (on == null || own && a == Action.EDIT_PERMISSIONS && !on) continue; // as the mod: no taking your own away
+                c.permissions.allow(r, a, on);
             }
             plugin.save(c);
             ranks(player, c, townHall);

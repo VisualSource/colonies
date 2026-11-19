@@ -20,16 +20,39 @@ public final class Claims {
         return (long) chunkX << 32 | chunkZ & 0xFFFFFFFFL;
     }
 
-    /** The chunks {@code c} claims, as {@link #key} values in its town hall's world. */
-    static Set<Long> of(Colony c) {
+    static int x(long key) {
+        return (int) (key >> 32);
+    }
+
+    static int z(long key) {
+        return (int) key;
+    }
+
+    /** The chunks a building's box (minX, maxX+1, minZ, maxZ+1) covers, as {@link #key} values. */
+    public static long[] chunks(int[] box) {
+        int x0 = box[0] >> 4, x1 = (box[1] - 1) >> 4, z0 = box[2] >> 4, z1 = (box[3] - 1) >> 4;
+        long[] out = new long[(x1 - x0 + 1) * (z1 - z0 + 1)];
+        int i = 0;
+        for (int x = x0; x <= x1; x++) for (int z = z0; z <= z1; z++) out[i++] = key(x, z);
+        return out;
+    }
+
+    /** The chunks claimed when the colony was founded: never given up while it stands. */
+    static Set<Long> core(Colony c) {
         Set<Long> out = new HashSet<>();
         int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4;
         square(out, cx, cz, initialSize, cx, cz);
+        return out;
+    }
+
+    /** All the chunks {@code c} claims, as {@link #key} values in its town hall's world. */
+    static Set<Long> of(Colony c) {
+        Set<Long> out = core(c);
+        int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4;
         for (Hut h : c.huts) {
             square(out, h.block.getX() >> 4, h.block.getZ() >> 4, h.type.claimRadius(h.level), cx, cz);
-            int[] f = c.footprint(h); // minX, maxX+1, minZ, maxZ+1 of the building as built, or null
-            if (f != null) for (int x = f[0] >> 4; x <= (f[1] - 1) >> 4; x++) for (int z = f[2] >> 4; z <= (f[3] - 1) >> 4; z++)
-                if (near(x, z, cx, cz)) out.add(key(x, z));
+            int[] box = c.footprint(h); // the building as built, or null
+            if (box != null) for (long k : chunks(box)) if (near(x(k), z(k), cx, cz)) out.add(k);
         }
         return out;
     }

@@ -30,6 +30,7 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -62,7 +63,7 @@ final class Protection implements Listener {
 
     /** Whether {@code p} may do this at {@code at}; tells them why not. Outside every colony: yes. */
     boolean allowed(Player p, Location at, Action action) {
-        Colony c = enabled ? plugin.colonyClaiming(at) : null;
+        Colony c = enabled ? plugin.claims.colonyAt(at) : null;
         if (c == null || c.permissions.has(p, action)) return true;
         deny(p, c, action);
         return false;
@@ -99,15 +100,21 @@ final class Protection implements Listener {
         if (e.getPlayer() != null && !allowed(e.getPlayer(), e.getBlock().getLocation(), Action.PLACE_BLOCKS)) e.setCancelled(true);
     }
 
-    /** Using a block: doors and gates, containers, then anything else that does something when clicked. */
+    /**
+     * Using a block: containers (a barrel is also openable, so they come first), doors and gates, then anything else
+     * that does something when clicked. Both hands: when the main hand's use is refused, the off hand gets a turn.
+     */
     @EventHandler(priority = EventPriority.LOW)
     public void onUse(PlayerInteractEvent e) {
         Block b = e.getClickedBlock();
-        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || b == null || e.getHand() != EquipmentSlot.HAND) return;
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || b == null) return;
         if (e.useInteractedBlock() == Event.Result.DENY || plugin.items.isBuildTool(e.getItem()) || plugin.graveColony(b) != null) return;
-        if (plugin.colonyAt(b) != null && !e.getPlayer().isSneaking()) return; // a hut's menu: ACCESS_HUTS in MineCP
-        Action action = b.getBlockData() instanceof Openable ? Action.ACCESS_TOGGLEABLES
-                : b.getState(false) instanceof BlockInventoryHolder ? Action.OPEN_CONTAINER
+        if (plugin.colonyAt(b) != null && !e.getPlayer().isSneaking()) { // a hut's menu (main hand): ACCESS_HUTS in MineCP
+            if (e.getHand() == EquipmentSlot.OFF_HAND) e.setUseInteractedBlock(Event.Result.DENY); // not the chest behind it
+            return;
+        }
+        Action action = b.getState(false) instanceof BlockInventoryHolder ? Action.OPEN_CONTAINER
+                : b.getBlockData() instanceof Openable ? Action.ACCESS_TOGGLEABLES
                 : b.getType().isInteractable() ? Action.RIGHTCLICK_BLOCK : null;
         if (action != null && !allowed(e.getPlayer(), b.getLocation(), action)) e.setUseInteractedBlock(Event.Result.DENY); // items in hand still work
     }
@@ -145,6 +152,12 @@ final class Protection implements Listener {
         if (!allowed(e.getPlayer(), e.getRightClicked().getLocation(), Action.RIGHTCLICK_ENTITY)) e.setCancelled(true);
     }
 
+    /** Taking or putting armor on an armor stand: its own event, not the entity click above. */
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
+    public void onArmorStand(PlayerArmorStandManipulateEvent e) {
+        if (!allowed(e.getPlayer(), e.getRightClicked().getLocation(), Action.RIGHTCLICK_ENTITY)) e.setCancelled(true);
+    }
+
     /**
      * Attacking a citizen or anything but a hostile mob, judged where the player stands, as the mod does. Lowest
      * priority: before MineCP hands a citizen's hit to its health. (Hostile players may attack guards, once there are any.)
@@ -174,7 +187,7 @@ final class Protection implements Listener {
     }
 
     private void keepColonyBlocks(List<Block> blocks) {
-        if (explosions != Explosions.EVERYTHING) blocks.removeIf(b -> plugin.colonyClaiming(b.getLocation()) != null);
+        if (explosions != Explosions.EVERYTHING) blocks.removeIf(b -> plugin.claims.colonyAt(b.getLocation()) != null);
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
@@ -187,6 +200,6 @@ final class Protection implements Listener {
             case PLAYERS -> !(hit instanceof Enemy) || hit instanceof Llama; // the mod's test, llamas included
             case NOTHING -> true;
         };
-        if (spare && !(hit instanceof Player) && plugin.colonyClaiming(hit.getLocation()) != null) e.setCancelled(true);
+        if (spare && !(hit instanceof Player) && plugin.claims.colonyAt(hit.getLocation()) != null) e.setCancelled(true);
     }
 }
