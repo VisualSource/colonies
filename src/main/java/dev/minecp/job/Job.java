@@ -241,7 +241,7 @@ public abstract class Job {
     }
 
     /** Same, and empties the block, so breaking it afterwards drops just the block. */
-    static List<ItemStack> takeContents(Block b) {
+    public static List<ItemStack> takeContents(Block b) {
         List<ItemStack> items = contents(b);
         Inventory inv = inventoryOf(b);
         if (inv != null) inv.clear();

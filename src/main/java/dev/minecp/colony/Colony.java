@@ -112,7 +112,7 @@ public final class Colony {
     }
 
     /** The box the hut's building covers as built (minX, maxX+1, minZ, maxZ+1), or null before level 1. */
-    int[] footprint(Hut h) {
+    public int[] footprint(Hut h) {
         if (!h.type.isBuilding() || h.level == 0) return null;
         if (h.builtBoxLevel != h.level) {
             h.builtBox = BuildOrder.footprint(h.structure(style, h.level), h.block, h.rotation, h.mirror);

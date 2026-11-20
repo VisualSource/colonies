@@ -8,8 +8,9 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 
 /**
- * The plugin's only use of server internals (Mojang names via paperweight-userdev), for what the API can't do.
- * Re-check against each new Minecraft/Paper release.
+ * Server internals (Mojang names via paperweight-userdev), for what the API can't do. The only other use is
+ * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Re-check both against each new
+ * Minecraft/Paper release.
  */
 final class Nms {
     private Nms() {}

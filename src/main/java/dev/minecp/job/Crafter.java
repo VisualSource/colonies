@@ -57,13 +57,15 @@ public final class Crafter extends Job {
     private int hits;
     private List<Block> furnaces = List.of();
     private int scan;
+    private final Colony colony; // smelters only: for the furnaces in their building; null for table crafters
 
     public Crafter(Hut hut, Predicate<Recipe> accepts, String makes) {
-        this(hut, accepts, makes, false, false);
+        this(hut, null, accepts, makes, false, false);
     }
 
-    public Crafter(Hut hut, Predicate<Recipe> accepts, String makes, boolean smelts, boolean oreSmelter) {
+    public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes, boolean smelts, boolean oreSmelter) {
         super(hut);
+        this.colony = colony;
         this.accepts = accepts;
         this.makes = makes;
         this.smelts = smelts;
@@ -275,7 +277,7 @@ public final class Crafter extends Job {
 
     /** Fills its furnaces from the chest, keeps them fuelled, and empties what they made into the chest. */
     private void smelt(Colonist w, Inventory chest) {
-        if (scan-- <= 0) { furnaces = Furnaces.near(hut.block, Material.FURNACE); scan = 200; }
+        if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE); scan = 200; }
         if (furnaces.isEmpty()) { idle(w, "No furnace in the building to smelt in.", 40, hut.block); return; }
         if (Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel)) return;
         boolean waiting = false;

@@ -1,6 +1,8 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
 
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -18,8 +20,7 @@ import java.util.function.Supplier;
 /** The furnaces in a hut's building, tended by its worker: the cook's furnaces and smokers, the smelters' furnaces. */
 final class Furnaces {
     // Ours, not the mod's (its workers use the furnaces their building registers):
-    private static final int RANGE = 12;  // how far from the hut chest its furnaces may be (the buildings are ~25 wide)
-    private static final int HEIGHT = 4;
+    private static final int HEIGHT = 4;  // blocks above and below the hut block
     private static final int LOAD = 16;   // input or fuel put in a furnace at a time
 
     private Furnaces() {}
@@ -30,14 +31,21 @@ final class Furnaces {
         return m.isFuel() && !m.isEdible() && m != Material.LAVA_BUCKET;
     }
 
-    /** The blocks of these types near a hut block (its building's furnaces and smokers). */
-    static List<Block> near(Block hut, Material... types) {
+    /**
+     * The blocks of these types inside the hut's own building (its furnaces and smokers): only its outline, so huts next
+     * to each other don't share furnaces, and players' furnaces outside it are left alone. None before level 1.
+     */
+    static List<Block> in(Colony colony, Hut hut, Material... types) {
         List<Block> found = new ArrayList<>();
+        int[] box = colony.footprint(hut); // minX, maxX+1, minZ, maxZ+1
+        if (box == null) return found;
         var wanted = EnumSet.noneOf(Material.class);
         wanted.addAll(List.of(types));
-        for (int dx = -RANGE; dx <= RANGE; dx++) for (int dz = -RANGE; dz <= RANGE; dz++)
-            for (int dy = -HEIGHT; dy <= HEIGHT; dy++) {
-                Block b = hut.getRelative(dx, dy, dz);
+        var w = hut.block.getWorld();
+        int y0 = hut.block.getY();
+        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++)
+            for (int y = y0 - HEIGHT; y <= y0 + HEIGHT; y++) {
+                Block b = w.getBlockAt(x, y, z);
                 if (wanted.contains(b.getType())) found.add(b);
             }
         return found;

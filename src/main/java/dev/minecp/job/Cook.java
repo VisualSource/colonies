@@ -22,7 +22,7 @@ import java.util.List;
 
 /**
  * The restaurant: the cook serves citizens waiting at the Cook's Hut with food from its chest, and keeps the
- * furnaces and smokers near the hut cooking the raw food in the chest, with fuel from the chest.
+ * furnaces and smokers in its building cooking the raw food in the chest, with fuel from the chest.
  */
 public final class Cook extends Job {
 
@@ -30,9 +30,11 @@ public final class Cook extends Job {
     private final List<ItemStack> serving = new ArrayList<>(); // food it carries to the next customer
     private List<Block> furnaces = List.of();
     private int scan = 0;
+    private final Colony colony;
 
-    public Cook(Hut hut) {
+    public Cook(Hut hut, Colony colony) {
         super(hut);
+        this.colony = colony;
     }
 
     private static final int STOCK = 32; // ours: food, raw food and fuel it keeps on hand
@@ -103,7 +105,7 @@ public final class Cook extends Job {
             }
         }
 
-        if (scan-- <= 0) { furnaces = Furnaces.near(hut.block, Material.FURNACE, Material.SMOKER); scan = 200; }
+        if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE, Material.SMOKER); scan = 200; }
         if (furnaces.isEmpty()) { idle(w, "No furnace or smoker near the hut to cook with.", 40, hut.block); return; }
         if (Furnaces.tend(this, w, furnaces, chest, () -> Furnaces.first(chest, i -> Food.cooked().containsKey(i.getType())), Furnaces::isFuel)) return;
         idle(w, waiting.isEmpty() ? null : note, 40, hut.block);

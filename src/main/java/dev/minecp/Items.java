@@ -42,7 +42,7 @@ public final class Items implements Listener {
      * data pack, because only plugin recipes can demand an exact item: an ordinary stick never matches the Build Tool.
      */
     void addRecipes() {
-        RecipeChoice tool = new RecipeChoice.ExactChoice(buildTool());
+        RecipeChoice tool = RecipeChoice.exactChoice(buildTool());
         for (Hut.Type type : Hut.Type.values()) {
             RecipeChoice centre = type == Hut.Type.TOWN_HALL ? tool : type.centre == null ? null : type.centre.get();
             if (centre == null) continue;
@@ -74,7 +74,7 @@ public final class Items implements Listener {
         ShapedRecipe field = new ShapedRecipe(key("field"), hutItem(Hut.Type.FIELD));
         field.shape(" H ", "SLS", " S ");
         field.setIngredient('H', new RecipeChoice.MaterialChoice(Material.HAY_BLOCK, Material.PUMPKIN));
-        field.setIngredient('S', new RecipeChoice.ExactChoice(new ItemStack(Material.STICK))); // plain sticks, never the Build Tool
+        field.setIngredient('S', RecipeChoice.exactChoice(new ItemStack(Material.STICK))); // plain sticks, never the Build Tool
         field.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
         add(field);
     }

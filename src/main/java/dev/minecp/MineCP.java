@@ -35,8 +35,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -134,15 +136,20 @@ public final class MineCP extends JavaPlugin implements Listener {
     private void hook(Colony c) {
         c.onClaimsChanged = this::reindex;
         c.milestones = Advancements.forColony(c);
-        c.onTakenDown = hut -> { // as breaking the hut block: its chest's contents and the hut item drop there
-            var at = hut.block.getLocation().toCenterLocation();
-            if (hut.block.getState(false) instanceof Container ct) {
-                for (ItemStack item : ct.getInventory().getContents()) if (item != null) at.getWorld().dropItemNaturally(at, item);
-                ct.getInventory().clear();
-            }
+        // A removal order finished, maybe with nobody near: its chest's contents and the hut item go to the warehouse,
+        // then the Builder's Hut chest; only what fits in neither drops, at the Builder's Hut, where someone will look.
+        c.onTakenDown = hut -> {
+            List<ItemStack> left = new ArrayList<>(Job.takeContents(hut.block));
+            left.add(items.hutItem(hut.type));
             hut.block.setType(Material.AIR);
             c.removeHut(hut);
-            at.getWorld().dropItemNaturally(at, items.hutItem(hut.type));
+            var wh = c.warehouse(); // the hut just removed is no longer the colony's warehouse
+            if (wh != null) left = wh.store(left);
+            Block builderHut = c.builder != null ? c.builder.hut.block : hut.block;
+            if (builderHut.getState(false) instanceof Container ct)
+                left = new ArrayList<>(ct.getInventory().addItem(left.toArray(ItemStack[]::new)).values());
+            var at = builderHut.getLocation().toCenterLocation();
+            left.forEach(i -> at.getWorld().dropItemNaturally(at, i));
             save(c);
         };
     }

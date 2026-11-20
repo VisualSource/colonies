@@ -1,0 +1,4 @@
+# The Unix start script must keep LF endings, or WSL/Linux can't run it (/bin/sh^M: bad interpreter)
+/gradlew        text eol=lf
+# Windows scripts keep CRLF
+*.bat           text eol=crlf
