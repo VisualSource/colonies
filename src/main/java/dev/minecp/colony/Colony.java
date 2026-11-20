@@ -29,13 +29,18 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * A player's colony: its huts (the town hall first), citizens, and the builder's queue of hut upgrades.
  * Rules: levels above 1 need the town hall at that level or higher; housing room is
- * {@link #STARTING_CITIZENS} plus the total level of all houses, and a citizen moves in every
+ * {@link #STARTING_CITIZENS} plus the total level of all houses. A new colony has nobody: the first
+ * {@link #STARTING_CITIZENS} move in one by one at the town hall, as in the mod; after them a citizen moves in every
  * {@link #GROWTH_TICKS} while there is room.
  */
 public final class Colony {
     private static final int STARTING_CITIZENS = 4; // the mod's initialcitizenamount default
     // Ours: the mod spawns only the starting citizens on a timer; the rest come from the tavern and children.
     private static final int GROWTH_TICKS = 20 * 120;
+    // The mod's starting citizens (CitizenManager.onColonyTick): every colony tick (500 ticks) the countdown drops by
+    // 500 plus 60 per town hall level; one moves in when it runs out, and it starts again at 60 s (first time: 30 s).
+    private static final int COLONY_TICK = 500;
+    private int moveIn = 30 * 20, colonyTick;
     private static final String[] FEMALE = {"Ada", "Cora", "Edda", "Greta", "Ivy", "Lena", "Nell", "Pia", "Rosa",
             "Tilda", "Vera", "Yara"};
     private static final String[] MALE = {"Bram", "Dell", "Finn", "Hal", "Jory", "Milo", "Otto", "Sven", "Ulric",
@@ -53,6 +58,13 @@ public final class Colony {
     public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     public static final String DEFAULT_STYLE = "medievaloak";
     public String style = DEFAULT_STYLE; // structure pack hut buildings come from
+    /** The style packs MineCP knows of (tools/convert_blueprints.py makes their data packs). */
+    private static final String[] STYLES = {"medievaloak", "medievalspruce", "medievalbirch", "medievaldarkoak", "cavern"};
+
+    /** The styles whose data pack is installed (it has a town hall). */
+    public static List<String> styles() {
+        return java.util.Arrays.stream(STYLES).filter(s -> BuildOrder.exists(Hut.Type.TOWN_HALL.structure(s, 1))).toList();
+    }
     private int growth = 0;
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
@@ -61,6 +73,17 @@ public final class Colony {
     public final Requests requests = new Requests(this);
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
     public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
+    /** What the colony reports as it grows, for advancements; the plugin sets it. */
+    public interface Milestones {
+        default void queued(Hut.Type type, int level) {}
+        default void built(Hut.Type type, int level) {}
+        default void population(int citizens) {}
+        default void ate() {}
+        default void taught(org.bukkit.Material result) {}
+    }
+
+    public Milestones milestones = new Milestones() {};
+    public java.util.function.Consumer<Hut> onTakenDown = h -> {}; // a removal order finished: the plugin removes the hut
     private java.util.Set<Long> claims;
 
     Colony(UUID owner, String name, Block townHall, int townHallLevel) {
@@ -73,7 +96,6 @@ public final class Colony {
     public static Colony found(UUID owner, String name, Block townHall) {
         Colony colony = new Colony(owner, name, townHall, 0);
         colony.founded = System.currentTimeMillis();
-        for (int i = 0; i < STARTING_CITIZENS; i++) colony.addCitizen();
         return colony;
     }
 
@@ -118,10 +140,19 @@ public final class Colony {
     }
 
     private void addCitizen() {
-        var rnd = ThreadLocalRandom.current();
-        boolean female = rnd.nextBoolean();
+        // As the mod: the first is either, then whichever is fewer (half of those already here, rounding towards female).
+        long females = colonists.stream().filter(Colonist::female).count();
+        boolean female = colonists.isEmpty() ? ThreadLocalRandom.current().nextBoolean() : females < colonists.size() / 2.0;
         colonists.add(new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female),
                 townHall().block.getLocation().toCenterLocation()));
+    }
+
+    private void moveIn() {
+        addCitizen();
+        assignHomes();
+        assignJobs();
+        tell(colonists.getLast().name + " moved into " + name + ".");
+        milestones.population(colonists.size());
     }
 
     private String uniqueName(boolean female) {
@@ -230,10 +261,16 @@ public final class Colony {
                     tell("A field came with the building: right-click its hay bale to choose a crop.");
                 }
             if (done == null) { tell("Your builder finished the build."); return; }
+            if (done.remove()) {
+                tell("Your builder took down the " + done.hut().type.title + ".");
+                onTakenDown.accept(done.hut());
+                return;
+            }
             done.hut().level = done.level();
             assignHomes();
             claimsChanged(); // a higher level claims more
             tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
+            milestones.built(done.hut().type, done.level());
         });
         b.protect = this::isHutBlock;
     }
@@ -296,6 +333,20 @@ public final class Colony {
             if (owner != null && owner != this) return "Level " + next + " of the " + hut.type.title + " would reach into " + owner.name + ".";
         }
         workOrders.add(new Hut.WorkOrder(hut, next));
+        milestones.queued(hut.type, next);
+        return null;
+    }
+
+    /**
+     * Queues taking the hut's building down (the mod's removal work order, level 0 here): the builder clears what is
+     * left of it, then the hut is removed and its item dropped. @return why it can't, or null when queued.
+     */
+    public String requestRemoval(Hut hut) {
+        if (builder == null) return "Place a Builder's Hut first: the builder takes buildings down too.";
+        if (!hut.type.removable()) return "Break the hut block to remove the " + hut.type.title + ".";
+        if (hut.level == 0) return "Nothing is built there: break the hut block to remove it.";
+        if (upgradeOf(hut) != null) return "Cancel its queued work first.";
+        workOrders.add(new Hut.WorkOrder(hut, hut.level, true));
         return null;
     }
 
@@ -314,12 +365,12 @@ public final class Colony {
         if (builder != null && builder.order == null && !workOrders.isEmpty()) startNextWorkOrder();
         if (++growth >= GROWTH_TICKS) {
             growth = 0;
-            if (colonists.size() < capacity()) {
-                addCitizen();
-                assignHomes();
-                assignJobs();
-                tell(colonists.getLast().name + " moved into " + name + ".");
-            }
+            if (colonists.size() >= STARTING_CITIZENS && colonists.size() < capacity()) moveIn();
+        }
+        if (++colonyTick % COLONY_TICK == 0 && colonists.size() < STARTING_CITIZENS
+                && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
+            moveIn = 60 * 20;
+            moveIn();
         }
         long time = townHall().block.getWorld().getTime(); // 0..23999
         routine.clock(time);
@@ -379,7 +430,9 @@ public final class Colony {
         Hut.WorkOrder w = workOrders.removeFirst();
         String structure = w.hut().structure(style, w.level());
         // A hut building is anchored on its hut block, turned as chosen with the build tool (by hand: the block's facing).
+        // shortcut: uses the colony's style now; if it changed since the hut was built, little matches and little is taken down
         BuildOrder o = BuildOrder.create(structure, w.hut().block.getLocation(), w.hut().rotation, w.hut().mirror, w.hut().block);
+        if (o != null && w.remove()) o = o.removal(); // the building at that level, as it stands
         if (o == null) tell("Structure " + structure + " not found; upgrade skipped.");
         else builder.start(o, w);
     }

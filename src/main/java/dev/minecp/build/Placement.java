@@ -132,7 +132,7 @@ public final class Placement implements Listener {
 
     /** The building as it would stand now. Null if its structure is missing. */
     private static BuildOrder order(Session s) {
-        return BuildOrder.create(s.style + "/" + s.type.path + 1, s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.anchor);
+        return BuildOrder.create(s.type.structure(s.style, 1), s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.anchor);
     }
 
     /** Replaces the preview. @return false (and ends placement) if the structure is missing. */

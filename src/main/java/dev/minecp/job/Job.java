@@ -140,6 +140,32 @@ public abstract class Job {
         return true;
     }
 
+    /** Most health its worker can have (the knight has more). */
+    public double maxHealth() {
+        return Colonist.MAX_HEALTH;
+    }
+
+    /** What of a hit reaches its worker (the knight's armor takes some). */
+    public double afterArmor(double damage) {
+        return damage;
+    }
+
+    /** Its worker was hurt by {@code source} (null: no entity): true if it stands and fights instead of running away. */
+    public boolean fightsBack(org.bukkit.entity.Entity source) {
+        return false;
+    }
+
+    /** Whether its worker goes to bed at night (the knight stays on duty). */
+    public boolean sleepsAtNight() {
+        return true;
+    }
+
+    /** A tool for digging this hut allows (not a sword): workers that dig keep these in their chest. */
+    boolean isDiggingTool(ItemStack item) {
+        for (Tool t : Tool.values()) if (t != Tool.SWORD && fits(t, item, null)) return true;
+        return false;
+    }
+
     /** The mod lets only the cook and fully upgraded huts' workers work in the rain. */
     public boolean worksInRain() {
         return hut.level >= Hut.MAX_LEVEL;

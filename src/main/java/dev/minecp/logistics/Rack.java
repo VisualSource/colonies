@@ -26,6 +26,7 @@ public final class Rack {
             m.lore(List.of(Component.text("Storage for colony buildings", NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
         });
+        dev.minecp.Items.model(item, "rack");
         return item;
     }
 

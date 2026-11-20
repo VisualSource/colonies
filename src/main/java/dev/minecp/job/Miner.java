@@ -309,7 +309,8 @@ public final class Miner extends Job {
     private BuildOrder centered(String file, Block center, int half, StructureRotation r) {
         BlockVector off = BuildOrder.rotate(new BlockVector(half, 0, half), r);
         Block origin = center.getRelative(-off.getBlockX(), 0, -off.getBlockZ());
-        return BuildOrder.create(colony.style + SHAFTS + file, origin.getLocation(), r, null);
+        String style = BuildOrder.exists(colony.style + SHAFTS + file) ? colony.style : Colony.DEFAULT_STYLE; // the cavern style has no shafts
+        return BuildOrder.create(style + SHAFTS + file, origin.getLocation(), r, null);
     }
 
     private void workOrder(Colonist w) {
@@ -567,7 +568,7 @@ public final class Miner extends Job {
     /** Tools, cobblestone, ladders and the current structure's materials stay; the ore and stone go to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        for (Tool t : Tool.values()) if (fits(t, item, null)) return Integer.MAX_VALUE;
+        if (isDiggingTool(item)) return Integer.MAX_VALUE;
         Material m = item.getType();
         if (m == Material.COBBLESTONE) return COBBLE_STOCK;
         if (m == Material.LADDER) return LADDER_STOCK;

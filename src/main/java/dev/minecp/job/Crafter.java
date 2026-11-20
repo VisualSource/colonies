@@ -12,8 +12,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.Keyed;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Tag;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.block.Block;
+import org.bukkit.inventory.CookingRecipe;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
@@ -28,32 +29,56 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * A crafter (the mod's AbstractEntityAICrafting and crafting modules): it is taught crafting-table recipes of its kind,
- * up to 2^level x 5, and crafts what the colony's requests ask for (Requests assigns them). It asks for the ingredients
- * like any hut; what it makes waits in its chest until a courier takes it straight to the hut that asked, as the mod's
- * delivery requests do.
+ * A crafter (the mod's AbstractEntityAICrafting and crafting modules): it is taught recipes of its kind
+ * ({@link CraftRules}), up to 2^level x 5, and crafts what the colony's requests ask for (Requests assigns them). It
+ * asks for the ingredients like any hut; what it makes waits in its chest until a courier takes it straight to the hut
+ * that asked, as the mod's delivery requests do. Smelters (the mod's AbstractEntityAIRequestSmelter) learn furnace
+ * recipes and smelt in the furnaces of their building, with fuel they ask for; the Smeltery knows every ore and also
+ * smelts whatever ore it is brought.
  */
 public final class Crafter extends Job {
     private static final int HITS = 3;       // the mod's HITTING_TIME at a typical skill (it is 30 with no skill at all)
     private static final int HIT_TICKS = 10; // the mod's HIT_DELAY
     private static final int EXTRA_RECIPES = 5; // the mod's EXTRA_RECIPE_MULTIPLIER
 
-    /** The sawmill's recipes, by the mod's BuildingSawmill rule: wood ingredients over the rest, above 0.75. */
-    static final double MIN_WOOD_RATIO = 0.75; // the mod's Sawmill rule: more than this
-    public static final Predicate<Recipe> SAWMILL = r -> woodRatio(r) > MIN_WOOD_RATIO;
+    private static final int FUEL = 16; // ours, as the cook: fuel it keeps on hand, asked for once below this
+    private static final int ORES = 32; // ours: ores the Smeltery asks the warehouse for at a time
 
     private final Predicate<Recipe> accepts;
     /** What this crafter makes, for the menus. */
     public final String makes;
+    /** It smelts furnace recipes rather than crafting at a table. */
+    public final boolean smelts;
+    /** The Smeltery: knows every ore recipe without being taught, and asks for and smelts any ore. */
+    public final boolean oreSmelter;
     public final List<NamespacedKey> recipes = new ArrayList<>(); // taught; saved
     /** Requests Requests gave it to craft, refreshed each second. */
     public final List<Requests.Request> tasks = new ArrayList<>();
     private int hits;
+    private List<Block> furnaces = List.of();
+    private int scan;
 
     public Crafter(Hut hut, Predicate<Recipe> accepts, String makes) {
+        this(hut, accepts, makes, false, false);
+    }
+
+    public Crafter(Hut hut, Predicate<Recipe> accepts, String makes, boolean smelts, boolean oreSmelter) {
         super(hut);
         this.accepts = accepts;
         this.makes = makes;
+        this.smelts = smelts;
+        this.oreSmelter = oreSmelter;
+        if (oreSmelter) for (Recipe r : teachable()) recipes.add(((Keyed) r).getKey());
+    }
+
+    /** Every recipe on the server it could be taught and doesn't know yet. */
+    public List<Recipe> teachable() {
+        List<Recipe> out = new ArrayList<>();
+        for (var it = Bukkit.recipeIterator(); it.hasNext(); ) {
+            Recipe r = it.next();
+            if (r instanceof Keyed k && !k.getKey().getNamespace().equals("minecp") && !recipes.contains(k.getKey()) && accepts.test(r)) out.add(r);
+        }
+        return out;
     }
 
     // ---- recipes ------------------------------------------------------------------------------------------------
@@ -64,7 +89,9 @@ public final class Crafter extends Job {
 
     /** Teaches it a recipe. @return why not, or null when learnt. */
     public String teach(Recipe r) {
-        if (!(r instanceof ShapedRecipe || r instanceof ShapelessRecipe) || !(r instanceof Keyed k)) return "Only crafting table recipes can be taught.";
+        if (oreSmelter) return "It already knows every recipe it can use.";
+        if (!(smelts ? r instanceof CookingRecipe<?> : r instanceof ShapedRecipe || r instanceof ShapelessRecipe) || !(r instanceof Keyed k))
+            return smelts ? "Only furnace recipes can be taught." : "Only crafting table recipes can be taught.";
         if (k.getKey().getNamespace().equals("minecp")) return "Huts, racks and goggles can't be taught: they need the Build Tool."; // the mod's blocks aren't crafter recipes either
         if (recipes.contains(k.getKey())) return "It already knows that recipe.";
         if (!accepts.test(r)) return "The " + hut.type.worker + " can't make that: " + makes + ".";
@@ -102,36 +129,16 @@ public final class Crafter extends Job {
                 if (c != null) out.merge(c, 1, Integer::sum);
             }
         } else if (r instanceof ShapelessRecipe s) for (RecipeChoice c : s.getChoiceList()) out.merge(c, 1, Integer::sum);
+        else if (r instanceof CookingRecipe<?> c) out.put(c.getInputChoice(), 1);
         return out;
     }
 
-    /**
-     * The mod's sawmill ratio, checked on each ingredient's first item: wood ingredients (planks, logs, and items
-     * with "wood" in a tag) over every ingredient that isn't planks or logs. Planks and logs count only on top, so
-     * 2 planks + 2 iron is 1.0; a recipe of only planks and logs divides by zero and passes, as in the mod.
-     */
-    private static double woodRatio(Recipe r) {
-        int planksAndLogs = 0, otherWood = 0, rest = 0;
-        for (var e : ingredients(r).entrySet()) {
-            Material m = e.getKey().getItemStack().getType();
-            if (Tag.PLANKS.isTagged(m) || Tag.LOGS.isTagged(m)) planksAndLogs += e.getValue();
-            else if (woodTagged(m)) otherWood += e.getValue();
-            else rest += e.getValue();
-        }
-        return woodRatio(planksAndLogs, otherWood, rest);
-    }
+    static final double MIN_WOOD_RATIO = 0.75; // the mod's Sawmill: the wood ratio must be above this
 
-    /** The mod's ratio: every wood item over every ingredient that isn't planks or logs. */
+    /** The mod's sawmill ratio (CraftRules.SAWMILL): every wood item over every ingredient that isn't planks or logs. */
     static double woodRatio(int planksAndLogs, int otherWood, int rest) {
         int wood = planksAndLogs + otherWood;
         return wood > 0 ? (double) wood / (otherWood + rest) : 0; // wood / 0 is infinity, above 0.75
-    }
-
-    /** Items with "wood" in one of their tags, as the mod checks: sticks (c:rods/wooden), wooden slabs, stairs and so on. */
-    private static boolean woodTagged(Material m) {
-        return Tag.BAMBOO_BLOCKS.isTagged(m) || m == Material.STICK || Tag.WOODEN_SLABS.isTagged(m) || Tag.WOODEN_STAIRS.isTagged(m)
-                || Tag.WOODEN_FENCES.isTagged(m) || Tag.WOODEN_DOORS.isTagged(m) || Tag.WOODEN_TRAPDOORS.isTagged(m)
-                || Tag.WOODEN_BUTTONS.isTagged(m) || Tag.WOODEN_PRESSURE_PLATES.isTagged(m);
     }
 
     private static String label(RecipeChoice c) {
@@ -148,9 +155,22 @@ public final class Crafter extends Job {
      * themselves; otherwise it would ask itself in a loop).
      */
     private int craftsLeft(Requests.Request t, Recipe r, boolean raw) {
-        int ready = raw ? inChest(t.test()) : ready(t.test());
+        int ready = (raw ? inChest(t.test()) : ready(t.test())) + inFurnaces(r);
         int per = Math.max(1, r.getResult().getAmount());
         return Math.max(0, (owed(t) - ready + per - 1) / per);
+    }
+
+    /** What its furnaces are smelting with {@code r} or have smelted, counted as made: it is on its way to the chest. */
+    private int inFurnaces(Recipe r) {
+        if (!(r instanceof CookingRecipe<?> c)) return 0;
+        int n = 0;
+        for (Block b : furnaces) {
+            if (!(b.getState(false) instanceof org.bukkit.block.Furnace f)) continue;
+            ItemStack in = f.getInventory().getSmelting(), out = f.getInventory().getResult();
+            if (in != null && !in.isEmpty() && c.getInputChoice().test(in)) n += in.getAmount() * r.getResult().getAmount();
+            if (out != null && !out.isEmpty() && out.isSimilar(r.getResult())) n += out.getAmount();
+        }
+        return n;
     }
 
     /** What it still owes this request: its share, but no more than the hut still needs once loads on their way arrive. */
@@ -167,6 +187,10 @@ public final class Crafter extends Job {
             int more = n - inChest(c::test);
             if (more > 0) wants.add(new Want(label(c), c::test, more));
         });
+        if (oreSmelter && hut.level >= 1 && inChest(Crafter::isOre) < ORES / 2) // the mod's smelter asks for any ore, minimum 1
+            wants.add(new Want("ores to smelt", Crafter::isOre, ORES - inChest(Crafter::isOre), 1));
+        if (smelts && !furnaces.isEmpty() && (!need.isEmpty() || oreSmelter) && inChest(this::isFuel) < FUEL / 2)
+            wants.add(new Want("fuel", this::isFuel, FUEL - inChest(this::isFuel), 1)); // as the mod's fuel request: minimum 1
         return wants;
     }
 
@@ -188,6 +212,7 @@ public final class Crafter extends Job {
         long keep = 0;
         for (var e : needed().entrySet()) if (e.getKey().test(item)) keep += e.getValue(); // the whole ingredient, any log it takes
         for (Requests.Request t : tasks) if (t.test().test(item)) keep += owed(t);
+        if (smelts && isFuel(item) || oreSmelter && isOre(item)) return Integer.MAX_VALUE;
         return (int) Math.min(Integer.MAX_VALUE, keep);
     }
 
@@ -223,6 +248,7 @@ public final class Crafter extends Job {
         if (w.isMoving() || --cooldown > 0) return;
         Inventory chest = chest();
         if (chest == null) return;
+        if (smelts) { smelt(w, chest); return; }
         Recipe ready = null;
         boolean anyWork = false;
         for (Requests.Request t : tasks) {
@@ -245,6 +271,44 @@ public final class Crafter extends Job {
         if (++hits < HITS) return;
         hits = 0;
         craft(chest, ready);
+    }
+
+    /** Fills its furnaces from the chest, keeps them fuelled, and empties what they made into the chest. */
+    private void smelt(Colonist w, Inventory chest) {
+        if (scan-- <= 0) { furnaces = Furnaces.near(hut.block, Material.FURNACE); scan = 200; }
+        if (furnaces.isEmpty()) { idle(w, "No furnace in the building to smelt in.", 40, hut.block); return; }
+        if (Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel)) return;
+        boolean waiting = false;
+        for (Requests.Request t : tasks) { Recipe r = recipeFor(t.test()); waiting |= r != null && craftsLeft(t, r, false) > 0; }
+        idle(w, waiting ? "Waiting for something to smelt, or fuel, in the hut chest." : null, 40, hut.block);
+    }
+
+    /**
+     * Fuel for this smelter: anything that burns, except what its recipes smelt or make (the Stone Smeltery's logs
+     * become charcoal: burning them, or the charcoal, would undo its work).
+     */
+    private boolean isFuel(ItemStack i) {
+        if (!Furnaces.isFuel(i)) return false;
+        for (NamespacedKey key : recipes)
+            if (Bukkit.getRecipe(key) instanceof CookingRecipe<?> r && (r.getInputChoice().test(i) || r.getResult().getType() == i.getType())) return false;
+        return true;
+    }
+
+    /** What to put in an empty furnace: the input of a task still to make (no more than it needs), else any ore it knows. */
+    private ItemStack nextInput(Inventory chest) {
+        for (Requests.Request t : tasks) {
+            Recipe r = recipeFor(t.test());
+            int crafts = r instanceof CookingRecipe<?> ? craftsLeft(t, r, false) : 0;
+            if (crafts <= 0) continue;
+            for (ItemStack i : chest.getContents())
+                if (i != null && !i.isEmpty() && ((CookingRecipe<?>) r).getInputChoice().test(i)) return i.asQuantity(Math.min(i.getAmount(), crafts));
+        }
+        if (oreSmelter) for (ItemStack i : chest.getContents()) if (i != null && !i.isEmpty() && isOre(i)) return i;
+        return null;
+    }
+
+    private static boolean isOre(ItemStack i) {
+        return CraftRules.isOre(i.getType());
     }
 
     private boolean hasIngredients(Inventory chest, Recipe r) {
@@ -275,8 +339,9 @@ public final class Crafter extends Job {
             lines.add(Component.text("The " + hut.type.worker.toLowerCase() + " starts once level 1 is built.", NamedTextColor.GRAY));
             return lines;
         }
-        lines.add(Component.text("Crafts what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
-                + maxRecipes() + ". It makes " + makes + ".", NamedTextColor.GRAY));
+        lines.add(Component.text(oreSmelter ? "Smelts the ores couriers bring from the warehouse, and the ingots huts ask for. Needs fuel and furnaces in its building."
+                : (smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
+                + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));
         for (Requests.Request t : tasks)
             lines.add(Component.text("Crafting " + owed(t) + " × " + t.label() + " for the " + t.job.hut.type.title + "."));
         return lines;
@@ -285,7 +350,7 @@ public final class Crafter extends Job {
     @Override
     public void save(ConfigurationSection s, Colony c) {
         super.save(s, c);
-        s.set("recipes", recipes.stream().map(NamespacedKey::toString).toList());
+        if (!oreSmelter) s.set("recipes", recipes.stream().map(NamespacedKey::toString).toList());
     }
 
     @Override
@@ -293,7 +358,7 @@ public final class Crafter extends Job {
         super.load(s, c);
         for (String k : s.getStringList("recipes")) {
             NamespacedKey key = NamespacedKey.fromString(k);
-            if (key != null && Bukkit.getRecipe(key) != null) recipes.add(key);
+            if (key != null && Bukkit.getRecipe(key) != null && !recipes.contains(key)) recipes.add(key);
         }
     }
 }

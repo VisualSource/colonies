@@ -54,10 +54,10 @@ public final class Menus {
         Builder b = c.builder;
         if (up != null && b != null && b.work == up) {
             int total = b.order.steps.size(), left = (int) b.order.upcoming().stream().filter(s -> !s.done()).count();
-            body.add(text(Component.text("Building level " + up.level() + ": " + (100 * (total - left) / Math.max(total, 1))
+            body.add(text(Component.text((up.remove() ? "Taking it down" : "Building level " + up.level()) + ": " + (100 * (total - left) / Math.max(total, 1))
                     + "% (" + left + " blocks left)")));
         } else if (up != null)
-            body.add(text(Component.text("Level " + up.level() + " is queued for the builder (#"
+            body.add(text(Component.text(up.what() + " is queued for the builder (#"
                     + (c.workOrders.indexOf(up) + 1) + ").")));
 
         switch (h.type) {
@@ -70,7 +70,7 @@ public final class Menus {
                         (hungry > 0 ? hungry + " hungry" : "") + (hungry > 0 && homeless > 0 ? ", " : "")
                         + (homeless > 0 ? homeless + " homeless" : ""), NamedTextColor.YELLOW)));
                 if (!c.workOrders.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ",
-                        c.workOrders.stream().map(w -> w.hut().type.title + " " + w.level()).toList()), NamedTextColor.GRAY)));
+                        c.workOrders.stream().map(w -> w.hut().type.title + (w.remove() ? " (take down)" : " " + w.level())).toList()), NamedTextColor.GRAY)));
             }
             case FIELD -> { field(p, c, h); return; }
             case WAREHOUSE -> {
@@ -100,19 +100,17 @@ public final class Menus {
                     : worker.name + " — " + worker.status())));
             job.info(c).forEach(line -> body.add(text(line)));
             if (job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
-            for (Requests.Request r : c.requests.of(job)) body.add(text(request(r, false)));
         }
 
         List<ActionButton> buttons = new ArrayList<>();
+        if (job != null && !c.requests.of(job).isEmpty()) // a list of its own: the builder can wait for dozens of things
+            buttons.add(button("Requests (" + c.requests.of(job).size() + ")", p, c, h, player -> requests(player, c, h, job)));
         if (h.type.isBuilding() && up == null && h.level < Hut.MAX_LEVEL)
-            buttons.add(button(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, Action.MANAGE_HUTS, player -> {
-                String problem = c.requestUpgrade(h, plugin.claims);
-                if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
-                plugin.save(c);
-                hut(player, c, h);
-            }));
+            buttons.add(order(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, () -> c.requestUpgrade(h, plugin.claims)));
+        if (h.type.removable() && up == null && h.level > 0)
+            buttons.add(order("Remove building", p, c, h, () -> c.requestRemoval(h)));
         if (up != null)
-            buttons.add(button("Cancel upgrade", p, c, h, Action.MANAGE_HUTS, player -> {
+            buttons.add(button(up.remove() ? "Cancel removal" : "Cancel upgrade", p, c, h, Action.MANAGE_HUTS, player -> {
                 c.cancelUpgrade(h);
                 plugin.save(c);
                 hut(player, c, h);
@@ -121,20 +119,38 @@ public final class Menus {
             var missing = job.materials(); // null once the work ended while the menu was open
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
-        if (job instanceof Crafter cr && h.level > 0) {
+        if (job instanceof Crafter cr && h.level > 0 && !cr.oreSmelter) { // the Smeltery knows every ore by itself
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
-            buttons.add(button("Teach a recipe", p, c, h, Action.MANAGE_HUTS, player -> plugin.teaching.start(player, c, cr)));
+            buttons.add(button("Teach a recipe", p, c, h, Action.MANAGE_HUTS, player -> {
+                if (cr.smelts) teachSmelting(player, c, h, cr);
+                else plugin.teaching.start(player, c, cr);
+            }));
         }
         if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
-            buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h)));
+            buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h, null)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
+            if (c.permissions.has(p, Action.MANAGE_HUTS)) buttons.add(button("Style: " + c.style, p, c, h, player -> styles(player, c, h)));
         }
         if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
             buttons.add(button("Open storage", p, c, h, Action.OPEN_CONTAINER, player -> {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
             }));
         Dialogs.show(p, h.type.title, body, List.of(), buttons, 1);
+    }
+
+    /** The colony's building style (the mod's town hall setting): every installed style, one button each. */
+    void styles(Player p, Colony c, Hut townHall) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (String style : Colony.styles())
+            buttons.add(button((style.equals(c.style) ? "▶ " : "") + style, p, c, townHall, Action.MANAGE_HUTS, player -> {
+                c.style = style;
+                plugin.save(c);
+                hut(player, c, townHall);
+            }));
+        buttons.add(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
+        Dialogs.show(p, "Style", List.of(text(Component.text("New buildings and upgrades are built in this style; what stands now stays as it is.",
+                NamedTextColor.GRAY))), List.of(), buttons, 1);
     }
 
     private static final String[] SIDES = {"North", "East", "South", "West"};
@@ -214,7 +230,7 @@ public final class Menus {
         for (Colonist x : c.colonists) {
             String food = x.saturation <= 0 ? ", starving" : x.saturation < Food.LOW_SATURATION ? ", hungry" : "";
             body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : "") + food
-                    + " (health " + (int) Math.ceil(x.health) + "/" + (int) Colonist.MAX_HEALTH
+                    + " (health " + (int) Math.ceil(x.health) + "/" + (int) c.health.max(x)
                     + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION + ")")));
             if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION)
                 body.add(text(Component.text("   " + x.hungerNote, NamedTextColor.YELLOW)));
@@ -242,13 +258,18 @@ public final class Menus {
                 r.state == Requests.State.WAITING ? NamedTextColor.YELLOW : NamedTextColor.GRAY);
     }
 
-    /** Every open request in the colony, from the town hall (the mod's request list; the clipboard comes later). */
-    void requests(Player p, Colony c, Hut townHall) {
+    /**
+     * The open requests of one hut's job, or of the whole colony ({@code job} null, from the town hall: the mod's request
+     * list; the clipboard comes later). Back returns to {@code from}.
+     */
+    void requests(Player p, Colony c, Hut from, Job job) {
         List<DialogBody> body = new ArrayList<>();
-        if (c.requests.all().isEmpty()) body.add(text(Component.text("No hut is waiting for anything.", NamedTextColor.GREEN)));
-        for (Requests.Request r : c.requests.all()) body.add(text(request(r, true)));
-        body.add(text(Component.text("Fill a request by putting the items in that hut's chest.", NamedTextColor.GRAY)));
-        Dialogs.show(p, "Requests", body, List.of(), List.of(button("Back", p, c, townHall, player -> hut(player, c, townHall))), 1);
+        var list = job == null ? c.requests.all() : c.requests.of(job);
+        if (list.isEmpty()) body.add(text(Component.text(job == null ? "No hut is waiting for anything." : "Nothing is needed now.", NamedTextColor.GREEN)));
+        for (Requests.Request r : list) body.add(text(request(r, job == null)));
+        body.add(text(Component.text("Fill a request by putting the items in " + (job == null ? "that hut's" : "the hut's") + " chest.", NamedTextColor.GRAY)));
+        Dialogs.show(p, job == null ? "Requests" : from.type.title + ": requests", body, List.of(),
+                List.of(button("Back", p, c, from, player -> hut(player, c, from))), 1);
     }
 
     /** A crafter's taught recipes, each with a button to forget it. */
@@ -270,6 +291,27 @@ public final class Menus {
         }
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, "Recipes", body, List.of(), buttons, 1);
+    }
+
+    /**
+     * The furnace recipes a smelter can still learn, one button each (the mod teaches them in a furnace screen; a
+     * furnace window can't show a recipe's result without smelting it, so this lists them).
+     */
+    void teachSmelting(Player p, Colony c, Hut h, Crafter cr) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (var r : cr.teachable()) {
+            var in = ((org.bukkit.inventory.CookingRecipe<?>) r).getInputChoice().getItemStack();
+            String label = Job.name(in.getType()) + " → " + Job.name(r.getResult().getType());
+            buttons.add(button(label, p, c, h, Action.MANAGE_HUTS, player -> {
+                String problem = cr.teach(r);
+                if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
+                else plugin.save(c);
+                teachSmelting(player, c, h, cr);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Teach a recipe", List.of(text(Component.text(cr.recipes.size() + " of " + cr.maxRecipes()
+                + " recipes. Click one for the " + h.type.worker.toLowerCase() + " to learn.", NamedTextColor.GOLD))), List.of(), buttons, 2);
     }
 
     private static DialogBody text(Component c) {
@@ -359,6 +401,16 @@ public final class Menus {
 
     private static void refuse(Player p, Colony c, Action a) {
         p.sendMessage(Component.text("You can't " + a.label.toLowerCase() + " in " + c.name + ".", NamedTextColor.RED));
+    }
+
+    /** A button that queues builder's work (MANAGE_HUTS): says why not, if it can't, and shows the hut menu again. */
+    private ActionButton order(String label, Player shownTo, Colony c, Hut h, java.util.function.Supplier<String> queue) {
+        return button(label, shownTo, c, h, Action.MANAGE_HUTS, player -> {
+            String problem = queue.get();
+            if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
+            plugin.save(c);
+            hut(player, c, h);
+        });
     }
 
     /** A button that also needs {@code need} when clicked: ranks can change while the menu is open. */

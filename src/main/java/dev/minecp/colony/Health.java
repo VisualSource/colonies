@@ -34,12 +34,19 @@ public final class Health {
     /** Every 5 seconds, unless a mob or player hurt it lately: more when well fed, as the mod's checkHeal. */
     void heal(Colonist c) {
         if (c.hurtTicks > 0) c.hurtTicks--;
+        c.health = Math.min(c.health, max(c)); // a former knight loses its extra health
         if (++c.healTicks < HEAL_TICKS) return;
         c.healTicks = 0;
-        if (c.health >= Colonist.MAX_HEALTH || c.hurtTicks > 0) return;
+        if (c.health >= max(c) || c.hurtTicks > 0) return;
         double amount = c.saturation >= Food.MAX_SATURATION ? 2
                 : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : 1;
-        c.health = Math.min(Colonist.MAX_HEALTH, c.health + amount);
+        c.health = Math.min(max(c), c.health + amount);
+    }
+
+    /** Most health it can have: its job's (a knight has more). */
+    public double max(Colonist c) {
+        Job job = colony.jobOf(c);
+        return job != null ? job.maxHealth() : Colonist.MAX_HEALTH;
     }
 
     /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
@@ -52,13 +59,18 @@ public final class Health {
         if (source != null && colony.colonistOf(source) != null) return;
         // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
         if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_CITIZEN)) return;
-        double damage = cause == DamageCause.VOID || cause == DamageCause.KILL
-                ? c.health : Math.min(e.getDamage(), Colonist.MAX_HEALTH * MAX_HIT);
+        Job job = colony.jobOf(c);
+        double hit = job != null ? job.afterArmor(e.getDamage()) : e.getDamage();
+        double damage = cause == DamageCause.VOID || cause == DamageCause.KILL ? c.health : Math.min(hit, max(c) * MAX_HIT);
         if (damage <= 0) return;
         c.health -= damage;
         c.showHurt();
         if (c.health <= 0) { die(c, cause, source); return; }
         c.wake(); // vanilla wakes any sleeper that is hurt; it flees first, then goes back to bed
+        if (job != null && job.fightsBack(source)) { // a knight doesn't run
+            if (source instanceof LivingEntity) c.hurtTicks = HEAL_TICKS;
+            return;
+        }
         if (source instanceof LivingEntity) {
             c.hurtTicks = HEAL_TICKS;
             c.flee(source.getLocation(), 15);

@@ -49,6 +49,7 @@ public final class Teaching implements Listener {
         String problem = s.crafter.teach(e.getRecipe());
         if (problem != null) { p.sendMessage(Component.text(problem, NamedTextColor.RED)); return; }
         plugin.save(s.colony);
+        s.colony.milestones.taught(e.getRecipe().getResult().getType());
         p.sendMessage(Component.text("Taught: " + e.getRecipe().getResult().getAmount() + " × ", NamedTextColor.GREEN)
                 .append(e.getRecipe().getResult().effectiveName()).append(Component.text(" (" + s.crafter.recipes.size() + " of "
                         + s.crafter.maxRecipes() + " recipes).")));

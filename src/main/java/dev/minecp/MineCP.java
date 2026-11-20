@@ -73,7 +73,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         items.addRecipes();
         saves = new Saves(new File(getDataFolder(), "colonies"), getLogger());
         saves.loadAll(colonies);
-        colonies.values().forEach(c -> c.onClaimsChanged = this::reindex);
+        colonies.values().forEach(this::hook);
+        Advancements.load(getLogger());
         reindex();
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(protection, this);
@@ -128,6 +129,23 @@ public final class MineCP extends JavaPlugin implements Listener {
         return null;
     }
 
+    /** What the plugin hears from a colony: claims changes and milestones. */
+    private void hook(Colony c) {
+        c.onClaimsChanged = this::reindex;
+        c.milestones = Advancements.forColony(c);
+        c.onTakenDown = hut -> { // as breaking the hut block: its chest's contents and the hut item drop there
+            var at = hut.block.getLocation().toCenterLocation();
+            if (hut.block.getState(false) instanceof Container ct) {
+                for (ItemStack item : ct.getInventory().getContents()) if (item != null) at.getWorld().dropItemNaturally(at, item);
+                ct.getInventory().clear();
+            }
+            hut.block.setType(Material.AIR);
+            c.removeHut(hut);
+            at.getWorld().dropItemNaturally(at, items.hutItem(hut.type));
+            save(c);
+        };
+    }
+
     public Colony graveColony(Block b) {
         for (Colony c : colonies.values()) if (c.graveAt(b) != null) return c;
         return null;
@@ -142,7 +160,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         Block at = e.getBlockPlaced();
         Colony c = type == Hut.Type.TOWN_HALL ? null : claims.colonyAt(at.getLocation());
         String style = c == null ? Colony.DEFAULT_STYLE : c.style;
-        int[] box = c != null && type.isBuilding() ? BuildOrder.footprint(style + "/" + type.path + 1, at, null, false) : null; // a town hall's isn't checked
+        int[] box = c != null && type.isBuilding() ? BuildOrder.footprint(type.structure(style, 1), at, null, false) : null; // a town hall's isn't checked
         String problem = placeProblem(p, type, at, box, false);
         if (problem != null) {
             e.setCancelled(true);
@@ -183,10 +201,11 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (type == Hut.Type.TOWN_HALL) {
             c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", at);
             colonies.put(c.owner, c);
-            c.onClaimsChanged = this::reindex;
+            hook(c);
+            Advancements.award(p, "minecolonies/root|minecolonies/place_townhall");
             reindex();
             hut = c.townHall();
-            p.sendMessage(Component.text(c.name + " founded with " + c.colonists.size() + " citizens!", NamedTextColor.GREEN));
+            p.sendMessage(Component.text(c.name + " founded! The first citizens will move in at the town hall over the next few minutes.", NamedTextColor.GREEN));
         } else {
             c = claims.colonyAt(at.getLocation()); // the colony whose land it is on, which may not be the placer's own
             hut = c.addHut(type, at);

@@ -46,6 +46,7 @@ final class Routine {
 
     /** Whether it must leave now to be home by nightfall, judging by how far it is (the mod's rule). */
     boolean shouldGoSleep(Colonist c, Job job, long time) {
+        if (job != null && !job.sleepsAtNight()) return false;
         Location at = c.location(), home = homeOf(c).block.getLocation();
         double extra = 0;
         if (job instanceof Miner && job.hut.block.getY() - 20 > at.getBlockY()) { // down the mine: first the way up

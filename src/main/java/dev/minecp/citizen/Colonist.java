@@ -62,6 +62,10 @@ public final class Colonist {
     public final UUID id;
     public final String name;
     public final int skin;
+
+    public boolean female() {
+        return skin % SKINS.length < FEMALE_SKINS;
+    }
     public Hut home; // the house the colonist lives in, or null
     public double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
     public static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH

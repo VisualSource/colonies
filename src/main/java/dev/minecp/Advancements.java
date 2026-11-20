@@ -1,0 +1,165 @@
+package dev.minecp;
+
+import dev.minecp.colony.Action;
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.Tag;
+import org.bukkit.NamespacedKey;
+import org.bukkit.advancement.Advancement;
+import org.bukkit.entity.Player;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.logging.Logger;
+
+/**
+ * The mod's advancement tabs (its {@code data/minecolonies/advancements}): the same tree, triggers and vanilla icons,
+ * in our words. Each has one impossible criterion that MineCP awards when the thing happens, to every online player
+ * the colony sends its messages to (RECEIVE_MESSAGES), as the mod does. Loaded at startup, so no data pack is needed.
+ */
+final class Advancements {
+    private record Def(String parent, String icon, String title, String description, String frame, boolean hidden) {}
+
+    private static final String ROOT = "minecolonies/root", PRODUCTION = "production/root";
+    private static final Map<String, Def> ALL = new LinkedHashMap<>();
+
+    private static void add(String id, String parent, String icon, String title, String description, String frame) {
+        ALL.put(id, new Def(parent, icon, title, description, frame, false));
+    }
+
+    static {
+        // The MineColonies tab. The mod's root is placing a supply camp, which we don't have: here it comes with the town hall.
+        add(ROOT, null, "bell", "MineCP", "Start a colony of your own", "task");
+        add("minecolonies/place_townhall", ROOT, "bell", "A Place to Call Home", "Place a Town Hall to found a colony", "task");
+        add("minecolonies/start_builder", "minecolonies/place_townhall", "yellow_wool", "Hard Hat Needed", "Ask for the Builder's Hut to be built", "task");
+        add("minecolonies/build_builder", "minecolonies/start_builder", "crafting_table", "The Builder's Yard", "Finish the Builder's Hut", "goal");
+        add("minecolonies/build_builder_2", "minecolonies/build_builder", "crafting_table", "Bigger Projects", "Upgrade the Builder's Hut to level 2", "goal");
+        add("minecolonies/build_town_hall", "minecolonies/build_builder", "bell", "Seat of Power", "Finish the Town Hall", "task");
+        add("minecolonies/build_town_hall_5", "minecolonies/build_town_hall", "bell", "Capital City", "Upgrade the Town Hall to level 5", "challenge");
+        add("minecolonies/build_citizen", "minecolonies/build_builder", "red_bed", "Room to Grow", "Finish a House", "task"); // the mod's parent: the tavern
+        add("minecolonies/build_guard_tower", "minecolonies/build_builder", "shield", "On Watch", "Finish a Guard Tower", "task");
+        add("minecolonies/colony_population_5", "minecolonies/build_citizen", "red_bed", "A Hamlet", "Have 5 citizens", "goal");
+        add("minecolonies/colony_population_10", "minecolonies/colony_population_5", "brick", "A Village", "Have 10 citizens", "task");
+        add("minecolonies/colony_population_25", "minecolonies/colony_population_10", "gold_ingot", "A Town", "Have 25 citizens", "goal");
+        add("minecolonies/colony_population_50", "minecolonies/colony_population_25", "diamond", "A City", "Have 50 citizens", "goal");
+        add("minecolonies/colony_population_75", "minecolonies/colony_population_50", "emerald", "A Metropolis", "Have 75 citizens", "challenge");
+        add("minecolonies/citizen_eat_food_first", "minecolonies/place_townhall", "cooked_beef", "First Meal", "A citizen eats for the first time", "task");
+        add("minecolonies/building_add_recipe_torch", "minecolonies/start_builder", "torch", "Let There Be Light", "Teach a crafter to make torches", "task");
+        // The production tab.
+        add(PRODUCTION, null, "crafting_table", "Colony Production", "Finish the Builder's Hut", "task");
+        add("production/build_lumberjack", PRODUCTION, "iron_axe", "Timber!", "Finish a Lumberjack's Hut", "task");
+        add("production/build_farmer", PRODUCTION, "iron_hoe", "Green Fields", "Finish a Farmer's Hut", "task");
+        add("production/build_miner", PRODUCTION, "iron_pickaxe", "Into the Deep", "Finish a Miner's Hut", "task");
+        add("production/build_cook", PRODUCTION, "cooked_beef", "Soup's On", "Finish a Cook's Hut", "task");
+        add("production/build_warehouse", PRODUCTION, "chest", "A Place for Everything", "Finish the Warehouse", "task");
+        add("production/build_delivery_person", "production/build_warehouse", "leather_boots", "Special Delivery", "Finish a Courier's Hut", "task");
+        add("production/build_sawmill", "production/build_delivery_person", "oak_planks", "Sawdust", "Finish a Sawmill", "task");
+        add("production/build_stonemason", "production/build_sawmill", "stone_bricks", "Set in Stone", "Finish a Stonemason's Hut", "task");
+        add("production/build_stone_smeltery", "production/build_sawmill", "furnace", "Fired Up", "Finish a Stone Smeltery", "task");
+        add("production/build_blacksmith", "production/build_sawmill", "anvil", "Hammer and Tongs", "Finish a Blacksmith's Hut", "task");
+        add("production/build_smeltery", "production/build_sawmill", "iron_ingot", "Molten Metal", "Finish a Smeltery", "task");
+        add("production/build_smeltery_3", "production/build_smeltery", "iron_ingot", "Hotter Furnaces", "Upgrade a Smeltery to level 3", "task");
+        add("production/build_smeltery_5", "production/build_smeltery_3", "gold_ingot", "Master Smelter", "Upgrade a Smeltery to level 5", "task");
+        // Filed with the MineColonies ones in the mod, but its parent (loaded first) puts it in this tab.
+        add("minecolonies/building_add_recipe_door", "production/build_sawmill", "oak_door", "Knock Knock", "Teach a crafter to make a wooden door", "task");
+    }
+
+    /** The advancement for a hut finished at a level, as the mod's complete_build_request triggers; null if none. */
+    static String forBuild(Hut.Type type, int level) {
+        String id = switch (type) {
+            case TOWN_HALL -> level == 1 ? "minecolonies/build_town_hall" : level == 5 ? "minecolonies/build_town_hall_5" : null;
+            case BUILDER -> level == 1 ? "minecolonies/build_builder" : level == 2 ? "minecolonies/build_builder_2" : null;
+            case HOUSE -> level == 1 ? "minecolonies/build_citizen" : null;
+            case GUARD_TOWER -> level == 1 ? "minecolonies/build_guard_tower" : null;
+            case LUMBERJACK -> level == 1 ? "production/build_lumberjack" : null;
+            case FARMER -> level == 1 ? "production/build_farmer" : null;
+            case MINER -> level == 1 ? "production/build_miner" : null;
+            case COOK -> level == 1 ? "production/build_cook" : null;
+            case WAREHOUSE -> level == 1 ? "production/build_warehouse" : null;
+            case COURIER -> level == 1 ? "production/build_delivery_person" : null;
+            case SAWMILL -> level == 1 ? "production/build_sawmill" : null;
+            case STONEMASON -> level == 1 ? "production/build_stonemason" : null;
+            case STONE_SMELTERY -> level == 1 ? "production/build_stone_smeltery" : null;
+            case BLACKSMITH -> level == 1 ? "production/build_blacksmith" : null;
+            case SMELTERY -> level == 1 ? "production/build_smeltery" : level == 3 ? "production/build_smeltery_3" : level == 5 ? "production/build_smeltery_5" : null;
+            default -> null;
+        };
+        return type == Hut.Type.BUILDER && level == 1 ? id + "|" + PRODUCTION : id; // the production tab's root too
+    }
+
+    /** Registers them with the server (the server keeps them until the next data reload). */
+    static void load(Logger log) {
+        int n = 0;
+        for (var e : ALL.entrySet()) {
+            NamespacedKey key = key(e.getKey());
+            if (Bukkit.getAdvancement(key) != null) continue;
+            try {
+                if (Bukkit.getUnsafe().loadAdvancement(key, json(e.getValue())) != null) n++;
+            } catch (RuntimeException ex) {
+                log.warning("Couldn't load advancement " + key + ": " + ex.getMessage());
+            }
+        }
+        if (n > 0) log.info("Loaded " + n + " advancements.");
+    }
+
+    private static NamespacedKey key(String id) {
+        return new NamespacedKey("minecp", id);
+    }
+
+    private static String json(Def d) {
+        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.icon.equals("bell") ? "light_gray_wool" : "oak_planks") + "\"" : "";
+        return "{" + (d.parent == null ? "" : "\"parent\":\"minecp:" + d.parent + "\",")
+                + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"
+                + "\"description\":{\"text\":\"" + d.description + "\"},\"frame\":\"" + d.frame + "\",\"hidden\":" + d.hidden
+                + ",\"show_toast\":" + (d.parent != null) + ",\"announce_to_chat\":" + (d.parent != null) + bg + "},"
+                + "\"criteria\":{\"done\":{\"trigger\":\"minecraft:impossible\"}}}";
+    }
+
+    /** Awards these ("a|b" for several) to one player. */
+    static void award(Player p, String ids) {
+        for (String id : ids.split("\\|")) {
+            Advancement a = Bukkit.getAdvancement(key(id));
+            if (a != null && !p.getAdvancementProgress(a).isDone()) p.getAdvancementProgress(a).awardCriteria("done");
+        }
+    }
+
+    /** A colony's milestones, turned into advancements for its members. */
+    static Colony.Milestones forColony(Colony c) {
+        return new Colony.Milestones() {
+            @Override
+            public void queued(Hut.Type type, int level) {
+                if (type == Hut.Type.BUILDER && level == 1) award(c, "minecolonies/start_builder");
+            }
+
+            @Override
+            public void built(Hut.Type type, int level) {
+                award(c, forBuild(type, level));
+            }
+
+            @Override
+            public void population(int citizens) {
+                for (int t : new int[]{5, 10, 25, 50, 75}) if (citizens >= t) award(c, "minecolonies/colony_population_" + t);
+            }
+
+            @Override
+            public void ate() {
+                award(c, "minecolonies/citizen_eat_food_first");
+            }
+
+            @Override
+            public void taught(Material result) {
+                if (result == Material.TORCH) award(c, "minecolonies/building_add_recipe_torch");
+                else if (Tag.WOODEN_DOORS.isTagged(result)) award(c, "minecolonies/building_add_recipe_door");
+            }
+        };
+    }
+
+    /** Awards them to every online player the colony sends its messages to. */
+    static void award(Colony c, String ids) {
+        if (ids == null) return;
+        for (Player p : Bukkit.getOnlinePlayers()) if (c.permissions.has(p, Action.RECEIVE_MESSAGES)) award(p, ids);
+    }
+}

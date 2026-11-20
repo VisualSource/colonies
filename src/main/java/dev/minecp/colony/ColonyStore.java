@@ -54,6 +54,7 @@ public final class ColonyStore {
         for (int i = 0; i < colony.workOrders.size(); i++) {
             s.set("work-orders." + i + ".hut", colony.huts.indexOf(colony.workOrders.get(i).hut()));
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
+            if (colony.workOrders.get(i).remove()) s.set("work-orders." + i + ".remove", true);
         }
         for (Job j : colony.jobs) j.save(s.createSection("jobs." + colony.huts.indexOf(j.hut)), colony);
         colony.requests.save(s.createSection("requests")); // crafters keep the requests they took
@@ -121,7 +122,7 @@ public final class ColonyStore {
         var orders = s.getConfigurationSection("work-orders");
         if (orders != null) for (String i : orders.getKeys(false)) {
             Hut h = colony.hutByIndex(orders.getInt(i + ".hut", -1));
-            if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level")));
+            if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level"), orders.getBoolean(i + ".remove")));
         }
 
         for (Hut h : colony.huts) colony.addJob(h);

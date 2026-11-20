@@ -63,7 +63,10 @@ public final class BuildOrder {
         }
         /** The item this step uses up, or null if it is free. */
         public Material cost() {
-            if (isClear() || data.getMaterial() == Material.WATER || data.getMaterial() == Material.LAVA) return null;
+            if (isClear()) return null;
+            // A fluid costs its bucket and the empty bucket comes back (Structurize's item for a fluid block, used "bucket-aware" by the mod's builder).
+            if (data.getMaterial() == Material.WATER) return Material.WATER_BUCKET;
+            if (data.getMaterial() == Material.LAVA) return Material.LAVA_BUCKET;
             if (convertWith() != null) return null;
             // Players can't get path or farmland items without Silk Touch: lay dirt, flattened or tilled as it goes down.
             if (data.getMaterial() == Material.DIRT_PATH || data.getMaterial() == Material.FARMLAND) return Material.DIRT;
@@ -193,6 +196,19 @@ public final class BuildOrder {
             order.fields.add(base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ()));
         }
         return order;
+    }
+
+    /**
+     * Taking the building down (the mod's removal work order): clearing every block that is still the structure's own,
+     * top down. Foundation filler and anything else that stands there now stays.
+     */
+    public BuildOrder removal() {
+        List<Step> clears = new ArrayList<>();
+        for (Step s : steps)
+            if (!s.isClear() && !s.fill && s.block.getType() == s.data.getMaterial())
+                clears.add(new Step(s.block, Material.AIR.createBlockData(), false, false));
+        clears.sort(Comparator.comparingInt((Step st) -> -st.block.getY()));
+        return new BuildOrder(structure, origin, rotation, mirror, clears);
     }
 
     /** Tag of the marker entities on a structure's field blocks, written by tools/convert_blueprints.py. */

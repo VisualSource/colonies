@@ -34,28 +34,10 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [ ] Colony flag and banner
 - [ ] Colony connections (`core/colony/managers/ColonyConnectionManager.java`, `api/colony/connections/`): colony signs and gate houses link two colonies, with a diplomacy status of allies, neutral or hostile
 - [ ] Commands: the mod's `/mc colony ...` and `/mc citizens ...` (MineCP's `/colony` has give-item, `build`, `info` and `movement` subcommands)
-- [ ] Advancements (the mod's `data/minecolonies/advancements/`; its recipe-unlock advancements are left out)
-  - Can port cleanly: our data pack holds the advancement files with vanilla item icons, each with an impossible criterion the plugin grants when it happens
-  - MineColonies tab:
-    - Place a town hall; build the town hall; town hall level 5
-    - Start a builder; build the builder's hut; builder's hut level 2
-    - Build a house for a citizen; build a guard tower; build a tavern; build the mystical site; mystical site level 5
-    - Colony population 5, 10, 25, 50, 75
-    - Citizen eats food for the first time; citizen eats rotten flesh
-    - Bury a citizen; resurrect a citizen; undertaker's totem
-    - Fulfil a request; read the hut guide
-    - Add a recipe to a building (door, torch)
-  - Production tab:
-    - Build each of: lumberjack, farmer, miner, cook, warehouse, courier, baker, blacksmith, composter, crusher, enchanter, fisherman, florist, library, sawmill, sifter, stonemason, stone smeltery
-    - Smeltery levels 1, 3 and 5
-    - Build all the animal herders
-    - Deep mine (the miner reaches a deep level), max fields (a farmer with all its fields)
-    - Place a post box and a stash
-  - Military tab:
-    - Build archery, barracks, barracks tower, combat academy; build all barracks towers
-    - Army of 8, 30 and 80 guards
-  - Also: craft the supply camp or ship (in the vanilla tab)
-  - Not checked: what exactly triggers deep mine, max fields and the undertaker's totem
+- [~] Advancements (the mod's `data/minecolonies/advancements/`): its MineColonies and production tabs, with the mod's tree, frames, triggers and vanilla icons (our own icons where the mod shows its hut blocks), in our own words. Loaded by the plugin at startup (`Advancements`), so no data pack is needed; a `/minecraft:reload` drops them until the next restart
+  - Each is awarded when it happens to every online player the colony sends messages to (RECEIVE_MESSAGES), as the mod does: placing the town hall (and the tab's root, which in the mod is placing a supply camp), asking for the Builder's Hut, finishing huts and levels, 5/10/25/50/75 citizens, a citizen's first meal, teaching torches or a wooden door
+  - Left out until their features exist: the military tab, tavern, mystical site, graves and resurrection, the undertaker's totem, rotten flesh, the hut guide, fulfilling a request from the request screen, baker, composter, crusher, enchanter, fisherman, florist, library, sifter, herders, post box and stash, deep mine, max fields, crafting the supply camp
+  - "Room to Grow" (a house) hangs under the Builder's Hut (the mod: under the tavern)
 
 ## Citizens
 
@@ -70,7 +52,8 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
     - Teleports near the goal when nothing reaches it (the mod waits at least 2 minutes first)
     - Moves diagonally on level ground, at √2 the cost of a straight step; a step through water costs 4 (not checked against the mod)
 - [x] House (residence)
-- [~] Colony growth: 4 citizens to start (the mod's default); then a citizen every 2 minutes while there is housing
+- [~] Colony growth: a new colony starts empty; its first 4 citizens (the mod's `initialCitizenAmount`) move in one at a time at the town hall on the mod's timer (`CitizenManager.onColonyTick`: checked every 500 ticks, the countdown drops by 500 plus 60 per town hall level, 30 s before the first and 60 s after each; about 50 s for the first, then about 75 s apart), half and half female and male, and are replaced the same way if they die; then a citizen every 2 minutes while there is housing
+  - No Town Hall "move in" setting to turn this off
   - Ours: the mod spawns only the starting citizens on a timer; later ones come from the tavern's visitors and from children
 - [x] Tool tiers limited by the worker's own hut level (`IBuilding.getMaxEquipmentLevel`, `ItemStackUtils.verifyEquipmentLevel`): at most stone up to hut level 1, then the hut's level (iron 2, diamond 3, netherite 4), anything at level 5; a tool's tier is wood/gold 0, stone 1, iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1. Better tools stay in the chest (and couriers may take them away); requests say the best tier allowed; of the tools that will do, the lowest tier is taken, as in the mod
   - Copper tools (newer than the mod) count as stone
@@ -105,7 +88,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 
 - [~] Requests (the mod's request system, `api/colony/requestsystem`): what each hut wants (`Job.wants`) becomes a request, worked out again each second. As the mod's resolvers: the warehouse takes a request once it holds at least the request's minimum, and a courier brings what it has; if that isn't all of it, or the warehouse has less than the minimum, a crafter that knows a recipe makes the rest (the mod's child request for the remainder); else it waits for a player. Minimums as the mod's requesters: the builder's and miner's materials, seeds, food and fuel 1; a crafter's ingredients the whole amount; tools 1. Couriers fetch only the warehouse's part of each request, so the warehouse never also sends what a crafter is making. A crafter keeps a request it took until its share is made and handed over, even if the warehouse fills up meanwhile, and across restarts (requests a crafter holds are saved). No crafter takes a request whose recipe uses up something a crafter further up the chain is making (the mod's crafting-cycle check). What couriers are carrying to a hut counts toward its requests, so nothing is sent twice. A crafter keeps the ingredients its requests need; extra ingredients go to the warehouse
   - Four states shown to players (in the warehouse, being crafted at a hut, on its way, waiting for a player) instead of the mod's thirteen (created, assigned, in progress, completed, cancelled...)
-  - The Town Hall's "Requests" button lists every open request; each hut's menu shows its own. Players fill one by putting the items in that hut's chest (the mod: its request screen, and the clipboard, which comes later)
+  - The Town Hall's "Requests" button lists every open request; each hut's menu has its own "Requests" button (a list of its own: the builder can wait for dozens of things). Players fill one by putting the items in that hut's chest (the mod: its request screen, and the clipboard, which comes later)
   - What a crafter makes waits in its chest until a courier takes it straight to the hut that asked (the mod's delivery requests); couriers do this first, and without a warehouse too (a load that doesn't fit waits until the hut has room). What couriers are carrying counts toward a request, so crafters stop once enough is made or on its way
   - The cook's raw food request (ours: the mod's cook gets what it cooks through smelting requests) uses a minimum of 1
   - No request priorities, no cancelling or overruling a request, no "follow-up" requests
@@ -127,10 +110,14 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Not checked: does the mod only let a builder build huts up to its own level?
   - No decoration or free builds from a build tool; `/colony build` (admins only: it builds anywhere, past protection plugins) is the stand-in
   - A chest or other container in the way is emptied into the hut chest before it is cleared (the miner spills it where it stood)
-  - No removal, repair or move work orders
+  - Removal work order: "Remove building" in a built hut's menu (MANAGE_HUTS; not the Town Hall or Builder's Hut, which are removed by breaking them) queues taking it down; the builder clears every block still matching the hut's current level (top down, drops into its hut chest, foundation filler left), then the hut is removed and its item and chest contents drop at the hut block. It uses the colony's current style, so a building from a style since changed mostly stays
+  - Water and lava in a blueprint cost a water or lava bucket each, and the empty bucket comes back (as Structurize's item for a fluid block, used "bucket-aware" by the mod's builder); the Sawmill's water wheel channel needs about 126
+  - No repair or move work orders
   - Hut rotation comes from the build tool (for hut blocks placed by hand: the block's facing)
-- [~] Blueprints: medieval oak converted to vanilla structures (`tools/convert_blueprints.py`)
-  - Other styles not converted
+- [~] Blueprints: medieval oak, spruce, birch and dark oak, and cavern, converted to vanilla structures (`tools/convert_blueprints.py`, one data pack each: `run/world/datapacks/minecp-<style>`; reports in `docs/structures/`)
+  - The colony's style is picked in the Town Hall menu ("Style", MANAGE_HUTS) from the installed packs; new buildings and upgrades use it. The mod picks it with the build tool when placing the town hall, and changes it in the town hall's settings
+  - Cavern keeps each hut in "default", "alternative" and "megahall" folders: huts use "default" (no choosing between them); it has no mine shafts, so its miners dig the medieval oak ones
+  - The other 18 styles aren't converted
   - Modded blocks approximated (see `docs/structures/medievaloak.md`)
 - [~] Build tool (Structurize `ItemBuildTool`, `AbstractBlueprintManipulationWindow`; MineColonies `SurvivalHandler`): the Build Tool item is the tool (a stick with a tag, made with `/colony buildtool`). Right-click a block, pick a hut you carry; a preview of its level 1 building stays until confirmed or cancelled. Right-click again for the mod's controls in a dialog: move forward/back/left/right from where you face, up/down, rotate left/right, mirror (front to back, as the mod), confirm, cancel. Confirming checks the same rules as placing by hand, uses up the hut item, places the hut block and keeps the turn and mirror for every level
   - Preview is block displays at 90% size, only for the placing player (the mod draws see-through blocks); blocks walled in on all sides are skipped
@@ -181,11 +168,19 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No Kitchen (cook assistant)
 - [~] Crafters (`AbstractEntityAICrafting`, `AbstractCraftingBuildingModule`): taught crafting-table recipes of their kind, up to 2^level x 5 (the mod's limit with its extra-recipe multiplier of 5; no research). They take the requests they have a recipe for, ask for the ingredients like any hut, and craft one batch in 3 hits, 10 ticks apart (the mod's HIT_DELAY; its hits per craft fall from 30 with no skill to 3 for a typical citizen, and we have no skills)
   - Teaching: "Teach a recipe" in the crafter's hut menu opens a crafting table window; lay the recipe out (with real items) and click the result to teach it; nothing is used up. "Recipes" lists them, each with a Forget button (the mod's teaching screen takes ghost items)
-  - Crafting-table recipes only (no smelting, brewing or the mod's special crafting types yet); no recipe settings (priority, max stock), no disabling a recipe, no pre-taught recipes from data packs
-- [~] Sawmill (`BuildingSawmill`, job "Carpenter"): learns recipes by the mod's rule: wood ingredients (planks, logs, and items with "wood" in a tag: sticks, wooden slabs and so on) over every ingredient that isn't planks or logs, above 0.75 (so 2 planks + 2 iron passes, as in the mod); hut recipe as the mod's (three wooden axes across the middle)
+  - Smelters learn furnace recipes from a list in the hut menu (the mod: a furnace teaching screen) and smelt them in the furnaces of their building (within 12 blocks of the hut block), with fuel from their chest; they ask for fuel (minimum 1) whenever they have smelting to do and less than 8 (ours: 16 on hand)
+  - Which recipes each crafter takes follows the mod's crafter tags and rule (`CraftingUtils.isRecipeCompatibleBasedOnTags`): an excluded product refuses, a listed product allows, then any excluded ingredient refuses and any listed ingredient allows. The tags are written out in `CraftRules` as vanilla items; Forge tags become the vanilla items in them, and Domum Ornamentum items are left out
+  - A crafter never takes its own hut's request (ours: a smelter would otherwise take its own fuel request)
+  - No brewing or the mod's special crafting types yet; no recipe settings (priority, max stock), no disabling a recipe, no pre-taught recipes from data packs; 2x2 and 3x3 recipes both allowed at every level
+- [~] Sawmill (`BuildingSawmill`, job "Carpenter"): its tags first (planks, wooden slabs and stairs, boats; logs and cactus in; nothing the Mechanic makes, and nothing with ingots, stone, redstone or string), then the mod's ratio: wood ingredients (planks, logs, and items with "wood" in a tag: sticks, wooden slabs and so on) over every ingredient that isn't planks or logs, above 0.75; hut recipe as the mod's (three wooden axes across the middle)
   - MineCP's own recipes (huts, racks, goggles) can't be taught to any crafter
-  - The mod's data-pack tag lists that add or remove recipes for each crafter aren't read
-- [ ] Other crafters: stonemason, stone smeltery, smeltery, blacksmith, fletcher, dyer, glassblower, concrete mixer, crusher, sifter, mechanic, alchemist, enchanter, baker
+- [~] Stonemason (`BuildingStonemason`): its tags only: stone, cobblestone, sandstone, bricks and their stairs, slabs and walls (also the furnace, from cobblestone, as in the mod); hut recipe as the mod's (three stone bricks across the middle)
+- [~] Stone Smeltery (`BuildingStoneSmeltery`, job "Stone Smelter"): furnace recipes by its tags: stone, smooth stone, bricks, terracotta, cracked stone bricks, charcoal and so on. Glass is the mod's Glassblower's, not here; hut recipe as the mod's (stone bricks, furnace, stone bricks)
+- [~] Blacksmith (`BuildingBlacksmith`): nothing with leather; any tool, weapon or armor; else its tags (ingots, nuggets, shears, iron bars and so on); hut recipe as the mod's (three iron ingots)
+- [~] Smeltery (`BuildingSmeltery`, job "Smelter"): knows every ore and raw-metal furnace recipe without teaching, asks for any ore (minimum 1; ours: 32 at a time, once below 16) and smelts what it is brought, as well as the ingots huts ask for; ingots it wasn't asked for go to the warehouse. No ore breaking (the mod's extra nuggets), no "warehouse minimum" setting; hut recipe as the mod's (iron ingot)
+- [~] Mechanic (`BuildingMechanic`): its tags (torches, lanterns, rails, buttons, pressure plates, pistons, storage blocks and so on), else minecarts and hoppers; hut recipe as the mod's (redstone block)
+  - Torches are the Mechanic's in the mod (not the Sawmill's), and the core huts' levels 1-3 use about 270 of them
+- [ ] Other crafters: fletcher, dyer, glassblower, concrete mixer, crusher, sifter, alchemist, enchanter, baker
 
 ## Education and research
 
@@ -194,7 +189,14 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 
 ## Military
 
-- [ ] Guards: guard tower, barracks and barracks tower, archery, combat academy, gate house
+- [~] Guard Tower (`BuildingGuardTower`, one knight: `JobKnight`, `EntityAIMelee`, `MeleeCombatAI`, `AbstractEntityAIGuard`); hut recipe as the mod's (a bow); claims 2, 3, 3, 4, 5 chunks by level
+  - The knight patrols between the colony's built huts at random (the mod's automatic patrol), waiting 5 s at each, and attacks the hostile mobs it sees within 15 + 3 per tower level blocks (3 up or down), chasing them up to 80 blocks from the tower; it fights back when hurt instead of fleeing
+  - Hits every 32 ticks (`KNIGHT_ATTACK_DELAY_BASE`; no skills, so never faster) within 2 blocks, for the sword's damage plus 3 (`BASE_PHYSICAL_DAMAGE`); the sword wears down
+  - Health 20 + 15 (knight) + 20 (single-guard tower) + 2 per tower level, as the mod's modifiers
+  - Asks for a sword (tier limited by tower level, like every worker's tools) and each armor piece it lacks; armor by tower level as the mod's gear lists: leather to gold at level 1, to chainmail at 2, to iron at 3, chainmail to diamond at 4, iron to netherite at 5. Armor shows on the citizen and cuts damage by vanilla's formula
+  - Stays on duty at night (the mod's guards take short naps instead) and in rain
+  - Not done: patrol modes and manual patrol points, guard/follow tasks, the rally banner, retreating to heal at low health, shields (a research in the mod), sweep attacks and knockback, experience
+- [ ] Other guards: barracks and barracks tower, archery, combat academy, gate house
   - Guard types: knight, ranger, druid, cavalry, huscarl, marksman (not checked which ones research unlocks)
   - Patrol and follow modes, guard tasks, guard gear by building level, training at the archery and combat academy
   - Miner guard assignment (guards that protect the mine)
@@ -237,6 +239,9 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 ## Custom blocks and items
 
 Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and `ModItemsInitializer.java`). The build tool, scan tool and decorative blocks come from the mod's companion mods (Structurize, Domum Ornamentum), not MineColonies itself. A vanilla client can't show new blocks or items, so each needs a stand-in: a tagged vanilla block or item, later with a custom model from a resource pack.
+
+- [~] Optional resource pack, each player's choice: MineCP's items always carry a `custom_model_data` string (`minecp:hut/<type>`, `minecp:rack`, `minecp:build_goggles`, `minecp:build_tool`) beside their names, lore and tags, which shows nothing without the pack. `tools/build_resourcepack.py` builds a private pack from your own MineColonies (and Structurize) jars that overrides the vanilla chest, bell, hay bale, stick and leather helmet definitions to show the mod's models for those strings (vanilla for everything else). The server doesn't know or care who has it
+  - Items only: placed huts and racks stay vanilla chests (and bells and hay bales), the goggles look like a leather helmet when worn, citizens keep vanilla skins
 
 ### Blocks
 

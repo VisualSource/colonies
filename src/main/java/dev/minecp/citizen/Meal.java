@@ -109,6 +109,7 @@ public final class Meal {
                 if (timer < BITE_TICKS * BITES) return false;
                 timer = 0;
                 c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(next));
+                colony.milestones.ate();
                 if (next.getAmount() > 1) next.subtract();
                 else food.removeFirst();
             }

@@ -77,7 +77,7 @@ public final class Requests {
     /** A crafter's request kept over a restart: requester hut, label, crafter hut (indexes into the colony's huts). */
     private record Saved(int job, String label, int crafter, int share) {}
 
-    private static final int MAX_CHAIN = 16; // crafters asking crafters: longer than this is taken for a loop
+    private static final int MAX_CHAIN = 16; // the longest chain of crafters asking crafters waited for when restoring saved requests
 
     private final Colony colony;
     private List<Request> all = List.of();
@@ -150,23 +150,28 @@ public final class Requests {
         return null;
     }
 
-    /** A built crafter with a worker and a recipe for it that doesn't, through any chain of crafters, need what it makes. */
+    /**
+     * A built crafter with a worker and a recipe for it that doesn't, through any chain of crafters, need what it makes.
+     * A crafter may make its own ingredients (the Sawmill: planks for the stairs it was asked for), but a smelter never
+     * takes its own requests (ours: it would smelt its own fuel, needing fuel to do it).
+     */
     private boolean canCraft(Crafter c, Request r, Map<Crafter, List<Request>> tasks) {
-        if (c.hut.level < 1 || colony.worker(c) == null) return false;
+        if (c == r.job && c.smelts || c.hut.level < 1 || colony.worker(c) == null) return false;
         Recipe recipe = c.recipeFor(r.test());
-        return recipe != null && !Crafter.uses(recipe, r.test()) && !cycle(recipe, r, tasks, 0);
+        return recipe != null && !Crafter.uses(recipe, r.test()) && !cycle(recipe, r, tasks, new java.util.HashSet<>());
     }
 
     /**
      * Whether making {@code r} with {@code recipe} would use up something a crafter further up the chain is making
      * (the mod's createsCraftingCycle): r asks for an ingredient of a crafter's task, that task may be an ingredient of
-     * another crafter's, and so on.
+     * another crafter's, and so on. Each request is looked at once: a crafter's own ingredient request is among its
+     * own tasks, and following it again would go round forever.
      */
-    private static boolean cycle(Recipe recipe, Request r, Map<Crafter, List<Request>> tasks, int depth) {
-        if (depth > MAX_CHAIN) return true; // a chain this long is a loop we didn't spot
-        if (!(r.job instanceof Crafter up)) return false;
+    private static boolean cycle(Recipe recipe, Request r, Map<Crafter, List<Request>> tasks, java.util.Set<Request> seen) {
+        if (!seen.add(r) || !(r.job instanceof Crafter up)) return false;
         for (Request parent : tasks.getOrDefault(up, List.of())) {
-            if (Crafter.uses(recipe, parent.test()) || cycle(recipe, parent, tasks, depth + 1)) return true;
+            if (parent == r) continue;
+            if (Crafter.uses(recipe, parent.test()) || cycle(recipe, parent, tasks, seen)) return true;
         }
         return false;
     }

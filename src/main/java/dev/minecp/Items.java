@@ -47,8 +47,9 @@ public final class Items implements Listener {
             RecipeChoice centre = type == Hut.Type.TOWN_HALL ? tool : type.centre == null ? null : type.centre.get();
             if (centre == null) continue;
             ShapedRecipe r = new ShapedRecipe(key(type.name().toLowerCase()), hutItem(type));
-            r.shape("PTP", type.centreRow ? "XXX" : "PXP", "PPP");
+            r.shape("PTP", type.sides != null ? "SXS" : "PXP", "PPP");
             r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
+            if (type.sides != null) r.setIngredient('S', type.sides.get());
             r.setIngredient('T', tool);
             r.setIngredient('X', centre);
             add(r);
@@ -90,6 +91,16 @@ public final class Items implements Listener {
         recipes.add(r.getKey());
     }
 
+    /**
+     * Tags the item for the optional resource pack (tools/build_resourcepack.py): a custom_model_data string
+     * "minecp:<id>". A player with the pack sees the mod's model; everyone else sees the plain vanilla item, as the
+     * tag changes nothing without the pack. The server neither knows nor cares who has it.
+     */
+    public static void model(ItemStack item, String id) {
+        item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA,
+                io.papermc.paper.datacomponent.item.CustomModelData.customModelData().addString("minecp:" + id).build());
+    }
+
     /** The Build Tool: places huts (Placement) and every hut recipe needs it; made from a stick with /colony buildtool. Kept when crafting, as in the mod. */
     ItemStack buildTool() {
         ItemStack item = new ItemStack(Material.STICK);
@@ -98,6 +109,7 @@ public final class Items implements Listener {
             m.lore(List.of(Component.text("Crafts colony huts; you keep it", NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(buildToolKey, PersistentDataType.BOOLEAN, true);
         });
+        model(item, "build_tool");
         return item;
     }
 
@@ -110,6 +122,7 @@ public final class Items implements Listener {
             m.setColor(org.bukkit.Color.fromRGB(0x8B5A2B));
             m.getPersistentDataContainer().set(gogglesKey, PersistentDataType.BOOLEAN, true);
         });
+        model(item, "build_goggles");
         return item;
     }
 
@@ -128,6 +141,7 @@ public final class Items implements Listener {
             m.lore(List.of(Component.text(type.lore, NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(hutKey, PersistentDataType.STRING, type.name());
         });
+        model(item, "hut/" + type.name().toLowerCase());
         return item;
     }
 

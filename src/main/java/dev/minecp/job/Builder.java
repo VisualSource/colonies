@@ -148,6 +148,7 @@ public final class Builder extends Job {
         if (work != null) {
             s.set("order.hut", c.huts.indexOf(work.hut()));
             s.set("order.level", work.level());
+            if (work.remove()) s.set("order.remove", true);
         }
     }
 
@@ -160,7 +161,9 @@ public final class Builder extends Job {
         BuildOrder o = BuildOrder.create(structure, origin,
                 org.bukkit.block.structure.StructureRotation.valueOf(s.getString("order.rotation", "NONE")), s.getBoolean("order.mirror"), null); // origin already placed
         Hut h = c.hutByIndex(s.getInt("order.hut", -1));
-        if (o != null) start(o, h != null ? new Hut.WorkOrder(h, s.getInt("order.level")) : null);
+        boolean remove = s.getBoolean("order.remove");
+        if (o != null && remove) o = o.removal(); // taking it down
+        if (o != null) start(o, h != null ? new Hut.WorkOrder(h, s.getInt("order.level"), remove) : null);
         else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of " + c.name + " dropped.");
     }
 
@@ -177,7 +180,7 @@ public final class Builder extends Job {
     /** Tools and what the build still needs stay; leftovers and what it dug up go to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        for (Tool t : Tool.values()) if (fits(t, item, null)) return Integer.MAX_VALUE;
+        if (isDiggingTool(item)) return Integer.MAX_VALUE;
         return needed().containsKey(item.asOne()) ? Integer.MAX_VALUE : 0;
     }
 
@@ -340,6 +343,7 @@ public final class Builder extends Job {
             if (cost != null) { // used up
                 if (step.rack()) useRack();
                 else carried.merge(cost, -1, Integer::sum);
+                if (cost == Material.WATER_BUCKET || cost == Material.LAVA_BUCKET) carried.merge(Material.BUCKET, 1, Integer::sum); // emptied
             }
             var sounds = step.data().getSoundGroup();
             b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS,

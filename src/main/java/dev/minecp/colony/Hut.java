@@ -3,8 +3,10 @@ package dev.minecp.colony;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Cook;
 import dev.minecp.job.Courier;
+import dev.minecp.job.CraftRules;
 import dev.minecp.job.Crafter;
 import dev.minecp.job.Farmer;
+import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Miner;
@@ -45,9 +47,27 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.LEATHER_BOOTS), "Courier", Courier::new, false),
         MINER("Miner's Hut", Material.CHEST, "fundamentals/miner", "miner", "A citizen digs a mine below the hut",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_PICKAXE), "Miner", Miner::new, false),
+        // The crafters: middle rows from the mod's recipes.
         SAWMILL("Sawmill", Material.CHEST, "craftsmanship/carpentry/sawmill", "sawmill", "A carpenter crafts the wooden things the colony needs",
-                () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), true, "Carpenter", // wooden axes across the middle row
-                (h, c) -> new Crafter(h, Crafter.SAWMILL, "things made mostly of wood"), false),
+                () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), "Carpenter",
+                (h, c) -> new Crafter(h, CraftRules.SAWMILL, "things made mostly of wood"), false),
+        STONEMASON("Stonemason's Hut", Material.CHEST, "craftsmanship/masonry/stonemason", "stonemason", "A stonemason crafts stone blocks, stairs, slabs and walls",
+                () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stonemason",
+                (h, c) -> new Crafter(h, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"), false),
+        STONE_SMELTERY("Stone Smeltery", Material.CHEST, "craftsmanship/masonry/stonesmeltery", "stonesmeltery", "A stone smelter fires stone, bricks and terracotta",
+                () -> new RecipeChoice.MaterialChoice(Material.FURNACE), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stone Smelter",
+                (h, c) -> new Crafter(h, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", true, false), false),
+        BLACKSMITH("Blacksmith's Hut", Material.CHEST, "craftsmanship/metallurgy/blacksmith", "blacksmith", "A blacksmith makes tools, weapons and armor",
+                () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), "Blacksmith",
+                (h, c) -> new Crafter(h, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)"), false),
+        SMELTERY("Smeltery", Material.CHEST, "craftsmanship/metallurgy/smeltery", "smeltery", "A smelter turns the miner's ores into ingots",
+                () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), null, "Smelter",
+                (h, c) -> new Crafter(h, CraftRules.SMELTERY, "ingots from ores", true, true), false),
+        MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
+                () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
+                (h, c) -> new Crafter(h, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
+        GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
+                () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
                 null, false);
@@ -61,16 +81,16 @@ public final class Hut {
         public final String worker;   // the job's name ("Cook"), null for huts without a worker
         final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without a worker
         public final boolean unique;  // one per colony
-        public final boolean centreRow; // its recipe's centre ingredient fills the whole middle row (the mod's sawmill: three wooden axes)
+        public final Supplier<RecipeChoice> sides; // either side of the centre in its recipe; null: planks
 
         Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre,
              String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
-            this(title, block, path, command, lore, centre, false, worker, job, unique);
+            this(title, block, path, command, lore, centre, null, worker, job, unique);
         }
 
         Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre,
-             boolean centreRow, String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
-            this.centreRow = centreRow;
+             Supplier<RecipeChoice> sides, String worker, BiFunction<Hut, Colony, Job> job, boolean unique) {
+            this.sides = sides;
             this.title = title;
             this.block = block;
             this.path = path;
@@ -91,6 +111,7 @@ public final class Hut {
         int claimRadius(int level) {
             return switch (this) {
                 case TOWN_HALL -> new int[]{0, 1, 1, 2, 3, 5}[level];
+                case GUARD_TOWER -> new int[]{0, 2, 3, 3, 4, 5}[level]; // BuildingGuardTower.getClaimRadius
                 case FIELD -> 0;
                 default -> level == 0 ? 0 : level <= 3 ? 1 : 2;
             };
@@ -100,14 +121,47 @@ public final class Hut {
             return path != null;
         }
 
+        /** Whether a removal work order can take it down; the Town Hall and Builder's Hut go only by breaking the hut block. */
+        public boolean removable() {
+            return isBuilding() && this != TOWN_HALL && this != BUILDER;
+        }
+
+        private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
+
+        /**
+         * Its building at {@code level} in a style: the structure at its path, or else in a "default" folder beside it
+         * (the cavern style keeps each hut in default, alternative and megahall folders).
+         */
+        public String structure(String style, int level) {
+            String plain = style + "/" + path + level;
+            return RESOLVED.computeIfAbsent(plain, k -> {
+                if (dev.minecp.build.BuildOrder.exists(plain)) return plain;
+                int slash = path.lastIndexOf('/');
+                String nested = style + "/" + path.substring(0, slash + 1) + "default/" + path.substring(slash + 1) + level;
+                return dev.minecp.build.BuildOrder.exists(nested) ? nested : plain;
+            });
+        }
+
         public static Type byCommand(String command) {
             for (Type t : values()) if (t.command.equals(command)) return t;
             return null;
         }
     }
 
-    /** An upgrade of a hut to a level, waiting for or being built by the builder. */
-    public record WorkOrder(Hut hut, int level) {}
+    /**
+     * Builder's work on a hut, waiting or under way: an upgrade to {@code level}, or ({@code remove}) taking down the
+     * building at {@code level}, the one standing (the mod's removal work order).
+     */
+    public record WorkOrder(Hut hut, int level, boolean remove) {
+        public WorkOrder(Hut hut, int level) {
+            this(hut, level, false);
+        }
+
+        /** "Level 2" or "Taking it down", for the menus. */
+        public String what() {
+            return remove ? "Taking it down" : "Level " + level;
+        }
+    }
 
     public final Type type;
     public final Block block;
@@ -135,6 +189,6 @@ public final class Hut {
     }
 
     String structure(String style, int level) {
-        return style + "/" + type.path + level;
+        return type.structure(style, level);
     }
 }

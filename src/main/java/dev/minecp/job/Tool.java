@@ -10,7 +10,8 @@ public enum Tool {
     AXE("an axe", Tag.ITEMS_AXES, Tag.MINEABLE_AXE),
     PICKAXE("a pickaxe", Tag.ITEMS_PICKAXES, Tag.MINEABLE_PICKAXE),
     SHOVEL("a shovel", Tag.ITEMS_SHOVELS, Tag.MINEABLE_SHOVEL),
-    HOE("a hoe", Tag.ITEMS_HOES, Tag.MINEABLE_HOE);
+    HOE("a hoe", Tag.ITEMS_HOES, Tag.MINEABLE_HOE),
+    SWORD("a sword", Tag.ITEMS_SWORDS, null); // a guard's weapon: mines nothing
 
     final String label;
     private final Tag<Material> items, mines;
@@ -23,7 +24,7 @@ public enum Tool {
 
     /** The tool kind a block is mined with (hoe blocks only if {@code hoe}), or null if hands will do. */
     static Tool forBlock(Material m, boolean hoe) {
-        for (Tool t : values()) if ((hoe || t != HOE) && t.mines.isTagged(m)) return t;
+        for (Tool t : values()) if ((hoe || t != HOE) && t.mines != null && t.mines.isTagged(m)) return t;
         return null;
     }
 
