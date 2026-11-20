@@ -31,8 +31,10 @@ import java.util.function.Predicate;
 
 /** The builder's hut (a chest that holds materials) and its builder's job loop. */
 public final class Builder extends Job {
+    // The mod's (EntityAIStructureBuilder.walkToConstructionSite):
+    private static final double REACH = 5;        // places anything within 5 blocks across, at any height
+    private static final double CLOSE = 4;        // PathJobMoveCloseToXNearY: walks to within 4 of the block (the mod: dx+dy+dz)
     // Ours, not the mod's:
-    private static final double REACH = 4.5;      // blocks the builder can place from
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private static final int PLACE_TICKS = 8;
 
@@ -255,14 +257,20 @@ public final class Builder extends Job {
         note = null; // has what it needs
         neededTool = null;
         double d = distance(w, step.block());
-        if (d > REACH && !standsAt(w, workFrom, step.block())) {
+        // As the mod's builder (walkToConstructionSite): work in place when the block is within reach across; else walk
+        // to the nearest spot a path reaches within 4 of it, inside the build or out; where none gets that close, work
+        // from as close as it got, if that is within long reach. Far off: a spot on the ground outside the build first.
+        if (across(w, step.block()) > REACH && !standsAt(w, workFrom, step.block())) {
             w.setStatus("Builder: building");
-            // Like the mod's builders: work from the ground just outside the build, placing everything within
-            // long reach from there (walls and roof included) instead of climbing onto it.
-            if (walkToWorkSpot(w, step.block())) return;
-            // No such spot in reach (the middle of a big build): get as close as a path leads; teleport as a last resort.
+            workFrom = null;
+            if (w.approach(step.block().getLocation().toCenterLocation(), CLOSE)) return;
+            // None gets within 4: as close as a path gets (false once it stands there, then it works from here).
             if (w.approach(step.block().getLocation().toCenterLocation(), LONG_REACH)) return;
-            if (d > LONG_REACH) { w.goBeside(step.block()); return; } // far off: walk closer, teleport only if stuck
+            if (d > LONG_REACH) {
+                if (walkToWorkSpot(w, step.block())) return;
+                w.goBeside(step.block()); // walk closer, teleport only if stuck
+                return;
+            }
         }
         if (!work(w, step, chest)) {
             w.setStatus("Builder: chest full");
@@ -375,6 +383,11 @@ public final class Builder extends Job {
             at.getWorld().dropItemNaturally(at, overflow);
     }
 
+
+    /** Distance across the ground (the mod's getDistance2D): height doesn't count. */
+    private static double across(Colonist w, Block b) {
+        return Math.hypot(w.location().getX() - (b.getX() + 0.5), w.location().getZ() - (b.getZ() + 0.5));
+    }
 
     private static double distance(Colonist w, Block b) {
         return w.location().distance(b.getLocation().toCenterLocation());
