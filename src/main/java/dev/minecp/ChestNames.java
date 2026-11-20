@@ -30,12 +30,18 @@ public final class ChestNames implements Listener {
         this.plugin = plugin;
     }
 
-    /** Names a chest (plain text: the pack's name rules match it exactly) and tells the players who see it. */
+    /**
+     * Names a chest (plain text: the pack's name rules match it exactly) and tells the players who see it, a tick
+     * later: the server sends block changes at the end of the tick, and a name arriving before the chest itself (one
+     * the build tool or a builder just put down) is dropped by the client.
+     */
     public static void name(Block b, String name) {
         if (!(b.getState() instanceof Chest c)) return;
         c.customName(Component.text(name));
         c.update(true, false);
-        for (Player p : b.getWorld().getPlayersSeeingChunk(b.getChunk())) send(p, b);
+        org.bukkit.Bukkit.getScheduler().runTask(MineCP.getPlugin(MineCP.class), () -> {
+            if (b.getState(false) instanceof Chest) for (Player p : b.getWorld().getPlayersSeeingChunk(b.getChunk())) send(p, b);
+        });
     }
 
     @EventHandler
