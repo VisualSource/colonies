@@ -5,6 +5,8 @@ import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Food;
 import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.Happiness;
+import dev.minecp.colony.Visitors;
 import dev.minecp.colony.Hut;
 import dev.minecp.colony.Permissions;
 import dev.minecp.colony.Rank;
@@ -48,7 +50,7 @@ public final class Menus {
     public void hut(Player p, Colony c, Hut h) {
         List<DialogBody> body = new ArrayList<>();
         if (h.type == Hut.Type.TOWN_HALL) body.add(text(Component.text(c.name, NamedTextColor.GOLD)));
-        if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + Hut.MAX_LEVEL,
+        if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + h.type.maxLevel(),
                 NamedTextColor.GOLD)));
         Hut.WorkOrder up = c.upgradeOf(h);
         Builder b = c.builder;
@@ -62,8 +64,9 @@ public final class Menus {
 
         switch (h.type) {
             case TOWN_HALL -> {
-                body.add(text(Component.text("Citizens: " + c.colonists.size() + " of " + c.capacity()
-                        + " (more houses or house levels make room)", NamedTextColor.GOLD)));
+                body.add(text(Component.text("Citizens: " + c.colonists.size() + ", beds for " + c.capacity()
+                        + " (houses and taverns; children are born and visitors join only while there is room)", NamedTextColor.GOLD)));
+                body.add(text(Component.text(String.format("Happiness: %.1f of 10", c.happiness.overall()))));
                 long hungry = c.colonists.stream().filter(x -> x.saturation < Food.LOW_SATURATION).count();
                 long homeless = c.colonists.stream().filter(x -> x.home == null).count();
                 if (hungry > 0 || homeless > 0) body.add(text(Component.text(
@@ -86,10 +89,16 @@ public final class Menus {
                 long couriers = c.jobs.stream().filter(j -> j instanceof Courier && c.worker(j) != null).count();
                 body.add(text(Component.text("Couriers: " + couriers + (couriers == 0 ? " (build a Courier's Hut)" : ""))));
             }
-            case HOUSE -> {
+            case HOUSE, TAVERN -> {
                 var residents = c.residents(h);
-                body.add(text(Component.text("Residents: " + residents.size() + " of " + h.level, NamedTextColor.GOLD)));
-                for (Colonist x : residents) body.add(text(Component.text(x.name)));
+                body.add(text(Component.text("Residents: " + residents.size() + " of " + h.type.rooms(h.level), NamedTextColor.GOLD)));
+                for (Colonist x : residents) body.add(text(Component.text(x.name + (x.child ? " (child)" : ""))));
+                if (h.type == Hut.Type.TAVERN) {
+                    var guests = c.visitors.list.stream().filter(v -> v.tavern == h).toList();
+                    body.add(text(Component.text(h.level == 0 ? "Visitors come once level 1 is built."
+                            : "Visitors: " + guests.size() + " of " + 3 * h.level + ". Right-click one to recruit it.", NamedTextColor.GOLD)));
+                    for (var v : guests) body.add(text(Component.text(v.colonist.name + " — asks " + v.count + " × " + Job.name(v.item))));
+                }
             }
             default -> {}
         }
@@ -106,7 +115,7 @@ public final class Menus {
         List<ActionButton> buttons = new ArrayList<>();
         if (job != null && !c.requests.of(job).isEmpty()) // a list of its own: the builder can wait for dozens of things
             buttons.add(button("Requests (" + c.requests.of(job).size() + ")", p, c, h, player -> requests(player, c, h, job)));
-        if (h.type.isBuilding() && up == null && h.level < Hut.MAX_LEVEL)
+        if (h.type.isBuilding() && up == null && h.level < h.type.maxLevel())
             buttons.add(order(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, () -> c.requestUpgrade(h, plugin.claims)));
         if (h.type.removable() && up == null && h.level > 0)
             buttons.add(order("Remove building", p, c, h, () -> c.requestRemoval(h)));
@@ -224,20 +233,126 @@ public final class Menus {
         }, 0, 10);
     }
 
-    /** Every citizen with what it is doing, its home and its food, from the town hall menu. */
+    /**
+     * Every citizen with what it is doing, its home, food and happiness, from the town hall menu; first the colony's
+     * happiness and each factor averaged over its citizens (the mod's town hall citizen page).
+     */
     void citizens(Player p, Colony c, Hut townHall) {
         List<DialogBody> body = new ArrayList<>();
-        body.add(text(Component.text("Citizens: " + c.colonists.size() + " of " + c.capacity(), NamedTextColor.GOLD)));
+        body.add(text(Component.text("Citizens: " + c.colonists.size() + ", beds for " + c.capacity(), NamedTextColor.GOLD)));
+        body.add(text(Component.text(String.format("Happiness: %.1f of 10", c.happiness.overall()), NamedTextColor.GOLD)));
+        Map<String, double[]> sums = new java.util.LinkedHashMap<>(); // factor name -> {total, count}
+        for (Colonist x : c.colonists)
+            for (Happiness.Factor f : c.happiness.factors(x)) {
+                double[] t = sums.computeIfAbsent(f.name(), k -> new double[2]);
+                t[0] += f.value();
+                t[1]++;
+            }
+        sums.forEach((name, t) -> { if (t[0] / t[1] != 1) body.add(text(factor(name, t[0] / t[1]))); });
         for (Colonist x : c.colonists) {
             String food = x.saturation <= 0 ? ", starving" : x.saturation < Food.LOW_SATURATION ? ", hungry" : "";
-            body.add(text(Component.text(x.name + " — " + x.status() + (x.home == null ? ", homeless" : "") + food
+            body.add(text(Component.text(x.name + (x.child ? " (child)" : "") + " — " + x.status() + (x.home == null ? ", homeless" : "") + food
                     + " (health " + (int) Math.ceil(x.health) + "/" + (int) c.health.max(x)
-                    + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION + ")")));
+                    + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION
+                    + String.format(", happiness %.1f", c.happiness.of(x)) + ")")));
             if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION)
                 body.add(text(Component.text("   " + x.hungerNote, NamedTextColor.YELLOW)));
         }
         List<ActionButton> buttons = List.of(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
         Dialogs.show(p, "Citizens", body, List.of(), buttons, 1);
+    }
+
+    /** "Food: 0.50 (unhappy)": the mod's faces as words: above 1 happy, above 0.75 unsatisfied, else unhappy. */
+    private static Component factor(String name, double value) {
+        String mood = value > 1 ? "happy" : value > 0.75 ? "unsatisfied" : "unhappy";
+        return Component.text(String.format("   %s: %.2f (%s)", name, value, mood),
+                value > 1 ? NamedTextColor.GREEN : value > 0.75 ? NamedTextColor.YELLOW : NamedTextColor.RED);
+    }
+
+    /** A citizen's own menu, on right-click (the mod's citizen window: status, health, food, happiness, its job's requests). */
+    public void citizen(Player p, Colony c, Colonist x) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text(x.name + (x.child ? " (child)" : "") + " — " + x.status(), NamedTextColor.GOLD)));
+        Job job = c.jobOf(x);
+        body.add(text(Component.text("Job: " + (job == null ? (x.child ? "none until grown up" : "none") : job.hut.type.worker
+                + " at the " + job.hut.type.title))));
+        body.add(text(Component.text("Home: " + (x.home == null ? "none" : x.home.type.title))));
+        body.add(text(Component.text("Health " + (int) Math.ceil(x.health) + "/" + (int) c.health.max(x)
+                + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION)));
+        if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION) body.add(text(Component.text(x.hungerNote, NamedTextColor.YELLOW)));
+        body.add(text(Component.text(String.format("Happiness: %.1f of 10", c.happiness.of(x)), NamedTextColor.GOLD)));
+        for (Happiness.Factor f : c.happiness.factors(x)) if (f.value() != 1) body.add(text(factor(f.name(), f.value())));
+        if (job != null) for (Requests.Request r : c.requests.of(job)) body.add(text(request(r, false)));
+        Dialogs.show(p, x.name, body, List.of(), List.of(), 1);
+    }
+
+    /** A visitor's offer to join, on right-click (the mod's recruitment interaction). */
+    public void visitor(Player p, Colony c, Visitors.Visitor v) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text(v.colonist.name + " is staying at the " + v.tavern.type.title + " and would join "
+                + c.name + " for:", NamedTextColor.GOLD)));
+        ItemStack price = new ItemStack(v.item, v.count);
+        body.add(DialogBody.item(price).description(DialogBody.plainMessage(Component.text(v.count + " × ")
+                .append(price.effectiveName()), 250)).showTooltip(true).build());
+        if (!c.hasRoom())
+            body.add(text(Component.text("There is no room in the colony: build or upgrade a house or tavern first.", NamedTextColor.RED)));
+        List<ActionButton> buttons = List.of(Dialogs.button(plugin, "Recruit", 200, p, () -> c.visitors.list.contains(v), (player, view) -> {
+            if (!c.permissions.has(player, Action.ACCESS_HUTS)) { refuse(player, c, Action.ACCESS_HUTS); return; }
+            player.sendMessage(Component.text(c.visitors.recruit(player, v)));
+            plugin.save(c);
+        }));
+        Dialogs.show(p, "Visitor", body, List.of(), buttons, 1);
+    }
+
+    /** The clipboard: requests no citizen can fill, waiting for a player, nearest hut first (the mod's clipboard window). */
+    public void clipboard(Player p, Colony c) {
+        List<DialogBody> body = new ArrayList<>();
+        var at = p.getLocation();
+        var waiting = c.requests.all().stream().filter(r -> r.state == Requests.State.WAITING)
+                .sorted(java.util.Comparator.comparingDouble(r -> r.job.hut.block.getWorld() == at.getWorld()
+                        ? r.job.hut.block.getLocation().distanceSquared(at) : Double.MAX_VALUE)).toList();
+        if (waiting.isEmpty()) body.add(text(Component.text("Nothing is waiting for a player.", NamedTextColor.GREEN)));
+        for (Requests.Request r : waiting) body.add(text(request(r, true)));
+        body.add(text(Component.text("Fill a request by putting the items in that hut's chest.", NamedTextColor.GRAY)));
+        Dialogs.show(p, "Clipboard: " + c.name, body, List.of(), List.of(), 1);
+    }
+
+    /**
+     * The resource scroll: what the builder's work still uses, what it has (carried or in its hut), what the player
+     * carries and what the warehouse holds (the mod keeps a snapshot from clicking the warehouse; ours reads it live).
+     * Sorted as the mod's: what is supplied first, then what the player has enough of, then what is short.
+     */
+    public void resourceScroll(Player p, Colony c) {
+        List<DialogBody> body = new ArrayList<>();
+        Builder b = c.builder;
+        Map<ItemStack, int[]> list = b == null ? Map.of() : b.resources();
+        if (b == null) body.add(text(Component.text("The colony has no Builder's Hut.", NamedTextColor.RED)));
+        else {
+            Colonist worker = c.worker(b);
+            body.add(text(Component.text((worker == null ? "No builder" : worker.name) + ": "
+                    + (b.work != null ? b.work.hut().type.title + " — " + b.work.what().toLowerCase()
+                    : b.order != null ? b.order.structure : "no work"), NamedTextColor.GOLD)));
+        }
+        record Row(ItemStack item, int needed, int available, int yours, int rank) {}
+        List<Row> rows = new ArrayList<>();
+        long need = 0, have = 0;
+        for (var e : list.entrySet()) {
+            int needed = e.getValue()[0], available = e.getValue()[1];
+            int yours = p.getGameMode() == org.bukkit.GameMode.CREATIVE ? needed : Builder.count(p.getInventory(), e.getKey());
+            need += needed;
+            have += Math.min(available, needed);
+            rows.add(new Row(e.getKey(), needed, available, yours, available >= needed ? 0 : yours >= needed - available ? 1 : yours > 0 ? 2 : 3));
+        }
+        if (b != null) body.add(text(Component.text(list.isEmpty() ? "Nothing more is needed." : "Supplied " + (100 * have / Math.max(1, need)) + "%")));
+        rows.sort(java.util.Comparator.comparingInt(Row::rank).thenComparing(r -> Job.name(r.item().getType())));
+        NamedTextColor[] colors = {NamedTextColor.GRAY, NamedTextColor.DARK_GREEN, NamedTextColor.GOLD, NamedTextColor.RED};
+        Warehouse wh = c.warehouse();
+        for (Row r : rows) {
+            String extra = "  (you: " + r.yours() + (wh == null ? "" : ", warehouse: " + wh.count(r.item()::isSimilar)) + ")";
+            body.add(DialogBody.item(r.item()).description(DialogBody.plainMessage(Component.text(r.available() + " / " + r.needed() + " ",
+                    colors[r.rank()]).append(r.item().effectiveName()).append(Component.text(extra)), 250)).showTooltip(true).build());
+        }
+        Dialogs.show(p, "Resource Scroll", body, List.of(), List.of(), 1);
     }
 
     /** What a hut's current work still needs that is not in its chest, with item icons. */

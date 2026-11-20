@@ -66,6 +66,9 @@ public final class Hut {
         MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
                 () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
                 (h, c) -> new Crafter(h, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
+        // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
+        TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
+                () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
@@ -115,6 +118,17 @@ public final class Hut {
                 case FIELD -> 0;
                 default -> level == 0 ? 0 : level <= 3 ? 1 : 2;
             };
+        }
+
+        /** Its highest level: the mod's building max level (the tavern stops at 3). */
+        public int maxLevel() {
+            return this == TAVERN ? 3 : MAX_LEVEL;
+        }
+
+        /** Citizens it houses at {@code level}: a house one per level, the tavern 4 (the mod's LivingBuildingModule). */
+        public int rooms(int level) {
+            if (level < 1) return 0;
+            return this == HOUSE ? level : this == TAVERN ? 4 : 0;
         }
 
         public boolean isBuilding() {

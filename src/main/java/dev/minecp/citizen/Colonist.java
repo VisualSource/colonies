@@ -67,6 +67,29 @@ public final class Colonist {
         return skin % SKINS.length < FEMALE_SKINS;
     }
     public Hut home; // the house the colonist lives in, or null
+    public boolean child;   // a child: no job, half size, until it grows up (Colony)
+    public int childTime;   // a child's time towards growing up (the mod's aiActiveTime)
+    // Happiness (Colony's Happiness), saved: the last foods eaten, and days counted by each time-based factor.
+    public final java.util.Deque<Material> diet = new java.util.ArrayDeque<>();
+    public int homelessDays, joblessDays, sleeplessDays, hurtDays, griefDays;
+    public static final int DIET_SIZE = 10; // the mod's FOOD_QUEUE_SIZE
+
+    /** Remembers a food it ate: the last {@link #DIET_SIZE} count towards happiness. */
+    public void ate(Material food) {
+        diet.addLast(food);
+        if (diet.size() > DIET_SIZE) diet.removeFirst();
+    }
+
+    /** Makes it a child (half size) or grown. */
+    public void setChild(boolean child) {
+        this.child = child;
+        if (body != null) scale(body);
+    }
+
+    private void scale(Mannequin m) {
+        var a = m.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+        if (a != null) a.setBaseValue(child ? 0.5 : 1); // ours: the legs stay full size, so paths need no change
+    }
     public double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
     public static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
     public double health = MAX_HEALTH;               // saved with the colony
@@ -432,6 +455,7 @@ public final class Colonist {
     /** Lies down in the bed whose head half is {@code head}. */
     public void sleepIn(Block head) {
         bed = head;
+        sleeplessDays = 0; // the mod resets "slept tonight" when a citizen lies down in bed
         stopWalking();
         hold(null);
         lieDown();
@@ -630,6 +654,7 @@ public final class Colonist {
             m.setCollidable(false);
             m.setGravity(false); // position comes from the legs every tick
             m.setPersistent(false);
+            scale(m);
         });
         target = null;
         wait = 20;

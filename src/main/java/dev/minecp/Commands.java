@@ -103,7 +103,7 @@ final class Commands implements CommandExecutor {
                 player.sendMessage(Component.text(c.name, NamedTextColor.GOLD));
                 player.sendMessage("Town hall: " + th.getX() + " " + th.getY() + " " + th.getZ()
                         + " (right-click it for the colony menu)");
-                player.sendMessage("Citizens: " + c.colonists.size() + " of " + c.capacity());
+                player.sendMessage("Citizens: " + c.colonists.size() + ", beds for " + c.capacity());
             }
             case "members" -> {
                 Colony here = here(player);

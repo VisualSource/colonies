@@ -66,7 +66,12 @@ public final class ColonyStore {
             if (c.home != null) cs.set("home", colony.huts.indexOf(c.home));
             cs.set("saturation", c.saturation);
             cs.set("health", c.health);
+            if (c.child) cs.set("child-time", c.childTime);
+            cs.set("diet", c.diet.stream().map(Material::name).toList());
+            cs.set("mood-days", List.of(c.homelessDays, c.joblessDays, c.sleeplessDays, c.hurtDays, c.griefDays));
         }
+        s.set("child-pool", colony.childPool);
+        colony.visitors.save(s.createSection("visitors"));
     }
 
     /** @return null if the colony's world is not loaded. */
@@ -116,8 +121,25 @@ public final class ColonyStore {
             if (cs.isInt("home")) c.home = colony.hutByIndex(cs.getInt("home"));
             c.saturation = cs.getDouble("saturation", Food.MAX_SATURATION);
             c.health = cs.getDouble("health", Colonist.MAX_HEALTH);
+            if (cs.contains("child-time")) {
+                c.setChild(true);
+                c.childTime = cs.getInt("child-time");
+            }
+            for (String food : cs.getStringList("diet")) {
+                Material m = Material.matchMaterial(food);
+                if (m != null) c.ate(m);
+            }
+            List<Integer> days = cs.getIntegerList("mood-days");
+            if (days.size() == 5) {
+                c.homelessDays = days.get(0);
+                c.joblessDays = days.get(1);
+                c.sleeplessDays = days.get(2);
+                c.hurtDays = days.get(3);
+                c.griefDays = days.get(4);
+            }
             colony.colonists.add(c);
         }
+        colony.childPool = s.getInt("child-pool");
 
         var orders = s.getConfigurationSection("work-orders");
         if (orders != null) for (String i : orders.getKeys(false)) {
@@ -131,6 +153,7 @@ public final class ColonyStore {
             if (js != null) j.load(js, colony);
         }
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
+        if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
         colony.assignHomes();
         colony.assignJobs();
         return colony;

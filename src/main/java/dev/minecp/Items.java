@@ -27,7 +27,7 @@ import java.util.List;
 /** The plugin's items: the Build Tool, hut items, and their recipes (the Build Tool is kept when crafting). */
 public final class Items implements Listener {
     private final Plugin plugin;
-    private final NamespacedKey hutKey, buildToolKey, gogglesKey;
+    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
     Items(Plugin plugin) {
@@ -35,6 +35,8 @@ public final class Items implements Listener {
         hutKey = new NamespacedKey(plugin, "hut_item");
         buildToolKey = new NamespacedKey(plugin, "build_tool");
         gogglesKey = new NamespacedKey(plugin, "build_goggles");
+        clipboardKey = new NamespacedKey(plugin, "clipboard");     // value: the colony owner's UUID, "" until bound
+        scrollKey = new NamespacedKey(plugin, "resource_scroll");
     }
 
     /**
@@ -70,6 +72,20 @@ public final class Items implements Listener {
         goggles.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
         goggles.setIngredient('T', tool);
         add(goggles);
+        // MineColonies' clipboard and resource scroll: sticks around leather (two for the scroll), the build tool on top.
+        RecipeChoice stick = RecipeChoice.exactChoice(new ItemStack(Material.STICK)); // plain sticks, never the Build Tool
+        ShapedRecipe clipboard = new ShapedRecipe(key("clipboard"), clipboard());
+        clipboard.shape("XTX", "XPX", "XXX");
+        clipboard.setIngredient('X', stick);
+        clipboard.setIngredient('T', tool);
+        clipboard.setIngredient('P', new RecipeChoice.MaterialChoice(Material.LEATHER));
+        add(clipboard);
+        ShapedRecipe scroll = new ShapedRecipe(key("resource_scroll"), resourceScroll());
+        scroll.shape("XTX", "XPX", "XPX");
+        scroll.setIngredient('X', stick);
+        scroll.setIngredient('T', tool);
+        scroll.setIngredient('P', new RecipeChoice.MaterialChoice(Material.LEATHER));
+        add(scroll);
         // The field is MineColonies' scarecrow, whose recipe takes no build tool: hay bale or pumpkin on a stick body.
         ShapedRecipe field = new ShapedRecipe(key("field"), hutItem(Hut.Type.FIELD));
         field.shape(" H ", "SLS", " S ");
@@ -124,6 +140,55 @@ public final class Items implements Listener {
         });
         model(item, "build_goggles");
         return item;
+    }
+
+    /** The colony's open requests waiting for a player (Menus.clipboard); bound by right-clicking any of its huts. Paper stands in for its model. */
+    private ItemStack clipboard() {
+        return note(Material.PAPER, "Clipboard", "Right-click a colony's hut to note its requests", clipboardKey, "clipboard");
+    }
+
+    /** A Builder's Hut's material list (Menus.resourceScroll); bound by right-clicking the Builder's Hut. */
+    private ItemStack resourceScroll() {
+        return note(Material.PAPER, "Resource Scroll", "Right-click a Builder's Hut to link its materials", scrollKey, "resource_scroll");
+    }
+
+    private ItemStack note(Material base, String name, String hint, NamespacedKey key, String model) {
+        ItemStack item = new ItemStack(base);
+        item.editMeta(m -> {
+            m.itemName(Component.text(name, NamedTextColor.GOLD));
+            m.lore(List.of(Component.text(hint, NamedTextColor.GRAY)));
+            m.setMaxStackSize(1); // each one remembers its own colony
+            m.getPersistentDataContainer().set(key, PersistentDataType.STRING, "");
+        });
+        model(item, model);
+        return item;
+    }
+
+    boolean isClipboard(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(clipboardKey);
+    }
+
+    boolean isResourceScroll(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(scrollKey);
+    }
+
+    /** The owner of the colony a clipboard or resource scroll is bound to, or null. */
+    java.util.UUID boundTo(ItemStack item) {
+        String id = item.getPersistentDataContainer().get(isClipboard(item) ? clipboardKey : scrollKey, PersistentDataType.STRING);
+        try {
+            return id == null || id.isEmpty() ? null : java.util.UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Binds a clipboard or resource scroll to a colony, and says which on the item. */
+    void bind(ItemStack item, dev.minecp.colony.Colony c) {
+        NamespacedKey key = isClipboard(item) ? clipboardKey : scrollKey;
+        item.editMeta(m -> {
+            m.getPersistentDataContainer().set(key, PersistentDataType.STRING, c.owner.toString());
+            m.lore(List.of(Component.text((isClipboard(item) ? "Requests of " : "Builder of ") + c.name, NamedTextColor.GRAY)));
+        });
     }
 
     public boolean isGoggles(ItemStack item) {

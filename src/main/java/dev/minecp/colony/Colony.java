@@ -28,15 +28,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * A player's colony: its huts (the town hall first), citizens, and the builder's queue of hut upgrades.
- * Rules: levels above 1 need the town hall at that level or higher; housing room is
- * {@link #STARTING_CITIZENS} plus the total level of all houses. A new colony has nobody: the first
- * {@link #STARTING_CITIZENS} move in one by one at the town hall, as in the mod; after them a citizen moves in every
- * {@link #GROWTH_TICKS} while there is room.
+ * Rules: levels above 1 need the town hall at that level or higher; housing room is the beds of houses and taverns.
+ * A new colony has nobody: the first {@link #STARTING_CITIZENS} move in one by one at the town hall, as in the mod;
+ * after them the colony grows only by children born in houses with room, and by recruiting the taverns' visitors.
  */
 public final class Colony {
     private static final int STARTING_CITIZENS = 4; // the mod's initialcitizenamount default
-    // Ours: the mod spawns only the starting citizens on a timer; the rest come from the tavern and children.
-    private static final int GROWTH_TICKS = 20 * 120;
+    private static final int CITIZEN_CAP = 25; // the mod's CITIZEN_LIMIT_DEFAULT: the most citizens before research
     // The mod's starting citizens (CitizenManager.onColonyTick): every colony tick (500 ticks) the countdown drops by
     // 500 plus 60 per town hall level; one moves in when it runs out, and it starts again at 60 s (first time: 30 s).
     private static final int COLONY_TICK = 500;
@@ -65,12 +63,18 @@ public final class Colony {
     public static List<String> styles() {
         return java.util.Arrays.stream(STYLES).filter(s -> BuildOrder.exists(Hut.Type.TOWN_HALL.structure(s, 1))).toList();
     }
-    private int growth = 0;
+    // Children (the mod's EntityAICitizenChild): time towards growing up builds in a shared pool, 500 a colony tick
+    // while there are children; each child takes 2000 from it at a time. From 4000 a child grows up with a 1 in 71 chance
+    // each colony tick, and surely past 70000.
+    private static final int CHILD_SHARE = 2000, CHILD_MIN = 4000, CHILD_MAX = 70_000, GROW_CHANCE = 71;
+    int childPool; // saved
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
     final Routine routine = new Routine(this);
     public final Permissions permissions;
     public final Requests requests = new Requests(this);
+    public final Happiness happiness = new Happiness(this);
+    public final Visitors visitors = new Visitors(this);
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
     public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
     /** What the colony reports as it grows, for advancements; the plugin sets it. */
@@ -135,32 +139,87 @@ public final class Colony {
         return null;
     }
 
+    /** How many citizens the colony has beds for: houses and taverns, at least 1, at most {@link #CITIZEN_CAP} (the mod's getMaxCitizens). */
     public int capacity() {
-        return STARTING_CITIZENS + huts.stream().filter(h -> h.type == Hut.Type.HOUSE).mapToInt(h -> h.level).sum();
+        return Math.max(1, Math.min(CITIZEN_CAP, huts.stream().mapToInt(h -> h.type.rooms(h.level)).sum()));
     }
 
-    private void addCitizen() {
-        // As the mod: the first is either, then whichever is fewer (half of those already here, rounding towards female).
+    /** Whether another citizen fits: born, or recruited from a tavern. */
+    public boolean hasRoom() {
+        return colonists.size() < capacity();
+    }
+
+    /** A new citizen at {@code at}. As the mod: the first is either sex, then whichever is fewer (rounding towards female). */
+    private Colonist newCitizen(Location at) {
         long females = colonists.stream().filter(Colonist::female).count();
         boolean female = colonists.isEmpty() ? ThreadLocalRandom.current().nextBoolean() : females < colonists.size() / 2.0;
-        colonists.add(new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female),
-                townHall().block.getLocation().toCenterLocation()));
+        return new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female), at);
     }
 
+    /** One of the starting citizens moves in at the town hall. */
     private void moveIn() {
-        addCitizen();
+        Colonist c = newCitizen(townHall().block.getLocation().toCenterLocation());
+        join(c);
+        tell(c.name + " moved into " + name + ".");
+    }
+
+    /** {@code c} becomes a citizen (a starting citizen, a newborn, or a recruited visitor). */
+    void join(Colonist c) {
+        colonists.add(c);
+        c.setStatus("Unemployed");
         assignHomes();
         assignJobs();
-        tell(colonists.getLast().name + " moved into " + name + ".");
         milestones.population(colonists.size());
     }
 
-    private String uniqueName(boolean female) {
+    String uniqueName(boolean female) {
         var rnd = ThreadLocalRandom.current();
         String[] first = female ? FEMALE : MALE;
         while (true) { // 144 combinations per list; colonies are far smaller
             String name = first[rnd.nextInt(first.length)] + " " + LAST[rnd.nextInt(LAST.length)];
-            if (colonists.stream().noneMatch(c -> c.name.equals(name))) return name;
+            if (colonists.stream().noneMatch(c -> c.name.equals(name)) && visitors.list.stream().noneMatch(v -> v.colonist.name.equals(name)))
+                return name;
+        }
+    }
+
+    /**
+     * The mod's ReproductionManager: with room in the colony, at least 2 citizens, a man and a woman among citizens and
+     * visitors, and a house or tavern with a spare bed, a child is born there. Tried every colony tick (the mod's timer
+     * works out to that whenever there is room).
+     */
+    private void birth() {
+        if (!hasRoom() || colonists.size() < 2) return;
+        List<Colonist> all = new ArrayList<>(colonists);
+        visitors.list.forEach(v -> all.add(v.colonist));
+        if (all.stream().noneMatch(Colonist::female) || all.stream().allMatch(Colonist::female)) return;
+        Hut house = spareBed();
+        if (house == null) return;
+        Colonist child = newCitizen(house.block.getLocation().toCenterLocation());
+        child.setChild(true);
+        child.home = house;
+        join(child);
+        child.setStatus("Playing");
+        if (colonists.stream().filter(c -> c.child).count() == 1) tell(child.name + " was born in " + name + "!"); // as the mod: only the first child
+    }
+
+    private Hut spareBed() {
+        for (Hut h : huts) if (residents(h).size() < h.type.rooms(h.level)) return h;
+        return null;
+    }
+
+    /** Children take their share of growing-up time, and some grow up. */
+    private void growUp() {
+        var rnd = ThreadLocalRandom.current();
+        if (colonists.stream().anyMatch(c -> c.child)) childPool += COLONY_TICK; // shortcut: the mod's pool also empties at 70000; ours doesn't
+        for (Colonist c : colonists) {
+            if (!c.child) continue;
+            if (childPool >= CHILD_SHARE) { childPool -= CHILD_SHARE; c.childTime += CHILD_SHARE; }
+            if (c.childTime >= CHILD_MIN && (rnd.nextInt(GROW_CHANCE) == 0 || c.childTime > CHILD_MAX)) {
+                c.setChild(false);
+                c.childTime = 0;
+                tell(c.name + " has grown up.");
+                assignJobs();
+            }
         }
     }
 
@@ -168,11 +227,11 @@ public final class Colony {
         return colonists.stream().filter(c -> c.home == house).toList();
     }
 
-    /** Gives homeless citizens a bed in a house with room (a level N house sleeps N). */
+    /** Gives homeless citizens a bed in a house or tavern with room (a level N house sleeps N, a tavern 4). */
     void assignHomes() {
         for (Colonist c : colonists) {
             if (c.home != null) continue;
-            for (Hut h : huts) if (h.type == Hut.Type.HOUSE && residents(h).size() < h.level) { c.home = h; break; }
+            for (Hut h : huts) if (residents(h).size() < h.type.rooms(h.level)) { c.home = h; break; }
         }
     }
 
@@ -216,7 +275,7 @@ public final class Colony {
         return null;
     }
 
-    Job jobOf(Colonist c) {
+    public Job jobOf(Colonist c) {
         for (Job j : jobs) if (c.id.equals(j.worker)) return j;
         return null;
     }
@@ -233,7 +292,7 @@ public final class Colony {
     void assignJobs() {
         for (Job j : jobs) {
             if (worker(j) != null || j.hut.level < 1 && j != builder) continue;
-            j.worker = colonists.stream().filter(c -> jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
+            j.worker = colonists.stream().filter(c -> !c.child && jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
         }
     }
 
@@ -247,6 +306,7 @@ public final class Colony {
             if (job == builder) builder = null;
         }
         for (Colonist c : colonists) if (c.home == hut) c.home = null;
+        if (hut.type == Hut.Type.TAVERN) visitors.tavernRemoved(hut);
         removeTape(hut);
         huts.remove(hut);
         assignHomes();
@@ -326,7 +386,7 @@ public final class Colony {
     public String requestUpgrade(Hut hut, ClaimMap claims) {
         int next = hut.level + 1;
         if (builder == null) return "Place a Builder's Hut first: the builder builds every hut.";
-        if (hut.level >= Hut.MAX_LEVEL) return "The " + hut.type.title + " is at the highest level.";
+        if (hut.level >= hut.type.maxLevel()) return "The " + hut.type.title + " is at the highest level.";
         if (upgradeOf(hut) != null) return "That upgrade is already queued.";
         if (hut.type != Hut.Type.TOWN_HALL && next > 1 && next > townHall().level)
             return "Upgrade the Town Hall to level " + next + " first.";
@@ -367,20 +427,21 @@ public final class Colony {
 
     public void tick() {
         if (builder != null && builder.order == null && !workOrders.isEmpty()) startNextWorkOrder();
-        if (++growth >= GROWTH_TICKS) {
-            growth = 0;
-            if (colonists.size() >= STARTING_CITIZENS && colonists.size() < capacity()) moveIn();
-        }
-        if (++colonyTick % COLONY_TICK == 0 && colonists.size() < STARTING_CITIZENS
-                && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
-            moveIn = 60 * 20;
-            moveIn();
+        if (++colonyTick % COLONY_TICK == 0) {
+            if (colonists.size() < STARTING_CITIZENS && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
+                moveIn = 60 * 20;
+                moveIn();
+            }
+            birth();
+            growUp();
+            visitors.colonyTick(COLONY_TICK);
         }
         long time = townHall().block.getWorld().getTime(); // 0..23999
         routine.clock(time);
         boolean raining = townHall().block.getWorld().hasStorm();
-        if (growth % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
-        if (growth % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
+        if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
+        if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
+        visitors.tick();
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             Job job = jobOf(c);
@@ -407,7 +468,7 @@ public final class Colony {
                 if (job.leaveWork(c)) c.wander(routine.homeOf(c).block.getLocation().toCenterLocation());
             } else if (job != null) job.tick(c);
             else {
-                c.setStatus("Unemployed");
+                c.setStatus(c.child ? "Playing" : "Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
             }
         }
@@ -445,6 +506,7 @@ public final class Colony {
         for (Colonist c : colonists) if (c.meal != null) { c.meal.abandon(); c.meal = null; } // food back in its chest
         jobs.forEach(Job::stow);
         colonists.forEach(Colonist::despawn);
+        visitors.despawn();
         huts.forEach(Colony::removeTape);
     }
 

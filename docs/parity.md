@@ -53,9 +53,8 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
     - Teleports near the goal when nothing reaches it (the mod waits at least 2 minutes first)
     - Moves diagonally on level ground, at √2 the cost of a straight step; a step through water costs 4 (not checked against the mod)
 - [x] House (residence)
-- [~] Colony growth: a new colony starts empty; its first 4 citizens (the mod's `initialCitizenAmount`) move in one at a time at the town hall on the mod's timer (`CitizenManager.onColonyTick`: checked every 500 ticks, the countdown drops by 500 plus 60 per town hall level, 30 s before the first and 60 s after each; about 50 s for the first, then about 75 s apart), half and half female and male, and are replaced the same way if they die; then a citizen every 2 minutes while there is housing
-  - No Town Hall "move in" setting to turn this off
-  - Ours: the mod spawns only the starting citizens on a timer; later ones come from the tavern's visitors and from children
+- [~] Colony growth: a new colony starts empty; its first 4 citizens (the mod's `initialCitizenAmount`) move in one at a time at the town hall on the mod's timer (`CitizenManager.onColonyTick`: checked every 500 ticks, the countdown drops by 500 plus 60 per town hall level, 30 s before the first and 60 s after each; about 50 s for the first, then about 75 s apart), half and half female and male, and are replaced the same way if they die. After them the colony grows only as in the mod: by children (below) and by recruiting the taverns' visitors (Visitors and the tavern). Housing is the mod's `getMaxCitizens`: the beds of built houses (1 per level) and taverns (4), at least 1 and at most 25 (the mod's limit before research); the starting citizens move in even without beds
+  - No Town Hall "move in" setting to turn this off, no hiring modes, no research raising the 25 limit
 - [x] Tool tiers limited by the worker's own hut level (`IBuilding.getMaxEquipmentLevel`, `ItemStackUtils.verifyEquipmentLevel`): at most stone up to hut level 1, then the hut's level (iron 2, diamond 3, netherite 4), anything at level 5; a tool's tier is wood/gold 0, stone 1, iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1. Better tools stay in the chest (and couriers may take them away); requests say the best tier allowed; of the tools that will do, the lowest tier is taken, as in the mod
   - Copper tools (newer than the mod) count as stone
   - The same rule covers every worker's tools and the fisherman's rod; not tied to research or the builder
@@ -67,7 +66,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Saturation sets how fast health comes back (see Health)
 - [~] Day/night routine (`CitizenAI`, `EntityAISleep`, `CitizenSleepHandler`): from day time 10600 citizens leave for home when the walk (6 ticks a block, height counted 1.5x, the miner's climb added) would get them there by nightfall at 12600; they sleep in a house bed and get up at dawn; a colony day counter goes up each morning; in rain only the cook and level 5 huts' workers work
   - Beds are found near the house's hut block (within 8 blocks), not from the building's registered beds
-  - Homeless citizens wait within 16 blocks of the town hall (the mod sends them to a tavern if there is one)
+  - Homeless citizens wait within 16 blocks of the town hall (the mod sends them to a tavern if there is one); a tavern's residents sleep in beds near its hut block, like a house's
   - No "all citizens are asleep" message, sleeping particles, off-to-bed sounds, or "home too far" complaint
   - No research that lets citizens work longer or in the rain
   - Sleep isn't checked by health, sickness, raids or mourning yet (those come first in the mod)
@@ -78,11 +77,20 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No armour, sickness cap on healing, research, happiness or mourning effects, or calling guards for help (no guards yet)
   - Health shows in the town hall's citizen list
 - [ ] Graveyard and undertaker
-- [ ] Happiness
+- [~] Happiness (`CitizenHappinessHandler`, `HappinessConstants`, the mod's modifiers, weights and thresholds): 0 to 10, ten times the weighted mean of the factors that aren't neutral (1). Factors: school (weight 1; a child 0, as no child is a pupil yet), security (4: guards against everyone else, min(guards / (others × 2/3), 2), both counted from 1), social life (2: the share of citizens without a problem, each jobless adult, homeless or hungry citizen counting once per problem), food (3: from the last 10 foods eaten, kinds and good food against the house level), housing (3: 0 homeless, else house level / 3; × 0.75 after 7 days, × 0.5 after 14), work (2: 0.5 jobless, 2 at a hut above level 3; same 7/14 days), sleep (1.5: unhappy after 2 nights without lying down in a bed; guards never), got hurt (2: 0 for a day; not by fire or lightning), a citizen died (3: 0 for everyone for 3 days, not for a guard's death). Days count at nightfall. Shown in a citizen's own menu (right-click it), and in the Town Hall's Citizens page with the colony's average (5.5 with no citizens) and each factor averaged
+  - Ours: the mod's "good food" is its own dishes; ours is any food that is made (cooked or crafted, like bread) rather than picked or caught
+  - All factors neutral gives 10 (the mod divides by zero there); the mod's shared "death" modifier, which wears off faster the more citizens there are, is per citizen here
+  - Its complaints (after 7 days homeless or jobless: on day 8, as the mod checks more than 7) and demands (after 14) are colony messages, not the mod's chat bubbles; no idle-at-job, sickness, mystical site, raid or quest factors yet, no happiness research
+  - It changes nothing yet: in the mod it only sets new citizens' skill levels and how fast they learn, and MineCP has no skills
 - [ ] Sickness and the hospital
 - [ ] Mourning
-- [ ] Children and growing up (the school and library are under Education and research)
-- [ ] Visitors and the tavern
+- [~] Children and growing up (`ReproductionManager`, `EntityAICitizenChild`): each colony tick (500 ticks), with room in the colony, at least 2 citizens, a man and a woman among citizens and visitors, and a house or tavern with a spare bed, a child is born there (the mod's timer works out to every colony tick whenever there is room); a birth is announced only when the newborn is the colony's only child, as in the mod. Children are half size (the scale attribute), take no job, play near home, eat and sleep. Growing up: a shared pool gains 500 a colony tick while there are children, each child takes 2000 at a time; from 4000 a child grows up with a 1 in 71 chance each colony tick, and surely past 70000; then it takes a job
+  - No parents, partners or families, no inherited skills (no skills); the school and library are under Education and research
+  - The mod's pool also empties at 70000; ours doesn't
+- [~] Visitors and the tavern (`TavernBuildingModule`, `EntityAIVisitor`, `RecruitmentInteraction`, `recruitment_items`): the Tavern (the mod's recipe, a barrel in the middle; levels 1 to 3) houses 4 citizens from level 1 and hosts up to 3 visitors per level. A built tavern's first visitor comes after 10000 ticks, the next after rand(3000) + (6000 / level) × citizens / beds. Each asks for an item of a rarity drawn around the middle of what the tavern's level allows (1 to 3, 6 or 9), 5 × (10 − rarity) + 0 to 2 of it, at most a stack. Visitors wander around the tavern and leave after 150000 ticks (the mod's saturation running out). Right-click one to see what it asks; Recruit takes the items from your main inventory, matched by item alone as in the mod (any enchanted book will do; nothing in creative), and needs room in the colony's housing (the mod's check: citizens below the beds count, not a particular free bed); 3% of the time it runs off with them, as in the mod. A recruit becomes a citizen where it stands; a removed tavern's visitors leave. The tavern's menu lists its residents and visitors
+  - Ours: rarity 7 of the mod's list is only its own foods, so it is rabbit stew, pumpkin pie and golden carrots; its foods in rarities 5 and 8 are left out
+  - Visitors don't sit on the tavern's seats (the converted buildings don't mark them), can't be hurt and don't fight back, can't be fed to stay longer, and don't wear boots showing their rarity; no skills, so no recruit levels; no gate house spawns, no tavern music, no custom visitors
+  - The time to the next visitor isn't saved: after a restart each tavern waits 10000 ticks again
 - [ ] Quests
 
 ## Logistics
@@ -273,11 +281,13 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [~] Build tool (Structurize): the Build Tool (see Build tool above); `/colony build` for free builds
 - [ ] Scan tool (Structurize)
 - [ ] Supply chest and supply camp deployers (colony starts)
-- [ ] Clipboard (the colony's open requests)
-- [ ] Resource scroll (a builder's material list, carried by the player)
+- [~] Clipboard (`ItemClipboard`, `WindowClipBoard`; the mod's recipe): paper with a tag stands in for its model. Right-click any hut of a colony to bind it; right-click anywhere else to list the colony's requests that wait for a player, nearest hut first. Needs ACCESS_HUTS in that colony
+  - No cancelling requests, no "show all" toggle (it lists only what waits for a player), no count on the item's icon
+- [~] Resource scroll (`ItemResourceScroll`, `WindowResourceList`; the mod's recipe): paper with a tag. Right-click a Builder's Hut to link it; right-click anywhere else to see the builder's current work, how much is supplied, and for each material what the builder has (carried or in its hut) of what is still needed, what you carry and what the warehouse holds, sorted and coloured as the mod's
+  - Ours: the warehouse amount is read live; the mod saves a snapshot when you click the warehouse with the scroll. No "in delivery" amount
 - [ ] Scepters: guard (patrol points), lumberjack (restricted area), beekeeper, permission
 - [ ] Rally banner (guards follow the player)
-- [ ] Build goggles (show blueprints in the world)
+- [~] Build goggles: they show colony borders while worn (see Town Hall above); not the buildings' blueprints in the world
 - [ ] Scan analyzer
 - [ ] Colony map
 - [ ] Quest log

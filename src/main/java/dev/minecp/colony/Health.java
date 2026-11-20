@@ -65,6 +65,9 @@ public final class Health {
         if (damage <= 0) return;
         c.health -= damage;
         c.showHurt();
+        var type = e.getDamageSource().getDamageType(); // the mod's damage modifier skips fire (lava, magma, campfires too) and lightning
+        if (!org.bukkit.tag.DamageTypeTags.IS_FIRE.isTagged(type) && !org.bukkit.tag.DamageTypeTags.IS_LIGHTNING.isTagged(type))
+            colony.happiness.hurt(c); // the mod's damage modifier skips fire and lightning
         if (c.health <= 0) { die(c, cause, source); return; }
         c.wake(); // vanilla wakes any sleeper that is hurt; it flees first, then goes back to bed
         if (job != null && job.fightsBack(source)) { // a knight doesn't run
@@ -86,6 +89,7 @@ public final class Health {
         c.despawn();
         colony.colonists.remove(c);
         colony.assignJobs();
+        if (!(job instanceof dev.minecp.job.Guard)) colony.happiness.died();
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_DEATH, SoundCategory.NEUTRAL, 1, 1);
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         Block spot = Grave.spot(at.getBlock());

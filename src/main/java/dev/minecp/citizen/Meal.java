@@ -110,6 +110,7 @@ public final class Meal {
                 timer = 0;
                 c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(next));
                 colony.milestones.ate();
+                c.ate(next.getType());
                 if (next.getAmount() > 1) next.subtract();
                 else food.removeFirst();
             }

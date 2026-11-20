@@ -286,13 +286,71 @@ public final class MineCP extends JavaPlugin implements Listener {
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();
-        if (p.isSneaking()) return; // the block's own use (a chest): Protection checks it
-        e.setCancelled(true);
-        if (!c.permissions.has(p, Action.ACCESS_HUTS)) {
-            protection.deny(p, c, Action.ACCESS_HUTS);
+        ItemStack held = e.getItem();
+        if (items.isClipboard(held) || items.isResourceScroll(held)) { // binds it to this colony (the mod: any hut / the Builder's Hut)
+            e.setCancelled(true);
+            if (!mayAccess(p, c)) return;
+            Hut hut = c.hutAt(e.getClickedBlock());
+            if (items.isResourceScroll(held) && hut.type != Hut.Type.BUILDER) {
+                p.sendMessage(Component.text("A resource scroll links only to a Builder's Hut.", NamedTextColor.RED));
+                return;
+            }
+            items.bind(held, c);
+            p.sendMessage(Component.text(items.isClipboard(held) ? "Noting the requests of " + c.name + " on the clipboard."
+                    : "Linked to the Builder's Hut of " + c.name + ".", NamedTextColor.GREEN));
             return;
         }
+        if (p.isSneaking()) return; // the block's own use (a chest): Protection checks it
+        e.setCancelled(true);
+        if (!mayAccess(p, c)) return;
         menus.hut(p, c, c.hutAt(e.getClickedBlock()));
+    }
+
+    /** Hut menus, citizens and the clipboard and scroll need ACCESS_HUTS; says so if not. */
+    private boolean mayAccess(Player p, Colony c) {
+        if (c.permissions.has(p, Action.ACCESS_HUTS)) return true;
+        protection.deny(p, c, Action.ACCESS_HUTS);
+        return false;
+    }
+
+    /** A clipboard or resource scroll used anywhere but on a hut shows its list (on a hut it binds: onInteract). */
+    @EventHandler
+    public void onUseNote(PlayerInteractEvent e) {
+        var a = e.getAction();
+        if (e.getHand() != EquipmentSlot.HAND || !(a == org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+                || a == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK && colonyAt(e.getClickedBlock()) == null)) return;
+        ItemStack held = e.getItem();
+        boolean clipboard = items.isClipboard(held);
+        if (!clipboard && !items.isResourceScroll(held)) return;
+        e.setCancelled(true);
+        Player p = e.getPlayer();
+        UUID owner = items.boundTo(held);
+        Colony c = owner == null ? null : colonies.get(owner);
+        if (c == null) {
+            p.sendMessage(Component.text(clipboard ? "Right-click a hut of a colony to note its requests first."
+                    : "Right-click a Builder's Hut to link the scroll first.", NamedTextColor.RED));
+            return;
+        }
+        if (!mayAccess(p, c)) return;
+        if (clipboard) menus.clipboard(p, c);
+        else menus.resourceScroll(p, c);
+    }
+
+    /** Right-click a citizen for its menu (the mod's citizen window), or a visitor to recruit it. */
+    @EventHandler
+    public void onClickCitizen(org.bukkit.event.player.PlayerInteractEntityEvent e) {
+        for (Colony c : colonies.values()) {
+            Colonist w = c.colonistOf(e.getRightClicked());
+            var v = w == null ? c.visitors.of(e.getRightClicked()) : null;
+            if (w == null && v == null) continue;
+            e.setCancelled(true);
+            if (e.getHand() != EquipmentSlot.HAND) return;
+            Player p = e.getPlayer();
+            if (!mayAccess(p, c)) return;
+            if (w != null) menus.citizen(p, c, w);
+            else menus.visitor(p, c, v);
+            return;
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -312,6 +370,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         for (Colony c : colonies.values()) {
             Colonist w = c.colonistOf(e.getEntity());
             if (w != null) { c.health.hurt(w, e); return; }
+            if (c.visitors.of(e.getEntity()) != null) { e.setCancelled(true); return; } // ours: visitors can't be hurt
         }
     }
 

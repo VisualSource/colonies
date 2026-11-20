@@ -26,16 +26,18 @@ final class Routine {
     private static final int HUNGER_TICKS = 20 * 60; // saturation drops once a minute (as in the mod)
 
     private final Colony colony;
-    private boolean isDay = true;
+    private boolean isDay = true, started;
 
     Routine(Colony colony) {
         this.colony = colony;
     }
 
-    /** Counts a new colony day each morning, as in the mod. Called every tick with the world's day time. */
+    /** Counts a new colony day each morning, and a happiness day at nightfall, as in the mod. Called every tick with the world's day time. */
     void clock(long time) {
         boolean dayTime = time <= NIGHT;
+        if (!started) { started = true; isDay = dayTime; } // a server started at night hasn't just seen nightfall
         if (dayTime && !isDay) colony.day++;
+        if (!dayTime && isDay) colony.happiness.dayEnd();
         isDay = dayTime;
     }
 

@@ -95,6 +95,15 @@ public final class Builder extends Job {
         return need;
     }
 
+    /** For the resource scroll: each item the rest of the build uses, with {needed, carried or in the hut chest}. */
+    public Map<ItemStack, int[]> resources() {
+        Map<ItemStack, int[]> list = new java.util.LinkedHashMap<>();
+        if (order == null) return list;
+        Inventory chest = chest();
+        needed().forEach((item, n) -> list.put(item, new int[]{n, carrying(item) + (chest == null ? 0 : count(chest, item))}));
+        return list;
+    }
+
     private Map<ItemStack, Integer> needed;
     private int neededAt;
 
@@ -187,7 +196,7 @@ public final class Builder extends Job {
     }
 
     /** How many of {@code item} (plain blocks, or racks: they don't count for each other) the inventory holds. */
-    private static int count(Inventory inv, ItemStack item) {
+    public static int count(Inventory inv, ItemStack item) {
         int n = 0;
         for (ItemStack i : inv.getContents()) if (i != null && item.isSimilar(i)) n += i.getAmount();
         return n;
