@@ -3,6 +3,7 @@ package dev.minecp.citizen;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.World;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Openable;
 import org.bukkit.block.data.type.Door;
@@ -57,9 +58,17 @@ final class Route {
             Material.MAGMA_BLOCK, Material.CAMPFIRE, Material.SOUL_CAMPFIRE, Material.SWEET_BERRY_BUSH,
             Material.POWDER_SNOW, Material.CACTUS, Material.WITHER_ROSE, Material.LAVA_CAULDRON);
 
-    /** How a block state can be used, worked out once per state from its collision shape. */
+    /**
+     * How a block state can be used, worked out once per state from its collision shape. {@code panel}: the side of
+     * its block a door or open trapdoor's thin panel stands on (a door as it is when open: wooden ones are opened on
+     * the way); null for anything else. The body passes along a panel, never across it.
+     */
     private record Info(boolean body, double top, boolean floor, boolean partial, boolean danger, boolean climb,
-                        boolean door, boolean water, boolean onPath) {}
+                        boolean door, boolean water, boolean onPath, BlockFace panel) {
+        Info(boolean body, double top, boolean floor, boolean partial, boolean danger, boolean climb, boolean door, boolean water, boolean onPath) {
+            this(body, top, floor, partial, danger, climb, door, water, onPath, null);
+        }
+    }
 
     private static final Map<BlockData, Info> INFO = new HashMap<>(); // main thread only
     private static final Info UNLOADED = new Info(false, 0, false, false, true, false, false, false, false);
@@ -97,16 +106,50 @@ final class Route {
         // Doors, gates and trapdoors: open ones are walked through; closed wooden doors and gates too (Colonist opens them).
         if (d instanceof Door door) {
             boolean wooden = Tag.MOB_INTERACTABLE_DOORS.isTagged(m);
-            return new Info(door.isOpen() || wooden, 0, false, false, false, false, !door.isOpen(), false, false);
+            return new Info(door.isOpen() || wooden, 0, false, false, false, false, !door.isOpen(), false, false, panelSide(d, w, x, y, z));
         }
         if (d instanceof Gate gate) return new Info(true, 0, false, false, false, false, !gate.isOpen(), false, false); // opened on the way
-        if (d instanceof TrapDoor t && t.isOpen()) return new Info(true, 0, false, false, false, false, false, false, false);
+        if (d instanceof TrapDoor t && t.isOpen()) return new Info(true, 0, false, false, false, false, false, false, false, panelSide(d, w, x, y, z));
         if (climb) return new Info(true, 0, false, false, danger, true, false, false, false);
         boolean empty = top == 0;
         boolean fenceLike = top > 1.0;                                  // fences and walls: never stood on or walked through
         boolean partial = !empty && top <= 0.5 && wide && !fenceLike;   // slabs, carpets, snow: stood on inside their block
         boolean floor = !empty && top > 0.5 && !fenceLike && (wide || d instanceof Openable);
         return new Info(empty, top, floor, partial, danger, false, false, false, onPath);
+    }
+
+    /** The side a door's or trapdoor's panel stands on when open, from its open collision shape; null if it has no side panel. */
+    private static BlockFace panelSide(BlockData d, World w, int x, int y, int z) {
+        BlockData open = d.clone();
+        ((Openable) open).setOpen(true);
+        double minX = 1, maxX = 0, minZ = 1, maxZ = 0;
+        for (BoundingBox b : open.getCollisionShape(new org.bukkit.Location(w, x, y, z)).getBoundingBoxes()) {
+            minX = Math.min(minX, b.getMinX()); maxX = Math.max(maxX, b.getMaxX());
+            minZ = Math.min(minZ, b.getMinZ()); maxZ = Math.max(maxZ, b.getMaxZ());
+        }
+        if (maxX - minX < 0.5) return minX < 0.01 ? BlockFace.WEST : BlockFace.EAST;
+        if (maxZ - minZ < 0.5) return minZ < 0.01 ? BlockFace.NORTH : BlockFace.SOUTH;
+        return null;
+    }
+
+    /**
+     * Whether stepping from column (fx,fz) to the next one along (dx,dz) crosses a panel: one on the leaving side of
+     * the blocks it leaves (feet {@code fy} up to {@code fTop}), or on the entering side of the blocks it enters (feet
+     * {@code ty} and head).
+     */
+    private static boolean crossesPanel(World w, int fx, int fy, int fTop, int fz, int ty, int dx, int dz) {
+        for (int y = fy; y <= fTop; y++) if (facing(info(w, fx, y, fz).panel, dx, dz)) return true;
+        for (int y = ty; y <= ty + 1; y++) if (facing(info(w, fx + dx, y, fz + dz).panel, -dx, -dz)) return true;
+        return false;
+    }
+
+    /** No door or trapdoor panel at the feet or head of a body standing at (x,y,z). */
+    private static boolean noPanel(World w, int x, int y, int z) {
+        return info(w, x, y, z).panel == null && info(w, x, y + 1, z).panel == null;
+    }
+
+    private static boolean facing(BlockFace side, int dx, int dz) {
+        return side != null && side.getModX() == dx && side.getModZ() == dz;
     }
 
     /** Height the feet are at when standing at (x,y,z), or NaN if one can't stand there. */
@@ -218,18 +261,22 @@ final class Route {
         int[][] sides = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
         for (int i = 0; i < 4; i++) {
             int x = n.x + sides[i][0], z = n.z + sides[i][1];
-            clear[i] = info(w, x, n.y, z).body && info(w, x, n.y + 1, z).body;
+            int dx = sides[i][0], dz = sides[i][1];
+            // Open for a corner cut: passable, and no door or trapdoor panel to clip.
+            clear[i] = info(w, x, n.y, z).body && info(w, x, n.y + 1, z).body && noPanel(w, x, n.y, z);
             double h = stand(w, x, n.y, z); // level
-            if (!Double.isNaN(h) && h - n.h <= MAX_JUMP && (h - n.h <= STEP_UP || roomToJump(w, n))) {
+            boolean jump = h - n.h > STEP_UP;
+            int headTop = n.y + (jump ? 2 : 1); // the highest block its head passes through on the way out
+            if (!Double.isNaN(h) && h - n.h <= MAX_JUMP && (!jump || roomToJump(w, n)) && !crossesPanel(w, n.x, n.y, headTop, n.z, n.y, dx, dz)) {
                 add(out, n, x, n.y, z, h, info(w, x, n.y, z).climb, here + (h - n.h > STEP_UP ? JUMP : 0) + toggle(w, x, n.y, z));
                 continue;
             }
             h = stand(w, x, n.y + 1, z); // up a block
-            if (!Double.isNaN(h) && h - n.h <= MAX_JUMP && roomToJump(w, n)) {
+            if (!Double.isNaN(h) && h - n.h <= MAX_JUMP && roomToJump(w, n) && !crossesPanel(w, n.x, n.y, n.y + 2, n.z, n.y + 1, dx, dz)) {
                 add(out, n, x, n.y + 1, z, h, info(w, x, n.y + 1, z).climb, here + (h - n.h > STEP_UP ? JUMP : 0) + toggle(w, x, n.y + 1, z));
                 continue;
             }
-            if (!clear[i] || n.ladder) continue; // the mod doesn't drop from ladders
+            if (!clear[i] || n.ladder || crossesPanel(w, n.x, n.y, n.y + 1, n.z, n.y, dx, dz)) continue; // the mod doesn't drop from ladders
             for (int k = 1; k <= MAX_DROP; k++) { // down: the column must be open all the way
                 h = stand(w, x, n.y - k, z);
                 if (!Double.isNaN(h)) { add(out, n, x, n.y - k, z, h, info(w, x, n.y - k, z).climb, here + k * k * k); break; }
@@ -238,10 +285,10 @@ final class Route {
         }
         for (int i = 0; i < 4; i++) { // diagonals on the level, where both sides are open (no cutting corners)
             int j = (i + 1) % 4;
-            if (!clear[i] || !clear[j] || n.ladder) continue;
+            if (!clear[i] || !clear[j] || n.ladder || !noPanel(w, n.x, n.y, n.z)) continue;
             int x = n.x + sides[i][0] + sides[j][0], z = n.z + sides[i][1] + sides[j][1];
             double h = stand(w, x, n.y, z);
-            if (!Double.isNaN(h) && Math.abs(h - n.h) <= STEP_UP && !info(w, x, n.y, z).climb && !info(w, x, n.y, z).door)
+            if (!Double.isNaN(h) && Math.abs(h - n.h) <= STEP_UP && !info(w, x, n.y, z).climb && noPanel(w, x, n.y, z)) // doors have panels
                 add(out, n, x, n.y, z, h, false, here * DIAGONAL);
         }
         return out;
@@ -264,7 +311,7 @@ final class Route {
         return info(w, x, y, z).door || info(w, x, y + 1, z).door ? TOGGLE : 0;
     }
 
-    /** Head room to jump: the block above the head must be open. */
+    /** Head room to jump: the block above the head must be open (a panel there is checked by {@link #crossesPanel}). */
     private static boolean roomToJump(World w, Node n) {
         Info above = info(w, n.x, n.y + 2, n.z);
         return above.body || above.climb;

@@ -284,9 +284,18 @@ public abstract class Job {
      */
     Collection<ItemStack> breakWith(Tool kind, Block block, Colonist w) {
         ItemStack tool = kind == null ? null : tools.get(kind);
-        Collection<ItemStack> drops = tool == null ? block.getDrops() : block.getDrops(tool);
+        Collection<ItemStack> drops = drops(block, tool);
         if (tool != null) wear(kind, w);
         return drops;
+    }
+
+    /**
+     * What a worker breaking {@code b} with {@code tool} (null: by hand) gets: a storage rack comes back as a rack (its
+     * plain drop would be a chest named "Storage Rack" that works as neither); anything else drops as vanilla's.
+     */
+    static Collection<ItemStack> drops(Block b, ItemStack tool) {
+        if (dev.minecp.logistics.Rack.is(b)) return List.of(dev.minecp.logistics.Rack.item());
+        return tool == null ? b.getDrops() : b.getDrops(tool);
     }
 
     /** Uses the held tool of this kind once: it shows in the worker's hand, wears down, and is gone when it breaks. */

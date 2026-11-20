@@ -79,6 +79,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(protection, this);
         getServer().getPluginManager().registerEvents(items, this);
+        getServer().getPluginManager().registerEvents(new ChestNames(this), this);
         getServer().getPluginManager().registerEvents(teaching, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
@@ -213,6 +214,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                     ? "Field placed. Right-click it to choose the crop and the size of the field."
                     : type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
         }
+        ChestNames.name(at, type.title); // only chests take it: not the town hall's bell or a field's hay bale
         hut.rotation = rotation;
         hut.mirror = mirror;
         save(c);

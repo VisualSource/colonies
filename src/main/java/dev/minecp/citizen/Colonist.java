@@ -171,7 +171,9 @@ public final class Colonist {
             return;
         }
         Nms.drive(legs, s.x() + 0.5, s.h(), s.z() + 0.5, WALK_SPEED);
-        if (routeFrom == null || routeFrom.distanceSquared(at) > 0.5 * 0.5) { routeFrom = at; routeIdle = 0; return; }
+        // Progress counts across the ground only: hopping in place at a step it can't get up (a beam overhead) would
+        // otherwise look like moving, and it would never search again or teleport.
+        if (routeFrom == null || Math.hypot(at.getX() - routeFrom.getX(), at.getZ() - routeFrom.getZ()) > 0.5) { routeFrom = at; routeIdle = 0; return; }
         if (++routeIdle <= STUCK_TICKS) return;
         // Stuck, as the mod's stuck handler goes: search again first, then teleport a few steps ahead on the route.
         stats.stuck++;

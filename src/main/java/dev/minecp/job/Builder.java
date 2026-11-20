@@ -310,7 +310,7 @@ public final class Builder extends Job {
     private Collection<ItemStack> dropsOf(Block b) {
         Tool kind = Tool.forBlock(b.getType(), false);
         ItemStack tool = kind == null ? null : tools.get(kind);
-        List<ItemStack> drops = new ArrayList<>(tool == null ? b.getDrops() : b.getDrops(tool));
+        List<ItemStack> drops = new ArrayList<>(drops(b, tool));
         drops.addAll(contents(b)); // what a chest in the way holds goes to the hut chest too
         return drops;
     }

@@ -14,6 +14,11 @@ The pack is each player's choice: without it they see the plain vanilla items, a
 --client takes the vanilla fallbacks from your Minecraft client jar (.minecraft/versions/<version>/<version>.jar);
 without it, built-in copies are used, which may lag behind a new Minecraft version.
 
+Placed huts and storage racks stay vanilla chests, named for what they are ("Builder's Hut"). For players with
+OptiFine or Entity Model Features, the pack also turns the mod's hut and rack block models into OptiFine CEM chest
+models (assets/minecraft/optifine/cem/chest<n>.jem), picked by that name in chest.properties; other chests stay vanilla.
+--cem-turn turns those models by quarter turns if they face the wrong way.
+
 The mod's art is "All Rights Reserved": keep the pack private, never commit it.
 """
 import argparse
@@ -46,25 +51,123 @@ MODELS = {
 }
 # The vanilla item each MineCP item is made from (Hut.Type.block, Rack, Items): its definition gets the override.
 BASE = {"hut/town_hall": "bell", "hut/field": "hay_block", "build_goggles": "leather_helmet", "build_tool": "stick"}  # the rest: chest
-# Vanilla's own definitions of those items, used as the fallback without --client (from Minecraft's assets/minecraft/items).
-VANILLA = {
-    "bell": {"type": "minecraft:model", "model": "minecraft:item/bell"},
-    "hay_block": {"type": "minecraft:model", "model": "minecraft:block/hay_block"},
-    "stick": {"type": "minecraft:model", "model": "minecraft:item/stick"},
-    "leather_helmet": {"type": "minecraft:model", "model": "minecraft:item/leather_helmet",
-                       "tints": [{"type": "minecraft:dye", "default": -6265536}]},
-    "chest": {"type": "minecraft:select", "property": "minecraft:local_time", "pattern": "MM-dd",
-              "cases": [{"when": ["12-24", "12-25", "12-26"], "model": {"type": "minecraft:special", "base": "minecraft:item/chest",
-                                                                         "model": {"type": "minecraft:chest", "texture": "minecraft:christmas"}}}],
-              "fallback": {"type": "minecraft:special", "base": "minecraft:item/chest",
-                           "model": {"type": "minecraft:chest", "texture": "minecraft:normal"}}},
+# Vanilla's own definitions of those items (Minecraft 26.3's assets/minecraft/items), the fallback without --client.
+VANILLA = json.loads(r'''{"bell":{"type":"minecraft:model","model":"minecraft:item/bell"},"chest":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:christmas"}},"when":["12-24","12-25","12-26"]}],"fallback":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:normal"}},"pattern":"MM-dd","property":"minecraft:local_time"},"hay_block":{"type":"minecraft:model","model":"minecraft:block/hay_block"},"stick":{"type":"minecraft:model","model":"minecraft:item/stick"},"leather_helmet":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_quartz_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:quartz"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_iron_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:iron"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_netherite_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:netherite"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_redstone_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:redstone"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_copper_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:copper"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_gold_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:gold"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_emerald_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:emerald"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_diamond_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:diamond"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_lapis_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:lapis"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_amethyst_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:amethyst"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_resin_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:resin"}],"fallback":{"type":"minecraft:model","model":"minecraft:item/leather_helmet","tints":[{"type":"minecraft:dye","default":-6265536}]},"property":"minecraft:trim_material"}}''')
+# The name MineCP gives each placed hut chest (Hut.Type titles) and rack (Rack.tag) -> its MODELS entry: keep in step.
+CHEST_NAMES = {
+    "Builder's Hut": "hut/builder", "House": "hut/house", "Lumberjack's Hut": "hut/lumberjack", "Farmer's Hut": "hut/farmer",
+    "Cook's Hut": "hut/cook", "Warehouse": "hut/warehouse", "Courier's Hut": "hut/courier", "Miner's Hut": "hut/miner",
+    "Sawmill": "hut/sawmill", "Stonemason's Hut": "hut/stonemason", "Stone Smeltery": "hut/stone_smeltery",
+    "Blacksmith's Hut": "hut/blacksmith", "Smeltery": "hut/smeltery", "Mechanic's Hut": "hut/mechanic",
+    "Guard Tower": "hut/guard_tower", "Storage Rack": "rack",
 }
+FACES = ["north", "east", "south", "west"]  # a quarter turn clockwise (seen from above) moves each to the next
+
+
+def resolve(model_id, models, depth=0):
+    """A block model's elements, each with the texture variables it sees, following parents (vanilla ones only if
+    --client gave them) and Forge composite models ("loader": "forge:composite"), whose parts sit in "children", each
+    with its own textures and elements (or parent)."""
+    textures, seen = {}, set()
+    while model_id and model_id not in seen and depth < 10:
+        seen.add(model_id)
+        m = models.get(model_id if ":" in model_id else "minecraft:" + model_id)
+        if m is None:
+            break
+        for k, v in m.get("textures", {}).items():
+            textures.setdefault(k, v)
+        if "children" in m:
+            out = []
+            for child in m["children"].values():
+                inner = [(e, {**textures, **t}) for e, t in resolve(child.get("parent"), models, depth + 1)] if "elements" not in child else []
+                own = {**textures, **child.get("textures", {})}
+                out += [(e, own) for e in child.get("elements", [])] + [(e, {**t, **child.get("textures", {})}) for e, t in inner]
+            return out
+        if "elements" in m:
+            return [(e, textures) for e in m["elements"]]
+        model_id = m.get("parent")
+    return []
+
+
+def flatten(model_id, models):
+    """A Forge composite model as a plain one a vanilla client can draw: its children's elements together, each
+    child's texture variables renamed so they can't clash. None if it isn't composite."""
+    m = models.get(model_id)
+    if m is None or "children" not in m:
+        return None
+    textures, elements, keys = dict(m.get("textures", {})), [], {}
+    for e, tex in resolve(model_id, models):
+        e = json.loads(json.dumps(e))
+        for face in e.get("faces", {}).values():
+            ref = texture_path(face.get("texture", ""), tex)
+            if ref:
+                ref = ref.replace(":textures/", ":", 1)
+                if ref not in keys:
+                    keys[ref] = "t" + str(len(keys))
+                    textures[keys[ref]] = ref
+                face["texture"] = "#" + keys[ref]
+        elements.append(e)
+    flat = {k: v for k, v in m.items() if k not in ("children", "loader", "elements", "textures")}
+    flat["textures"], flat["elements"] = textures, elements
+    return flat
+
+
+def texture_path(ref, textures):
+    """"#side" -> "minecraft:textures/block/oak_planks", as CEM's "mod:folder/texture" form."""
+    for _ in range(10):
+        if not ref.startswith("#"):
+            break
+        ref = textures.get(ref[1:], "")
+    if not ref:
+        return None
+    ns, path = ref.split(":", 1) if ":" in ref else ("minecraft", ref)
+    return f"{ns}:textures/{path}"
+
+
+def default_uv(face, f, t):
+    """The UV a block model face gets without one (vanilla's), from the element's corners."""
+    x1, y1, z1 = f
+    x2, y2, z2 = t
+    return {"down": [x1, 16 - z2, x2, 16 - z1], "up": [x1, z1, x2, z2], "north": [16 - x2, 16 - y2, 16 - x1, 16 - y1],
+            "south": [x1, 16 - y2, x2, 16 - y1], "west": [z1, 16 - y2, z2, 16 - y1], "east": [16 - z2, 16 - y2, 16 - z1, 16 - y1]}[face]
+
+
+def chest_model(elements, turns):
+    """An OptiFine CEM chest model drawing a block model: every element a box of the chest's base part (block pixels,
+    y up, the chest's front toward +z), one sub-part per texture; the lid and knob are left empty.
+    shortcut: element rotations (a few tilted decorations) and face texture rotations are dropped; upgrade once a
+    player with EMF has checked the result."""
+    parts = {}
+    for e, textures in elements:
+        (x1, y1, z1), (x2, y2, z2) = e["from"], e["to"]
+        corners = [(x1, z1), (x2, z2)]
+        for _ in range(turns % 4):
+            corners = [(16 - z, x) for x, z in corners]
+        nx1, nx2 = sorted(c[0] for c in corners)
+        nz1, nz2 = sorted(c[1] for c in corners)
+        by_texture = {}
+        for face, spec in e.get("faces", {}).items():
+            tex = texture_path(spec.get("texture", ""), textures)
+            if tex is None:
+                continue
+            name = face if face in ("up", "down") else FACES[(FACES.index(face) + turns) % 4]
+            key = "uv" + name[0].upper() + name[1:]
+            by_texture.setdefault(tex, {})[key] = spec.get("uv", default_uv(face, e["from"], e["to"]))
+        for tex, faces in by_texture.items():
+            parts.setdefault(tex, []).append({"coordinates": [nx1, y1, nz1, nx2 - nx1, y2 - y1, nz2 - nz1], **faces})
+    base = {"part": "base", "id": "base", "attach": False, "textureSize": [16, 16],
+            "submodels": [{"id": f"t{i}", "texture": tex, "textureSize": [16, 16], "boxes": boxes}
+                          for i, (tex, boxes) in enumerate(parts.items())]}
+    empty = lambda part: {"part": part, "id": part, "attach": False, "textureSize": [16, 16], "boxes": []}
+    return {"textureSize": [16, 16], "models": [base, empty("lid"), empty("knob")]}
+
+
 # What to copy from each jar: models and the textures they use.
 COPY = ("models/", "textures/block/", "textures/item/")
 
 
-def copy_assets(jar_path, namespace, out, seen):
-    """Copies a jar's models and block and item textures for one namespace. Returns the model ids it holds."""
+def copy_assets(jar_path, namespace, out, seen, models_json):
+    """Copies a jar's models and block and item textures for one namespace (models also into {@code models_json})."""
     models = set()
     with zipfile.ZipFile(jar_path) as jar:
         for name in jar.namelist():
@@ -74,11 +177,18 @@ def copy_assets(jar_path, namespace, out, seen):
             rest = name[len(prefix):]
             if not rest.startswith(COPY):
                 continue
-            if name not in seen:
+            composite = False
+            if rest.startswith("models/") and rest.endswith(".json"):
+                model_id = f"{namespace}:{rest[len('models/'):-len('.json')]}"
+                models.add(model_id)
+                try:
+                    models_json[model_id] = json.loads(jar.read(name))
+                    composite = "children" in models_json[model_id]  # written flattened later (main)
+                except ValueError:
+                    pass  # not plain JSON: copied as it is, left out of the CEM models
+            if name not in seen and not composite:
                 out.writestr(name, jar.read(name))
                 seen.add(name)
-            if rest.startswith("models/") and rest.endswith(".json"):
-                models.add(f"{namespace}:{rest[len('models/'):-len('.json')]}")
     return models
 
 
@@ -89,13 +199,19 @@ def main():
     ap.add_argument("--client", help="the Minecraft client jar, for the vanilla item definitions")
     ap.add_argument("-o", "--out", required=True, help="the resource pack zip to write")
     ap.add_argument("--min-format", type=int, default=69, help="lowest resource pack format the pack declares")
+    ap.add_argument("--cem-turn", type=int, default=1, help="quarter turns (clockwise from above) for the CEM chest models")
     a = ap.parse_args()
 
-    seen, have = set(), set()
+    seen, have, models_json = set(), set(), {}
     with zipfile.ZipFile(a.out, "w", zipfile.ZIP_DEFLATED) as out:
-        have |= copy_assets(a.minecolonies, "minecolonies", out, seen)
+        have |= copy_assets(a.minecolonies, "minecolonies", out, seen, models_json)
         if a.structurize:
-            have |= copy_assets(a.structurize, "structurize", out, seen)
+            have |= copy_assets(a.structurize, "structurize", out, seen, models_json)
+        for model_id in list(models_json):  # Forge composite models (a vanilla client can't draw them), made plain
+            flat = flatten(model_id, models_json)
+            if flat is not None:
+                ns, path = model_id.split(":", 1)
+                out.writestr(f"assets/{ns}/models/{path}.json", json.dumps(flat))
         missing, cases = [], {}
         for item, model in MODELS.items():
             if model not in have:
@@ -103,6 +219,21 @@ def main():
                 continue  # left out: that item just keeps its vanilla look
             cases.setdefault(BASE.get(item, "chest"), []).append({"when": "minecp:" + item, "model": {"type": "minecraft:model", "model": model}})
         client = zipfile.ZipFile(a.client) if a.client else None
+        if client:  # vanilla parents of the mod's models (read only, never copied)
+            for name in client.namelist():
+                if name.startswith("assets/minecraft/models/") and name.endswith(".json"):
+                    models_json.setdefault("minecraft:" + name[len("assets/minecraft/models/"):-5], json.loads(client.read(name)))
+        rules, n, no_chest = [], 2, []
+        for chest_name, item in CHEST_NAMES.items():
+            elements = resolve(MODELS[item], models_json)
+            if not elements:
+                no_chest.append(f"{chest_name} ({MODELS[item]} has no block model elements)")
+                continue
+            out.writestr(f"assets/minecraft/optifine/cem/chest{n}.jem", json.dumps(chest_model(elements, a.cem_turn), indent=1))
+            rules.append(f"models.{n}={n}\nname.{n}={chest_name}")
+            n += 1
+        if rules:  # unnamed chests match no rule and keep the vanilla model
+            out.writestr("assets/minecraft/optifine/cem/chest.properties", "# MineCP: hut and rack chests by name\n" + "\n".join(rules) + "\n")
         for base, base_cases in cases.items():
             fallback = VANILLA[base]
             if client:
@@ -113,7 +244,9 @@ def main():
         out.writestr("pack.mcmeta", json.dumps({"pack": {
             "description": "MineCP models (private: made from your MineColonies jar)",
             "min_format": a.min_format, "max_format": 1000}}, indent=2))
-    print(f"wrote {a.out}: {len(MODELS) - len(missing)} of {len(MODELS)} item models")
+    print(f"wrote {a.out}: {len(MODELS) - len(missing)} of {len(MODELS)} item models, {len(CHEST_NAMES) - len(no_chest)} of {len(CHEST_NAMES)} placed chest models")
+    for m in no_chest:
+        print("  placed, left vanilla: " + m, file=sys.stderr)
     if missing:
         print("not in the jars (those items keep their vanilla look):", file=sys.stderr)
         for m in missing:

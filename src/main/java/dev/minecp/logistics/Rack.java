@@ -17,12 +17,15 @@ import java.util.List;
  * a custom model later. Buildings need racks, not plain chests, and only racks count as warehouse storage.
  */
 public final class Rack {
+    /** Its item's name and its chest's name (what the optional pack's chest model goes by: tools/build_resourcepack.py). */
+    public static final String NAME = "Storage Rack";
+
     private Rack() {}
 
     public static ItemStack item() {
         ItemStack item = new ItemStack(Material.CHEST);
         item.editMeta(m -> {
-            m.itemName(Component.text("Storage Rack", NamedTextColor.GOLD));
+            m.itemName(Component.text(NAME, NamedTextColor.GOLD));
             m.lore(List.of(Component.text("Storage for colony buildings", NamedTextColor.GRAY)));
             m.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
         });
@@ -43,5 +46,6 @@ public final class Rack {
         if (!(b.getState() instanceof TileState ts) || ts.getPersistentDataContainer().has(BuildOrder.RACK_MARKER)) return;
         ts.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
         ts.update(true, false);
+        dev.minecp.ChestNames.name(b, NAME); // its inventory title, and the pack's model choice
     }
 }
