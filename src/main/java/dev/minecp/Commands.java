@@ -140,6 +140,29 @@ final class Commands implements CommandExecutor {
                 plugin.save(here);
                 player.sendMessage(args[2] + " is now " + rank.title() + " in " + here.name + ".");
             }
+            case "raid" -> { // raid now|tonight [amount]: admins, on the colony they stand in (the mod's /mc colony raid)
+                Colony here = here(player);
+                if (!player.hasPermission("minecp.admin")) {
+                    player.sendMessage(Component.text("You don't have permission.", NamedTextColor.RED));
+                    return true;
+                }
+                if (here == null || args.length < 2) return false;
+                if (args[1].equals("tonight")) {
+                    here.raids.raidTonight = true;
+                    plugin.save(here);
+                    player.sendMessage(here.name + " will be raided at the next nightfall.");
+                    return true;
+                }
+                if (!args[1].equals("now")) return false;
+                int amount;
+                try {
+                    amount = args.length > 2 ? Integer.parseInt(args[2]) : 0;
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+                String problem = here.raids.start(true, amount);
+                player.sendMessage(problem != null ? Component.text(problem, NamedTextColor.RED) : Component.text("Raid started on " + here.name + "."));
+            }
             case "movement" -> { // how often each citizen's walking went wrong
                 if (c == null) {
                     player.sendMessage("You don't have a colony.");

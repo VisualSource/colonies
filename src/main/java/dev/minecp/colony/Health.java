@@ -90,6 +90,7 @@ public final class Health {
         colony.colonists.remove(c);
         colony.assignJobs();
         if (!(job instanceof dev.minecp.job.Guard)) colony.happiness.died();
+        colony.raids.lost(job instanceof dev.minecp.job.Guard);
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_DEATH, SoundCategory.NEUTRAL, 1, 1);
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         Block spot = Grave.spot(at.getBlock());

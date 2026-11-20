@@ -107,9 +107,17 @@ public final class Crafter extends Job {
         return r == null ? null : r.getResult();
     }
 
-    /** A taught recipe that makes something matching {@code want}, or null. */
+    /**
+     * Recipes it knows without being taught, each from a hut level (the mod's crafterrecipes, like the baker's bread);
+     * they don't count against {@link #maxRecipes()}.
+     */
+    public final Map<NamespacedKey, Integer> builtIn = new LinkedHashMap<>();
+
+    /** A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null. */
     public Recipe recipeFor(Predicate<ItemStack> want) {
-        for (NamespacedKey key : recipes) {
+        List<NamespacedKey> known = new ArrayList<>(recipes);
+        builtIn.forEach((key, level) -> { if (hut.level >= level) known.add(key); });
+        for (NamespacedKey key : known) {
             Recipe r = Bukkit.getRecipe(key);
             if (r != null && want.test(r.getResult())) return r;
         }
@@ -344,6 +352,15 @@ public final class Crafter extends Job {
         lines.add(Component.text(oreSmelter ? "Smelts the ores couriers bring from the warehouse, and the ingots huts ask for. Needs fuel and furnaces in its building."
                 : (smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
                 + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));
+        if (!builtIn.isEmpty()) {
+            List<String> now = new ArrayList<>(), later = new ArrayList<>();
+            builtIn.forEach((key, level) -> {
+                ItemStack result = resultOf(key);
+                if (result != null) (hut.level >= level ? now : later).add(name(result.getType()) + (hut.level >= level ? "" : " (level " + level + ")"));
+            });
+            lines.add(Component.text("Knows without teaching: " + String.join(", ", now) + (later.isEmpty() ? "" : "; later " + String.join(", ", later)) + ".",
+                    NamedTextColor.GRAY));
+        }
         for (Requests.Request t : tasks)
             lines.add(Component.text("Crafting " + owed(t) + " × " + t.label() + " for the " + t.job.hut.type.title + "."));
         return lines;

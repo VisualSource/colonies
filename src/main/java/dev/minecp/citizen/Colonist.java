@@ -71,7 +71,7 @@ public final class Colonist {
     public int childTime;   // a child's time towards growing up (the mod's aiActiveTime)
     // Happiness (Colony's Happiness), saved: the last foods eaten, and days counted by each time-based factor.
     public final java.util.Deque<Material> diet = new java.util.ArrayDeque<>();
-    public int homelessDays, joblessDays, sleeplessDays, hurtDays, griefDays;
+    public int homelessDays, joblessDays, sleeplessDays, hurtDays, griefDays, defendedDays;
     public static final int DIET_SIZE = 10; // the mod's FOOD_QUEUE_SIZE
 
     /** Remembers a food it ate: the last {@link #DIET_SIZE} count towards happiness. */

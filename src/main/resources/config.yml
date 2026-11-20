@@ -18,3 +18,16 @@ protection:
   #   players    - only players and hostile mobs
   #   nothing    - only players
   explosions: everything
+
+# Raids: hordes of hostile mobs attack colonies at night. The numbers are MineColonies' defaults.
+raids:
+  enabled: true
+  # 0 to 10: how many raiders come (5 is normal).
+  difficulty: 5
+  # The most raiders in one raid (6 to 400).
+  max-raiders: 80
+  # Nights between raids: at least the minimum, on average the average.
+  average-nights: 14
+  minimum-nights: 10
+  # Zombie raiders break doors (on Normal and Hard).
+  break-doors: true

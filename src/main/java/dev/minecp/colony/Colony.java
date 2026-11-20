@@ -75,6 +75,8 @@ public final class Colony {
     public final Requests requests = new Requests(this);
     public final Happiness happiness = new Happiness(this);
     public final Visitors visitors = new Visitors(this);
+    public final Raids raids = new Raids(this);
+    public ClaimMap claimMap; // every colony's claims, set by the plugin: raids don't spawn on another colony's land
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
     public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
     /** What the colony reports as it grows, for advancements; the plugin sets it. */
@@ -442,13 +444,15 @@ public final class Colony {
         if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         visitors.tick();
+        raids.tick();
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             Job job = jobOf(c);
             routine.hunger(c, job);
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
-            if (time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
+            boolean hide = raids.underway() && !(job instanceof dev.minecp.job.Guard); // the mod: citizens shelter at home during a raid
+            if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
                 c.bedtime = true;
                 if (job == null || job.leaveWork(c)) routine.goToBed(c);
@@ -507,6 +511,7 @@ public final class Colony {
         jobs.forEach(Job::stow);
         colonists.forEach(Colonist::despawn);
         visitors.despawn();
+        raids.despawn();
         huts.forEach(Colony::removeTape);
     }
 

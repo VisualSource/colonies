@@ -37,7 +37,10 @@ final class Routine {
         boolean dayTime = time <= NIGHT;
         if (!started) { started = true; isDay = dayTime; } // a server started at night hasn't just seen nightfall
         if (dayTime && !isDay) colony.day++;
-        if (!dayTime && isDay) colony.happiness.dayEnd();
+        if (!dayTime && isDay) {
+            colony.happiness.dayEnd();
+            colony.raids.nightfall();
+        }
         isDay = dayTime;
     }
 

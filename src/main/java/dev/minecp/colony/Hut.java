@@ -69,6 +69,8 @@ public final class Hut {
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
+        BAKER("Bakery", Material.CHEST, "craftsmanship/luxury/baker", "baker", "A baker bakes bread, cookies, pumpkin pie and cake",
+                () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", (h, c) -> baker(h), false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
@@ -108,6 +110,19 @@ public final class Hut {
         /** A hut without a worker. */
         Type(String title, Material block, String path, String command, String lore, Supplier<RecipeChoice> centre, boolean unique) {
             this(title, block, path, command, lore, centre, null, null, unique);
+        }
+
+        /**
+         * The baker knows the mod's own recipes for vanilla bread (level 1), cookies (2), pumpkin pie (3) and cake (4), as
+         * the vanilla crafting recipes: the mod's doughs and batters, baked in a furnace, are its own items.
+         */
+        private static Job baker(Hut h) {
+            Crafter b = new Crafter(h, CraftRules.BAKER, "bread, cookies, pumpkin pie, cake, and other things made from wheat");
+            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("bread"), 1);
+            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("cookie"), 2);
+            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("pumpkin_pie"), 3);
+            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("cake"), 4);
+            return b;
         }
 
         /** Chunks claimed around the hut's chunk at this level (the mod's getClaimRadius). */

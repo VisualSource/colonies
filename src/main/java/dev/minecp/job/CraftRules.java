@@ -153,6 +153,10 @@ public final class CraftRules {
     static final Rule MECHANIC_TAGS = new Rule(MECHANIC_PRODUCT, of(Material.SPECTRAL_ARROW, Material.HAY_BLOCK, Material.LEAD),
             MECHANIC_INGREDIENT, NONE);
 
+    // Its product tag lists only the mod's own foods; its own recipes make bread, cake, cookies and pumpkin pie (Hut.Type.BAKER).
+    static final Rule BAKER_TAGS = new Rule(NONE, of(Material.BREAD, Material.CAKE, Material.COOKIE, Material.PUMPKIN_PIE,
+            Material.PACKED_MUD), of(Material.WHEAT), NONE);
+
     /** Tools, weapons and armor (the mod's equipment types, without the fishing rod and flint and steel). */
     static boolean equipment(Material m) {
         String n = m.name();
@@ -191,6 +195,9 @@ public final class CraftRules {
         Material out = r.getResult().getType();
         return tags != null ? tags : out.name().endsWith("MINECART") || out == Material.HOPPER;
     };
+
+    /** The Bakery (BuildingBaker): crafting recipes its tags allow (anything else made from wheat). */
+    public static final Predicate<Recipe> BAKER = r -> crafting(r) && Boolean.TRUE.equals(BAKER_TAGS.decide(r));
 
     /** The Smeltery (BuildingSmeltery): every furnace recipe that smelts an ore or raw metal. */
     public static final Predicate<Recipe> SMELTERY = r -> r instanceof FurnaceRecipe f && ore(f);

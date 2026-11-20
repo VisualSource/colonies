@@ -36,8 +36,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [ ] Commands: the mod's `/mc colony ...` and `/mc citizens ...` (MineCP's `/colony` has give-item, `build`, `info` and `movement` subcommands)
 - [~] Advancements (the mod's `data/minecolonies/advancements/`): its MineColonies and production tabs, with the mod's tree, frames, triggers and vanilla icons (our own icons where the mod shows its hut blocks), in our own words. Loaded by the plugin at startup (`Advancements`), so no data pack is needed; a `/minecraft:reload` drops them until the next restart
   - Each is awarded when it happens to every online player the colony sends messages to (RECEIVE_MESSAGES), as the mod does: placing the town hall (and the tab's root, which in the mod is placing a supply camp), asking for the Builder's Hut, finishing huts and levels, 5/10/25/50/75 citizens, a citizen's first meal, teaching torches or a wooden door
-  - Left out until their features exist: the military tab, tavern, mystical site, graves and resurrection, the undertaker's totem, rotten flesh, the hut guide, fulfilling a request from the request screen, baker, composter, crusher, enchanter, fisherman, florist, library, sifter, herders, post box and stash, deep mine, max fields, crafting the supply camp
-  - "Room to Grow" (a house) hangs under the Builder's Hut (the mod: under the tavern)
+  - Left out until their features exist: the military tab, mystical site, graves and resurrection, the undertaker's totem, rotten flesh, the hut guide, fulfilling a request from the request screen, composter, crusher, enchanter, fisherman, florist, library, sifter, herders, post box and stash, deep mine, max fields, crafting the supply camp
 
 ## Citizens
 
@@ -69,7 +68,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Homeless citizens wait within 16 blocks of the town hall (the mod sends them to a tavern if there is one); a tavern's residents sleep in beds near its hut block, like a house's
   - No "all citizens are asleep" message, sleeping particles, off-to-bed sounds, or "home too far" complaint
   - No research that lets citizens work longer or in the rain
-  - Sleep isn't checked by health, sickness, raids or mourning yet (those come first in the mod)
+  - Citizens other than guards go home during a raid; sleep isn't checked by health, sickness or mourning yet (those come first in the mod)
 - [~] Health and death (`EntityCitizen` hurt/die/checkHeal, `GraveManager`, `TileEntityGrave`): 20 health; a hit takes at most 20% (4), so it takes several to kill; stuck in a wall it is moved out instead; a player's hit of more than 1 does nothing without the HURT_CITIZEN permission (the mod's `EntityCitizen.checkIfValidDamageSource`; see Permissions); void and `/kill` take all its health, past the cap; hurt by a mob or player it runs 15 blocks away from it; hurt by anything else but a fall (a block, drowning, starving) it moves 5 blocks from where it stands, as in the mod (`EntityCitizen.performMoveAway`: `walkAwayFrom(blockPosition(), 5)`, skipped for falls); a hurt sleeper wakes, as vanilla does, then goes back to bed; it heals every 5 seconds unless a mob or player hurt it in the last 5: 2 when full, 1 normally, saturation/20/2 below 6. On death the colony's members who get colony messages (RECEIVE_MESSAGES) are told where and why, and a grave is put on the nearest free ground within 10 blocks with everything it carried (none in lava: items drop); the grave decays after 10 minutes and is gone 10 minutes later, dropping its items; the timer only runs while its chunk is loaded (the mod's grave ticks as a block entity)
   - Hut blocks and graves survive explosions
   - Breaking the Town Hall drops what every worker carried and what every grave holds
@@ -80,7 +79,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Happiness (`CitizenHappinessHandler`, `HappinessConstants`, the mod's modifiers, weights and thresholds): 0 to 10, ten times the weighted mean of the factors that aren't neutral (1). Factors: school (weight 1; a child 0, as no child is a pupil yet), security (4: guards against everyone else, min(guards / (others × 2/3), 2), both counted from 1), social life (2: the share of citizens without a problem, each jobless adult, homeless or hungry citizen counting once per problem), food (3: from the last 10 foods eaten, kinds and good food against the house level), housing (3: 0 homeless, else house level / 3; × 0.75 after 7 days, × 0.5 after 14), work (2: 0.5 jobless, 2 at a hut above level 3; same 7/14 days), sleep (1.5: unhappy after 2 nights without lying down in a bed; guards never), got hurt (2: 0 for a day; not by fire or lightning), a citizen died (3: 0 for everyone for 3 days, not for a guard's death). Days count at nightfall. Shown in a citizen's own menu (right-click it), and in the Town Hall's Citizens page with the colony's average (5.5 with no citizens) and each factor averaged
   - Ours: the mod's "good food" is its own dishes; ours is any food that is made (cooked or crafted, like bread) rather than picked or caught
   - All factors neutral gives 10 (the mod divides by zero there); the mod's shared "death" modifier, which wears off faster the more citizens there are, is per citizen here
-  - Its complaints (after 7 days homeless or jobless: on day 8, as the mod checks more than 7) and demands (after 14) are colony messages, not the mod's chat bubbles; no idle-at-job, sickness, mystical site, raid or quest factors yet, no happiness research
+  - Its complaints (after 7 days homeless or jobless: on day 8, as the mod checks more than 7) and demands (after 14) are colony messages, not the mod's chat bubbles; no idle-at-job, sickness, mystical site or quest factors yet ("beat a raid" is in), no happiness research
   - It changes nothing yet: in the mod it only sets new citizens' skill levels and how fast they learn, and MineCP has no skills
 - [ ] Sickness and the hospital
 - [ ] Mourning
@@ -190,7 +189,10 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Smeltery (`BuildingSmeltery`, job "Smelter"): knows every ore and raw-metal furnace recipe without teaching, asks for any ore (minimum 1; ours: 32 at a time, once below 16) and smelts what it is brought, as well as the ingots huts ask for; ingots it wasn't asked for go to the warehouse. No ore breaking (the mod's extra nuggets), no "warehouse minimum" setting; hut recipe as the mod's (iron ingot)
 - [~] Mechanic (`BuildingMechanic`): its tags (torches, lanterns, rails, buttons, pressure plates, pistons, storage blocks and so on), else minecarts and hoppers; hut recipe as the mod's (redstone block)
   - Torches are the Mechanic's in the mod (not the Sawmill's), and the core huts' levels 1-3 use about 270 of them
-- [ ] Other crafters: fletcher, dyer, glassblower, concrete mixer, crusher, sifter, alchemist, enchanter, baker
+- [~] Bakery (`BuildingBaker`, job "Baker"): knows the mod's own recipes for bread from level 1, cookies from 2, pumpkin pie from 3 and cake from 4 (its `crafterrecipes/baker` level limits) without being taught, and they don't count against its recipe limit; it can be taught crafting recipes its tags allow (anything made from wheat but bread, cake, cookies, pumpkin pie and packed mud); hut recipe as the mod's (wheat). Couriers bring it wheat and the rest from the warehouse, and the cook's and other huts' food requests can be crafted there
+  - Ours: the mod first makes its own dough and batter items from wheat (and, from level 3, water and milk bottles that make more dough per wheat), then bakes them in a furnace; MineCP has no such items, so the baker uses vanilla's crafting recipes at its table, with no furnace
+  - None of the mod's own foods (muffins, pizza, cheesecake, flatbread and so on)
+- [ ] Other crafters: fletcher, dyer, glassblower (unlocked by research in the mod, which MineCP doesn't have), concrete mixer, crusher, sifter, alchemist, enchanter
 
 ## Education and research
 
@@ -210,36 +212,27 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Guard types: knight, ranger, druid, cavalry, huscarl, marksman (not checked which ones research unlocks)
   - Patrol and follow modes, guard tasks, guard gear by building level, training at the archery and combat academy
   - Miner guard assignment (guards that protect the mine)
-- [ ] Raids (`core/colony/events/raid/RaidManager.java`)
-  - [ ] Raid schedule: night raids, with a minimum and an average number of nights between them (server config settings in the mod)
-  - [ ] Raids start only once the colony's building levels add up to 75 or more
-  - [ ] Raid difficulty: starts at 7 and stays between 1 and 14; goes down when many citizens die in a raid (15% steps) and up otherwise; scales with the number of players
-  - [ ] Number of raiders from colony size and difficulty (formula not checked yet)
-  - [ ] Spawn point at least 35 blocks from any building, with a chat warning to colony members
-  - [ ] Raider cultures picked by the colony's biome, with a small random chance to ignore the biome:
-    - Barbarians (the default): melee, archer, chief
-    - Egyptians (desert): mummy, archer mummy, pharaoh
-    - Amazons (jungle): spearman, archer, chief
-    - Norsemen (taiga): melee, archer, chief
-    - Pirates: melee, archer, captain
-    - Drowned pirates (ocean)
-  - [ ] Ship raids: pirate, Norsemen and drowned pirate ships spawned as structures by water, with raider spawners on board
-  - [ ] Ground hordes for the other cultures, with camps and a campfire
-  - [ ] Raider AI: walk to the colony, melee and ranged attacks, target citizens, guards and players
-  - [ ] Raid sounds (horn) and raider sounds
-  - [ ] Raid history: raiders, citizens lost, difficulty; shown in the town hall
-  - [ ] Citizens flee or hide during a raid
-  - [ ] Raider-damage enchantment
-  - [ ] Mercenaries hired from the town hall
-  - [ ] Raid commands (start a raid, raid info, can a raider spawn, kill raiders)
-  - Can't be ported cleanly: custom raider models and textures. Decided stand-in: plain vanilla mobs (not the Mannequin and hidden mob pair citizens use), dressed in culture gear and picked to match the biome. The gear is leather armour with custom attributes and a culture texture from the resource pack (the `equippable` component's `asset_id`); it can drop as loot, as raider gear does in the mod
-  - Mob for each raider (proposed, not tried in game yet):
-    - Barbarians: melee zombie, archer skeleton, chief vindicator
-    - Egyptians: mummy husk, archer mummy skeleton, pharaoh husk
-    - Amazons: spearman zombie with a vanilla spear, archer skeleton, chief vindicator
-    - Norsemen: melee vindicator, archer stray, chief vindicator
-    - Pirates: melee zombie, archer skeleton, captain vindicator
-    - Drowned pirates: drowned in every role (tridents for ranged), the captain in captain gear
+- [~] Raids (`RaidManager`, `HordeRaidEvent`, `RaiderMobUtils`, `RaiderWalkAI`; land hordes only), the mod's numbers unless noted:
+  - [x] Schedule, per colony, decided one nightfall ahead: no raid before the minimum nights (10) plus any extra, a sure raid past the average (14) + 2, else a 1 in (average − minimum) chance each nightfall. Only when raids are on, the world isn't peaceful and the owner or an officer is online. Settings in config.yml (`raids:`), with the mod's defaults and ranges
+  - [x] Raid level: 5 per adult citizen, 5 + level² / 5 per built hut, times how full the colony's beds are; no raid below 75 (no skills or research to add, as in the mod)
+  - [x] Difficulty starts at 7 (1 to 14): at the first nightfall after a raid, losing more than 15% of the beds' worth of citizens (a guard counts 1, anyone else 2) lowers it by one per 15% and adds 40% of the average nights; under 5% raises it by 1. Over 50% lost is a defeat: the raid ends and the next waits twice the average
+  - [x] Raiders: 1 + level / 60 × (difficulty / 10 + 0.2) × (setting / 5) × (world difficulty / 2) × (1 + 5% per member online) × 0.85 to 1.15, at most the max setting + 1 (as the mod; ours: a typed `/colony raid now` amount is capped the same); one spawn point per 20, split among the points found; a tenth chiefs and three tenths archers (at least one of each)
+  - [x] Spawn point: a random direction from the hut farthest that way, in 48-block steps through loaded chunks, clear of other colonies and 35 blocks plus a bonus per level from every built hut (guard tower 7, town hall 8, houses and taverns 4, others 2)
+  - [x] Cultures by the biome at the colony's centre: desert mummies, jungle amazons, taiga norsemen, else barbarians two times in three and norsemen otherwise
+  - [x] Camps: a campfire per 5 raiders, 3 to 7 blocks out; they camp 3 colony ticks (6 within 100 blocks of the centre) unless one is hurt; then they march on a hut the raiders share (another after max(6, raiders / 3) picks), attacking citizens and players they see within 16 blocks. Zombie raiders break doors on Normal and Hard (setting)
+  - [x] Stats: health max(10, 10 + level / 40) × modifier, damage 2 + modifier × min(level / 400, 3), armor the modifier, speed 0.25 (0.30 from modifier 2.4), follow range 70; chiefs and the rest with the mod's own changes (barbarian chief ×1.5 health, 2× armor, +1 damage; pharaoh ×4.5; amazon chief 4× armor; shieldmaiden armor 15; norse chief 2× + 15...); 5 experience; the mod's loot tables
+  - [x] End: a horde is beaten when under a tenth of it is left; the raid ends when every horde is, after 3 nightfalls, or 30 minutes after it began (the mod's despawn); leftovers and campfires go. "Only N raiders left!" at 5; raiders glow under 15% left. A raid with no citizen lost makes everyone happier for 3 days (the mod's "raidwithoutdeath"). A planned raid that can't start waits for the next nightfall, as in the mod. Ours: a raid that times out, runs out of nights or whose raiders unload ends with "the raiders have left", no reward and no change to the difficulty
+  - [x] Citizens hide at home for the whole raid; guards keep fighting (they attack hostile mobs on the colony's land)
+  - [x] Boss bar while you are in the colony's land: red, 10 notches, "<culture> - <direction>", raiders left of those that came. The illagers' raid horn sounds for members when a raid starts (the mod plays its own alert), the challenge-complete sound when it is beaten
+  - [x] `/colony raid now [amount]` and `/colony raid tonight` (admins, the colony you stand in)
+  - Raiders are vanilla mobs in plain vanilla armor (the resource pack stays optional), with stats set to the mod's; the armor and weapons are for looks only (their own points and damage don't count) and never drop:
+    - Barbarians: melee zombie (stone axe, leather cap and tunic), archer skeleton (bow, leather), chief zombie (iron sword for the mod's chief sword, chainmail as in the mod)
+    - Mummies: melee husk, archer skeleton, pharaoh skeleton (a Flame bow for the mod's fire-arrow scepter; gold helmet and chestplate)
+    - Amazons: spearman zombie (stone spear), archer bogged, chief bogged (full leather)
+    - Norsemen: shieldmaiden zombie (stone axe, shield, iron helmet and chestplate), archer stray, chief zombie (full iron)
+  - Ours: spawn steps on water or lava are skipped (the mod sends ships there); raiders can't hurt each other and zombie raiders don't turn into drowned (vanilla behaviour switched off); the archers' arrows are vanilla's, not the mod's damage; vanilla mob drops are replaced by the mod's tables with vanilla items, and the ancient tome's share drops nothing
+  - Raiders aren't saved: a restart, or their chunks unloading, removes them and the raid can end early (the mod respawns them). The raid itself isn't saved either
+  - Not done: ship raids (pirates, norse ships, drowned pirates), sky raiders, the mod's random culture rolls, waypoints from its raider pathing (ours walks 32 blocks at a time), breaking blocks when stuck, the first 40 ticks' invulnerability, the player-hit and environment damage rules, the chief's speed aura, guards called to the raid's target, spies, raid history, the ancient tome, mercenaries, raider sounds, darkness and fog for some cultures, the Raider's Bane enchantment
 - [ ] PvP: players attacking a colony, with the guards they bring (`core/colony/pvp/AttackingPlayer.java`)
 
 ## Misc buildings

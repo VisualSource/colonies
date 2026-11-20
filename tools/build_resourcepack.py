@@ -45,6 +45,7 @@ MODELS = {
     "hut/smeltery": "minecolonies:item/blockhutsmeltery",
     "hut/mechanic": "minecolonies:item/blockhutmechanic",
     "hut/tavern": "minecolonies:item/blockhuttavern",
+    "hut/baker": "minecolonies:item/blockhutbaker",
     "hut/guard_tower": "minecolonies:item/blockhutguardtower",
     "hut/field": "minecolonies:item/blockhutfield",
     "rack": "minecolonies:item/blockminecoloniesrack",
@@ -64,7 +65,7 @@ CHEST_NAMES = {
     "Cook's Hut": "hut/cook", "Warehouse": "hut/warehouse", "Courier's Hut": "hut/courier", "Miner's Hut": "hut/miner",
     "Sawmill": "hut/sawmill", "Stonemason's Hut": "hut/stonemason", "Stone Smeltery": "hut/stone_smeltery",
     "Blacksmith's Hut": "hut/blacksmith", "Smeltery": "hut/smeltery", "Mechanic's Hut": "hut/mechanic",
-    "Guard Tower": "hut/guard_tower", "Tavern": "hut/tavern", "Storage Rack": "rack",
+    "Guard Tower": "hut/guard_tower", "Tavern": "hut/tavern", "Bakery": "hut/baker", "Storage Rack": "rack",
 }
 FACES = ["north", "east", "south", "west"]  # a quarter turn clockwise (seen from above) moves each to the next
 

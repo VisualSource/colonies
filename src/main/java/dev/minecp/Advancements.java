@@ -39,7 +39,8 @@ final class Advancements {
         add("minecolonies/build_builder_2", "minecolonies/build_builder", "crafting_table", "Bigger Projects", "Upgrade the Builder's Hut to level 2", "goal");
         add("minecolonies/build_town_hall", "minecolonies/build_builder", "bell", "Seat of Power", "Finish the Town Hall", "task");
         add("minecolonies/build_town_hall_5", "minecolonies/build_town_hall", "bell", "Capital City", "Upgrade the Town Hall to level 5", "challenge");
-        add("minecolonies/build_citizen", "minecolonies/build_builder", "red_bed", "Room to Grow", "Finish a House", "task"); // the mod's parent: the tavern
+        add("minecolonies/build_tavern", "minecolonies/build_builder", "barrel", "A Warm Welcome", "Finish a Tavern", "task");
+        add("minecolonies/build_citizen", "minecolonies/build_tavern", "red_bed", "Room to Grow", "Finish a House", "task");
         add("minecolonies/build_guard_tower", "minecolonies/build_builder", "shield", "On Watch", "Finish a Guard Tower", "task");
         add("minecolonies/colony_population_5", "minecolonies/build_citizen", "red_bed", "A Hamlet", "Have 5 citizens", "goal");
         add("minecolonies/colony_population_10", "minecolonies/colony_population_5", "brick", "A Village", "Have 10 citizens", "task");
@@ -54,6 +55,7 @@ final class Advancements {
         add("production/build_farmer", PRODUCTION, "iron_hoe", "Green Fields", "Finish a Farmer's Hut", "task");
         add("production/build_miner", PRODUCTION, "iron_pickaxe", "Into the Deep", "Finish a Miner's Hut", "task");
         add("production/build_cook", PRODUCTION, "cooked_beef", "Soup's On", "Finish a Cook's Hut", "task");
+        add("production/build_baker", "production/build_cook", "bread", "Fresh From the Oven", "Finish a Bakery", "task");
         add("production/build_warehouse", PRODUCTION, "chest", "A Place for Everything", "Finish the Warehouse", "task");
         add("production/build_delivery_person", "production/build_warehouse", "leather_boots", "Special Delivery", "Finish a Courier's Hut", "task");
         add("production/build_sawmill", "production/build_delivery_person", "oak_planks", "Sawdust", "Finish a Sawmill", "task");
@@ -78,6 +80,8 @@ final class Advancements {
             case FARMER -> level == 1 ? "production/build_farmer" : null;
             case MINER -> level == 1 ? "production/build_miner" : null;
             case COOK -> level == 1 ? "production/build_cook" : null;
+            case BAKER -> level == 1 ? "production/build_baker" : null;
+            case TAVERN -> level == 1 ? "minecolonies/build_tavern" : null;
             case WAREHOUSE -> level == 1 ? "production/build_warehouse" : null;
             case COURIER -> level == 1 ? "production/build_delivery_person" : null;
             case SAWMILL -> level == 1 ? "production/build_sawmill" : null;

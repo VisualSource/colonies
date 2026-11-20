@@ -43,6 +43,7 @@ public final class Happiness {
         f.add(new Factor("Sleep", 1.5, sleep(c, job)));
         f.add(new Factor("Got hurt", 2, c.hurtDays > 0 ? 0 : 1)); // neutral once it wears off, so colony averages count everyone
         f.add(new Factor("A citizen died", 3, c.griefDays > 0 ? 0 : 1));
+        f.add(new Factor("Beat a raid", 1, c.defendedDays > 0 ? 2 : 1));
         return f;
     }
 
@@ -75,6 +76,7 @@ public final class Happiness {
             c.sleeplessDays++; // back to 0 when it lies down in bed
             c.hurtDays = Math.max(0, c.hurtDays - 1);
             c.griefDays = Math.max(0, c.griefDays - 1);
+            c.defendedDays = Math.max(0, c.defendedDays - 1);
             // The mod's complaints at 7 days and demands at 14, as colony messages instead of its chat bubbles.
             if (c.home == null && (c.homelessDays == 8 || c.homelessDays == 15))
                 colony.tell(c.name + (c.homelessDays == 8 ? " is unhappy without a home." : " demands a home!"));
@@ -91,6 +93,11 @@ public final class Happiness {
     /** A citizen who wasn't a guard died: everyone is unhappy for 3 days (the mod's "death"). */
     void died() {
         for (Colonist c : colony.colonists) c.griefDays = 3;
+    }
+
+    /** A raid was beaten without losing anyone: everyone is happy for 3 days (the mod's "raidwithoutdeath", 2). */
+    void defended() {
+        for (Colonist c : colony.colonists) c.defendedDays = 3;
     }
 
     /** The mod's time-based modifier: an unhappy factor gets worse after 7 and 14 days. */

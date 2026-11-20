@@ -67,6 +67,12 @@ public final class MineCP extends JavaPlugin implements Listener {
         Claims.minDistance = cfg.getInt("claims.min-distance", Claims.minDistance);
         Claims.maxSize = cfg.getInt("claims.max-size", Claims.maxSize);
         protection.enabled = cfg.getBoolean("protection.enabled", true);
+        dev.minecp.colony.Raids.enabled = cfg.getBoolean("raids.enabled", true);
+        dev.minecp.colony.Raids.breakDoors = cfg.getBoolean("raids.break-doors", true);
+        dev.minecp.colony.Raids.difficulty = Math.clamp(cfg.getInt("raids.difficulty", 5), 0, 10);
+        dev.minecp.colony.Raids.maxRaiders = Math.clamp(cfg.getInt("raids.max-raiders", 80), 6, 400);
+        dev.minecp.colony.Raids.averageNights = Math.clamp(cfg.getInt("raids.average-nights", 14), 1, 50);
+        dev.minecp.colony.Raids.minimumNights = Math.clamp(cfg.getInt("raids.minimum-nights", 10), 1, 30);
         try {
             protection.explosions = Protection.Explosions.valueOf(cfg.getString("protection.explosions", "everything").toUpperCase());
         } catch (IllegalArgumentException e) {
@@ -135,6 +141,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** What the plugin hears from a colony: claims changes and milestones. */
     private void hook(Colony c) {
         c.onClaimsChanged = this::reindex;
+        c.claimMap = claims;
         c.milestones = Advancements.forColony(c);
         // A removal order finished, maybe with nobody near: its chest's contents and the hut item go to the warehouse,
         // then the Builder's Hut chest; only what fits in neither drops, at the Builder's Hut, where someone will look.
@@ -361,6 +368,27 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onExplode(BlockExplodeEvent e) {
         e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null);
+    }
+
+    /** Raiders: the mod's drops; a hurt one ends its horde's camp; they never hurt each other, and zombies among them don't turn into drowned. */
+    @EventHandler(ignoreCancelled = true)
+    public void onRaiderDeath(org.bukkit.event.entity.EntityDeathEvent e) {
+        if (e.getEntity().getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) colonies.values().forEach(c -> c.raids.died(e));
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
+    public void onRaiderHurt(org.bukkit.event.entity.EntityDamageEvent e) {
+        if (!e.getEntity().getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) return;
+        if (e instanceof org.bukkit.event.entity.EntityDamageByEntityEvent by) {
+            var from = by.getDamager() instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof org.bukkit.entity.Entity s ? s : by.getDamager();
+            if (from.getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) { e.setCancelled(true); return; }
+        }
+        colonies.values().forEach(c -> c.raids.hurt(e.getEntity()));
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onRaiderTransform(org.bukkit.event.entity.EntityTransformEvent e) {
+        if (e.getEntity().getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) e.setCancelled(true);
     }
 
     /** Hits on a citizen's body or legs hurt the citizen instead (Colony.hurt). */
