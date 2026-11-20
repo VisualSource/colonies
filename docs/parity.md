@@ -42,6 +42,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 ## Citizens
 
 - [~] Citizens: names, skins, wandering, homes, jobs
+  - A hut takes a worker once level 1 is built, as in the mod (`IBuilding.canAssignCitizens`); only the Builder's Hut hires at level 0, so its builder can build it
   - No citizen skills or levels (in the mod they change work speed and quality)
   - No citizen inventory; workers use a simple carried list
   - No chat interactions or requests above citizens' heads; reasons are shown in the hut menus instead
@@ -109,7 +110,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Builder: upgrades huts from converted blueprints, uses tools, materials and storage racks
   - Not checked: does the mod only let a builder build huts up to its own level?
   - No decoration or free builds from a build tool; `/colony build` (admins only: it builds anywhere, past protection plugins) is the stand-in
-  - Where it works from, as the mod's builder (`walkToConstructionSite`): in place when the block is within 5 blocks across (height doesn't count); else the nearest spot a path reaches within 4 of it, inside the build or out; where none gets that close, from as close as it got (within 12). Only from farther off does it head for the ground outside the build
+  - Where it works from, as the mod's builder (`walkToConstructionSite`): in place when the block is within 5 blocks across (height doesn't count); else the nearest spot a path reaches within 4 of it (straight-line; the mod counts dx+dy+dz), inside the build or out; where none gets that close, from as close as it got (within 12). Only from farther off does it head for the ground outside the build
   - A chest or other container in the way is emptied into the hut chest before it is cleared (the miner spills it where it stood)
   - Removal work order: "Remove building" in a built hut's menu (MANAGE_HUTS; not the Town Hall or Builder's Hut, which are removed by breaking them) queues taking it down; the builder clears every block still matching the hut's current level (top down, drops into its hut chest, foundation filler left), then the hut is removed and its item and chest contents drop at the hut block. It uses the colony's current style, so a building from a style since changed mostly stays
   - Water and lava in a blueprint cost a water or lava bucket each, and the empty bucket comes back (as Structurize's item for a fluid block, used "bucket-aware" by the mod's builder); the Sawmill's water wheel channel needs about 126

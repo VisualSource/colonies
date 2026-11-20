@@ -226,10 +226,13 @@ public final class Colony {
         return null;
     }
 
-    /** Gives every job without a worker to an unemployed citizen, oldest jobs first. */
+    /**
+     * Gives jobless citizens the open jobs of built huts. As the mod (IBuilding.canAssignCitizens): a hut takes a worker
+     * once level 1 is built; only the Builder's Hut hires at level 0, so its builder can build it.
+     */
     void assignJobs() {
         for (Job j : jobs) {
-            if (worker(j) != null) continue;
+            if (worker(j) != null || j.hut.level < 1 && j != builder) continue;
             j.worker = colonists.stream().filter(c -> jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
         }
     }
@@ -268,6 +271,7 @@ public final class Colony {
             }
             done.hut().level = done.level();
             assignHomes();
+            assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
             tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
             milestones.built(done.hut().type, done.level());

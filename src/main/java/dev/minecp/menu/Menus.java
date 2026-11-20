@@ -96,7 +96,8 @@ public final class Menus {
         Job job = c.jobAt(h);
         if (job != null) { // every worker hut: who works it and what it is doing, then what that job shows
             Colonist worker = c.worker(job);
-            body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + ": every citizen has a job."
+            body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + (h.level < 1 && job != c.builder
+                    ? " until level 1 is built." : ": every citizen has a job.")
                     : worker.name + " — " + worker.status())));
             job.info(c).forEach(line -> body.add(text(line)));
             if (job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
