@@ -17,7 +17,8 @@ without it, built-in copies are used, which may lag behind a new Minecraft versi
 Placed huts and storage racks stay vanilla chests, named for what they are ("Builder's Hut"). For players with
 OptiFine or Entity Model Features, the pack also turns the mod's hut and rack block models into OptiFine CEM chest
 models (assets/minecraft/optifine/cem/chest<n>.jem), picked by that name in chest.properties; other chests stay vanilla.
---cem-turn turns those models by quarter turns if they face the wrong way.
+--cem-turn turns those models by quarter turns if they face the wrong way. Players with Better Block Entities must
+turn off its chest optimization: it draws closed chests as plain block models, so EMF's models show only while open.
 
 The mod's art is "All Rights Reserved": keep the pack private, never commit it.
 """
@@ -110,6 +111,66 @@ def flatten(model_id, models):
     flat = {k: v for k, v in m.items() if k not in ("children", "loader", "elements", "textures")}
     flat["textures"], flat["elements"] = textures, elements
     return flat
+
+
+def inherited(model_id, key, models):
+    """The first value of {@code key} ("display", "gui_light") along a model's parents, or None."""
+    for _ in range(10):
+        m = models.get(model_id if model_id and ":" in model_id else "minecraft:" + (model_id or ""))
+        if m is None:
+            return None
+        if key in m:
+            return m[key]
+        model_id = m.get("parent")
+    return None
+
+
+def one_atlas(item, model_id, models, jars, out, seen):
+    """The model to give an item, using one texture atlas, as 26.3 insists: a model drawing textures from both the
+    block atlas (textures/block/...) and the item atlas (textures/item/...) or from neither fails, and takes every
+    other case of its item definition (all chests) down with it. Such a model is written out whole as
+    minecp:item/<item>, its odd textures copied under textures/block/minecp/. @return (model id, None) or (None, why)."""
+    elements = resolve(model_id, models)
+    if not elements:
+        return model_id, None  # a flat item (layer textures): item atlas only
+    refs = {}
+    for e, tex in elements:
+        for face in e.get("faces", {}).values():
+            ref = texture_path(face.get("texture", ""), tex)
+            if ref:
+                refs[ref] = None
+    if all(r.split(":", 1)[1].startswith("textures/block/") for r in refs):
+        return model_id, None
+    keys, textures, out_elements = {}, {}, []
+    for ref in refs:  # "ns:textures/item/x" -> "ns:block/minecp/item/x", copied into the pack
+        ns, path = ref.split(":", 1)
+        rest = path[len("textures/"):]
+        target = rest if rest.startswith("block/") else "block/minecp/" + rest
+        if not rest.startswith("block/"):
+            jar = jars.get(ns)
+            src = f"assets/{ns}/{path}.png"
+            if jar is None or src not in jar.namelist():
+                return None, f"texture {ns}:{rest} not found (give --client for vanilla ones)"
+            for suffix in ("", ".mcmeta"):  # once, if two models share it
+                name = f"assets/{ns}/textures/{target}.png{suffix}"
+                if name not in seen and src + suffix in jar.namelist():
+                    out.writestr(name, jar.read(src + suffix))
+                    seen.add(name)
+        keys[ref] = "t" + str(len(keys))
+        textures[keys[ref]] = f"{ns}:{target}"
+    textures["particle"] = next(iter(textures.values()))
+    for e, tex in elements:
+        e = json.loads(json.dumps(e))
+        e["faces"] = {f: {**spec, "texture": "#" + keys[texture_path(spec.get("texture", ""), tex)]}
+                      for f, spec in e.get("faces", {}).items() if texture_path(spec.get("texture", ""), tex)}
+        out_elements.append(e)
+    fixed = {"textures": textures, "elements": out_elements}
+    for key in ("display", "gui_light", "ambientocclusion"):
+        value = inherited(model_id, key, models)
+        if value is not None:
+            fixed[key] = value
+    out.writestr(f"assets/minecp/models/item/{item}.json", json.dumps(fixed))
+    return f"minecp:item/{item}", None
 
 
 def texture_path(ref, textures):
@@ -212,17 +273,26 @@ def main():
             if flat is not None:
                 ns, path = model_id.split(":", 1)
                 out.writestr(f"assets/{ns}/models/{path}.json", json.dumps(flat))
-        missing, cases = [], {}
-        for item, model in MODELS.items():
-            if model not in have:
-                missing.append(f"{item} ({model})")
-                continue  # left out: that item just keeps its vanilla look
-            cases.setdefault(BASE.get(item, "chest"), []).append({"when": "minecp:" + item, "model": {"type": "minecraft:model", "model": model}})
         client = zipfile.ZipFile(a.client) if a.client else None
         if client:  # vanilla parents of the mod's models (read only, never copied)
             for name in client.namelist():
                 if name.startswith("assets/minecraft/models/") and name.endswith(".json"):
                     models_json.setdefault("minecraft:" + name[len("assets/minecraft/models/"):-5], json.loads(client.read(name)))
+        jars = {"minecolonies": zipfile.ZipFile(a.minecolonies)}
+        if a.structurize:
+            jars["structurize"] = zipfile.ZipFile(a.structurize)
+        if client:
+            jars["minecraft"] = client
+        missing, cases = [], {}
+        for item, model in MODELS.items():
+            if model not in have:
+                missing.append(f"{item} ({model})")
+                continue  # left out: that item just keeps its vanilla look
+            model, why = one_atlas(item, model, models_json, jars, out, seen)
+            if model is None:
+                missing.append(f"{item}: {why}")
+                continue
+            cases.setdefault(BASE.get(item, "chest"), []).append({"when": "minecp:" + item, "model": {"type": "minecraft:model", "model": model}})
         rules, n, no_chest = [], 2, []
         for chest_name, item in CHEST_NAMES.items():
             elements = resolve(MODELS[item], models_json)
@@ -248,7 +318,7 @@ def main():
     for m in no_chest:
         print("  placed, left vanilla: " + m, file=sys.stderr)
     if missing:
-        print("not in the jars (those items keep their vanilla look):", file=sys.stderr)
+        print("left out (those items keep their vanilla look):", file=sys.stderr)
         for m in missing:
             print("  " + m, file=sys.stderr)
         sys.exit(1)
