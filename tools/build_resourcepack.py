@@ -47,6 +47,13 @@ MODELS = {
     "hut/tavern": "minecolonies:item/blockhuttavern",
     "hut/baker": "minecolonies:item/blockhutbaker",
     "hut/guard_tower": "minecolonies:item/blockhutguardtower",
+    "hut/graveyard": "minecolonies:item/blockhutgraveyard",
+    "hut/fisherman": "minecolonies:item/blockhutfisherman",
+    "hut/chicken_herder": "minecolonies:item/blockhutchickenherder",
+    "hut/cowboy": "minecolonies:item/blockhutcowboy",
+    "hut/shepherd": "minecolonies:item/blockhutshepherd",
+    "hut/swineherd": "minecolonies:item/blockhutswineherder",
+    "hut/rabbit_hutch": "minecolonies:item/blockhutrabbithutch",
     "hut/field": "minecolonies:item/blockhutfield",
     "rack": "minecolonies:item/blockminecoloniesrack",
     "build_goggles": "minecolonies:item/build_goggles",
@@ -66,6 +73,9 @@ CHEST_NAMES = {
     "Sawmill": "hut/sawmill", "Stonemason's Hut": "hut/stonemason", "Stone Smeltery": "hut/stone_smeltery",
     "Blacksmith's Hut": "hut/blacksmith", "Smeltery": "hut/smeltery", "Mechanic's Hut": "hut/mechanic",
     "Guard Tower": "hut/guard_tower", "Tavern": "hut/tavern", "Bakery": "hut/baker", "Storage Rack": "rack",
+    "Graveyard": "hut/graveyard", "Fisherman's Hut": "hut/fisherman", "Chicken Farmer's Hut": "hut/chicken_herder",
+    "Cowhand's Hut": "hut/cowboy", "Shepherd's Hut": "hut/shepherd", "Swineherd's Hut": "hut/swineherd",
+    "Rabbit Hutch": "hut/rabbit_hutch",
 }
 FACES = ["north", "east", "south", "west"]  # a quarter turn clockwise (seen from above) moves each to the next
 

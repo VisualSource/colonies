@@ -32,6 +32,7 @@ public final class ColonyStore {
             putLocation(gs, "block", g.block.getLocation());
             gs.set("name", g.name);
             gs.set("job", g.job);
+            gs.set("skin", g.skin);
             gs.set("timer", g.timer);
             gs.set("decayed", g.decayed);
             gs.set("items", java.util.Arrays.stream(g.items.getContents()).filter(java.util.Objects::nonNull).toList());
@@ -69,6 +70,8 @@ public final class ColonyStore {
             if (c.child) cs.set("child-time", c.childTime);
             cs.set("diet", c.diet.stream().map(Material::name).toList());
             cs.set("mood-days", List.of(c.homelessDays, c.joblessDays, c.sleeplessDays, c.hurtDays, c.griefDays, c.defendedDays));
+            if (!c.mourns.isEmpty()) cs.set("mourns", c.mourns);
+            if (c.mourning > 0) cs.set("mourning", c.mourning);
         }
         s.set("child-pool", colony.childPool);
         colony.visitors.save(s.createSection("visitors"));
@@ -107,7 +110,7 @@ public final class ColonyStore {
             if (at == null) continue;
             List<ItemStack> items = new ArrayList<>();
             for (Object o : gs.getList("items", List.of())) if (o instanceof ItemStack it) items.add(it);
-            Grave g = new Grave(at.getBlock(), gs.getString("name"), gs.getString("job"), items);
+            Grave g = new Grave(at.getBlock(), gs.getString("name"), gs.getString("job"), gs.getInt("skin"), items);
             g.timer = gs.getInt("timer", Grave.DECAY_TICKS);
             g.decayed = gs.getBoolean("decayed");
             colony.graves.add(g);
@@ -139,6 +142,8 @@ public final class ColonyStore {
                 c.griefDays = days.get(4);
                 c.defendedDays = days.get(5);
             }
+            c.mourns.addAll(cs.getStringList("mourns"));
+            c.mourning = Math.min(cs.getInt("mourning"), c.mourns.size());
             colony.colonists.add(c);
         }
         colony.childPool = s.getInt("child-pool");

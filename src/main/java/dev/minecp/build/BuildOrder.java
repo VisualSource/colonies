@@ -189,11 +189,19 @@ public final class BuildOrder {
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
         BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, mirror, clears);
-        for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows
-            if (!e.getScoreboardTags().contains(FIELD_TAG)) continue;
+        for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows and named graves
+            var tags = e.getScoreboardTags();
+            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG)) continue;
             var l = e.getLocation(); // relative to the structure's corner
             BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
-            order.fields.add(base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ()));
+            Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
+            if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
+            var sign = (Directional) Material.OAK_WALL_SIGN.createBlockData(); // turns the grave's facing with the building
+            for (String t : tags) if (t.startsWith("minecp_facing_"))
+                try { sign.setFacing(org.bukkit.block.BlockFace.valueOf(t.substring(14).toUpperCase())); } catch (IllegalArgumentException ignored) {}
+            if (mirror) sign.mirror(Mirror.FRONT_BACK);
+            sign.rotate(rotation);
+            order.graves.add(new GraveSpot(block, sign.getFacing()));
         }
         return order;
     }
@@ -215,6 +223,12 @@ public final class BuildOrder {
     static final String FIELD_TAG = "minecp_field";
     /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
     public final List<Block> fields = new ArrayList<>();
+    /** Tag of the marker entities on a graveyard's burial spots (MineColonies' named graves), with minecp_facing_<facing>. */
+    static final String GRAVE_TAG = "minecp_grave";
+    /** A graveyard's burial spot and the way its grave faces. */
+    public record GraveSpot(Block block, org.bukkit.block.BlockFace facing) {}
+    /** Where the structure has a burial spot. */
+    public final List<GraveSpot> graves = new ArrayList<>();
 
     /** The box (minX, maxX+1, minZ, maxZ+1) a hut's building covers, placed on its hut block; null if it has none. */
     public static int[] footprint(String structure, Block hut, StructureRotation rotation, boolean mirror) {

@@ -64,6 +64,8 @@ FIXED = {
 SILENT = {"structurize:blocksubstitution", "minecolonies:blockwaypoint", "minecolonies:decorationcontroller"}
 FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
 FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
+GRAVE = "minecolonies:blockminecoloniesnamedgrave"  # a graveyard's burial spot, left as structure void
+GRAVE_TAG = "minecp_grave"                           # tag of the marker entity there (BuildOrder.GRAVE_TAG), plus minecp_facing_<facing>
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
@@ -136,6 +138,14 @@ def read_blocks(ints, sx, sy, sz):
                 i += 1
 
 
+def marker(pos, tags):
+    """A marker entity at a block, which the plugin reads (the builder never spawns structure entities)."""
+    x, y, z = pos
+    return {"blockPos": (nbt.LIST, (nbt.INT, [x, y, z])),
+            "pos": (nbt.LIST, (nbt.DOUBLE, [x + 0.5, y + 0.5, z + 0.5])),
+            "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"), "Tags": (nbt.LIST, (nbt.STRING, tags))})}
+
+
 def convert(path, blocks):
     root = nbt.load(path)
     sx, sy, sz = (root[k][1] for k in ("size_x", "size_y", "size_z"))
@@ -154,6 +164,9 @@ def convert(path, blocks):
         name, props, note = convert_state(state["Name"], state.get("Properties", {}), te, blocks)
         if note:
             notes[note].append(pos)
+        if state["Name"] == GRAVE:  # the undertaker buries citizens here, facing this way
+            facing = state.get("Properties", {}).get("facing", "north")
+            out_entities.append(marker(pos, [GRAVE_TAG, "minecp_facing_" + facing]))
         if name is VOID:
             continue
         if not name.startswith("minecraft:") or (name not in blocks and not state["Name"].startswith("minecraft:")):
@@ -173,12 +186,8 @@ def convert(path, blocks):
             block["nbt"] = (nbt.COMPOUND, {k: v for k, v in te_typed.items() if k not in ("x", "y", "z")})
         if state["Name"] == FIELD:
             # The scarecrow is a hay bale, which can't carry a data tag: mark it with a marker entity instead, which the
-            # plugin reads to register the field (the builder never spawns structure entities).
-            x, y, z = pos
-            out_entities.append({"blockPos": (nbt.LIST, (nbt.INT, [x, y, z])),
-                                 "pos": (nbt.LIST, (nbt.DOUBLE, [x + 0.5, y + 0.5, z + 0.5])),
-                                 "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"),
-                                                        "Tags": (nbt.LIST, (nbt.STRING, [FIELD_TAG]))})})
+            # plugin reads to register the field.
+            out_entities.append(marker(pos, [FIELD_TAG]))
         elif state["Name"].startswith("minecolonies:blockhut"):  # Paper data tag the plugin anchors builds on
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {"minecp:hut": (nbt.BYTE, 1)})})

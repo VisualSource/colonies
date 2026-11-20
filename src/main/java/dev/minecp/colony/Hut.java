@@ -6,10 +6,13 @@ import dev.minecp.job.Courier;
 import dev.minecp.job.CraftRules;
 import dev.minecp.job.Crafter;
 import dev.minecp.job.Farmer;
+import dev.minecp.job.Fisherman;
+import dev.minecp.job.Herder;
 import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Miner;
+import dev.minecp.job.Undertaker;
 
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -71,6 +74,24 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
         BAKER("Bakery", Material.CHEST, "craftsmanship/luxury/baker", "baker", "A baker bakes bread, cookies, pumpkin pie and cake",
                 () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", (h, c) -> baker(h), false),
+        // Fisherman and herders: the mod's recipe middles (a rod, an egg, beef, shears, a porkchop, a rabbit)
+        FISHERMAN("Fisherman's Hut", Material.CHEST, "agriculture/husbandry/fisherman", "fisherman", "A fisherman fishes in ponds nearby",
+                () -> new RecipeChoice.MaterialChoice(Material.FISHING_ROD), "Fisherman", Fisherman::new, false),
+        CHICKEN_HERDER("Chicken Farmer's Hut", Material.CHEST, "agriculture/husbandry/chickenherder", "chickenherder",
+                "A chicken herder breeds and butchers the chickens in its building",
+                () -> new RecipeChoice.MaterialChoice(Material.EGG), "Chicken Herder", (h, c) -> new Herder(h, c, Herder.Kind.CHICKEN), false),
+        COWBOY("Cowhand's Hut", Material.CHEST, "agriculture/husbandry/cowboy", "cowboy", "A cowhand breeds, milks and butchers the cows in its building",
+                () -> new RecipeChoice.MaterialChoice(Material.BEEF), "Cowhand", (h, c) -> new Herder(h, c, Herder.Kind.COW), false),
+        SHEPHERD("Shepherd's Hut", Material.CHEST, "agriculture/husbandry/shepherd", "shepherd", "A shepherd breeds, shears and butchers the sheep in its building",
+                () -> new RecipeChoice.MaterialChoice(Material.SHEARS), "Shepherd", (h, c) -> new Herder(h, c, Herder.Kind.SHEEP), false),
+        SWINEHERD("Swineherd's Hut", Material.CHEST, "agriculture/husbandry/swineherder", "swineherder", "A swineherd breeds and butchers the pigs in its building",
+                () -> new RecipeChoice.MaterialChoice(Material.PORKCHOP), "Swineherd", (h, c) -> new Herder(h, c, Herder.Kind.PIG), false),
+        RABBIT_HUTCH("Rabbit Hutch", Material.CHEST, "agriculture/husbandry/rabbithutch", "rabbithutch", "A rabbit herder breeds and butchers the rabbits in its building",
+                () -> new RecipeChoice.MaterialChoice(Material.RABBIT), "Rabbit Herder", (h, c) -> new Herder(h, c, Herder.Kind.RABBIT), false),
+        // Unlocked by research in the mod (ours: no research); its recipe is stone around a bone
+        GRAVEYARD("Graveyard", Material.CHEST, "mystic/graveyard", "graveyard", "An undertaker buries the colony's dead, and may bring one back",
+                () -> new RecipeChoice.MaterialChoice(Material.BONE), () -> new RecipeChoice.MaterialChoice(Material.STONE), "Undertaker",
+                Undertaker::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)

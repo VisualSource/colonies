@@ -89,21 +89,38 @@ public final class Health {
         c.despawn();
         colony.colonists.remove(c);
         colony.assignJobs();
-        if (!(job instanceof dev.minecp.job.Guard)) colony.happiness.died();
-        colony.raids.lost(job instanceof dev.minecp.job.Guard);
+        boolean guard = job instanceof dev.minecp.job.Guard;
+        if (!guard) colony.happiness.died();
+        colony.raids.lost(guard);
+        String mourn = guard || !mourn(c) ? "" : " Close family and friends will mourn " + c.name + " tomorrow out of respect.";
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_DEATH, SoundCategory.NEUTRAL, 1, 1);
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         Block spot = Grave.spot(at.getBlock());
         String where = " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ();
         if (spot == null) {
             items.forEach(i -> at.getWorld().dropItemNaturally(at, i));
-            colony.tell(c.name + " " + deathCause(cause, source) + where + ". No grave could be made there.");
+            colony.tell(c.name + " " + deathCause(cause, source) + where + ". No grave could be made there." + mourn);
             return;
         }
         spot.setType(Grave.BLOCK);
-        colony.graves.add(new Grave(spot, c.name, job != null ? job.hut.type.worker : null, items));
+        colony.graves.add(new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items));
         colony.tell(c.name + " " + deathCause(cause, source) + where + ". Their grave is at "
-                + spot.getX() + " " + spot.getY() + " " + spot.getZ() + ".");
+                + spot.getX() + " " + spot.getY() + " " + spot.getZ() + "." + mourn);
+    }
+
+    /**
+     * Those who shared its home will mourn it from their next morning (the mod: family and housemates; guards and
+     * undertakers don't mourn). Ours: no family is kept, so housemates only. @return whether anyone will.
+     */
+    private boolean mourn(Colonist dead) {
+        boolean any = false;
+        if (dead.home != null) for (Colonist c : colony.colonists) {
+            Job job = colony.jobOf(c);
+            if (c.home != dead.home || job instanceof dev.minecp.job.Guard || job instanceof dev.minecp.job.Undertaker) continue;
+            c.mourns.add(dead.name);
+            any = true;
+        }
+        return any;
     }
 
     private static String deathCause(DamageCause cause, Entity source) {

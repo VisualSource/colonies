@@ -162,7 +162,7 @@ public abstract class Job {
 
     /** A tool for digging this hut allows (not a sword): workers that dig keep these in their chest. */
     boolean isDiggingTool(ItemStack item) {
-        for (Tool t : Tool.values()) if (t != Tool.SWORD && fits(t, item, null)) return true;
+        for (Tool t : Tool.values()) if (t.digs() && fits(t, item, null)) return true;
         return false;
     }
 
@@ -214,7 +214,10 @@ public abstract class Job {
     /** What to ask for: the tool kind and, below the top level, the best tier this hut allows. */
     String toolLabel(Tool kind) {
         int max = maxToolTier();
-        return kind.label + (max == Integer.MAX_VALUE ? "" : " (" + Tool.tierName(max) + " or lower until the hut is upgraded)");
+        if (max == Integer.MAX_VALUE) return kind.label;
+        if (!kind.digs() && kind != Tool.SWORD) // rods and shears have no material: only their enchantments count
+            return kind.label + " (enchanted up to level " + (max + 1) + " until the hut is upgraded)";
+        return kind.label + " (" + Tool.tierName(max) + " or lower until the hut is upgraded)";
     }
 
     /** Everything the worker carries, tools included, taken off it (it died: it all goes into its grave). */

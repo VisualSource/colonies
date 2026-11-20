@@ -86,7 +86,8 @@ public final class Colony {
         default void population(int citizens) {}
         default void ate() {}
         default void taught(org.bukkit.Material result) {}
-    }
+        default void buried() {}
+        default void resurrected() {}    }
 
     public Milestones milestones = new Milestones() {};
     public java.util.function.Consumer<Hut> onTakenDown = h -> {}; // a removal order finished: the plugin removes the hut
@@ -422,7 +423,7 @@ public final class Colony {
     }
 
     /** A message to every online member allowed colony messages (the mod's RECEIVE_MESSAGES). */
-    void tell(String message) {
+    public void tell(String message) {
         for (Player p : Bukkit.getOnlinePlayers())
             if (permissions.has(permissions.rank(p.getUniqueId()), Action.RECEIVE_MESSAGES)) p.sendMessage(message);
     }
@@ -465,6 +466,11 @@ public final class Colony {
                     if (c.meal.why != null) c.foodRetry = Routine.FOOD_RETRY_TICKS;
                     c.meal = null;
                 }
+                continue;
+            }
+            if (c.mourning > 0) { // the mod's EntityAIMournCitizen: no work today; near the grave if the undertaker buried them
+                c.setStatus("Mourning");
+                if (job == null || job.leaveWork(c)) c.wander(mournPlace(c));
                 continue;
             }
             if (job != null && raining && !job.worksInRain()) { // the mod's workers stay in out of the rain
@@ -523,6 +529,30 @@ public final class Colony {
     public Colonist colonistOf(org.bukkit.entity.Entity e) {
         for (Colonist c : colonists) if (c.owns(e)) return c;
         return null;
+    }
+
+    /** A named grave of someone it mourns, else the town hall (the mod also stares at other citizens half the time). */
+    private Location mournPlace(Colonist c) {
+        for (Job j : jobs) if (j instanceof dev.minecp.job.Undertaker u)
+            for (String dead : c.mourns) {
+                Block grave = u.restingPlace(dead);
+                if (grave != null) return grave.getLocation().toCenterLocation();
+            }
+        return townHall().block.getLocation().toCenterLocation();
+    }
+
+    /** The undertaker brought {@code g}'s citizen back: a citizen again where the grave was, mourned no more. */
+    public void revive(Grave g) {
+        Colonist c = new Colonist(UUID.randomUUID(), g.name, g.skin, g.block.getLocation().toCenterLocation());
+        for (Colonist o : colonists) { // no more mourning for them, today or tomorrow
+            int i = o.mourns.indexOf(g.name);
+            if (i < 0) continue;
+            o.mourns.remove(i);
+            if (i < o.mourning) o.mourning--;
+        }
+        join(c);
+        tell(g.name + " was brought back to life by the undertaker!");
+        milestones.resurrected();
     }
 
     public Grave graveAt(Block b) {

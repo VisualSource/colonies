@@ -11,15 +11,29 @@ public enum Tool {
     PICKAXE("a pickaxe", Tag.ITEMS_PICKAXES, Tag.MINEABLE_PICKAXE),
     SHOVEL("a shovel", Tag.ITEMS_SHOVELS, Tag.MINEABLE_SHOVEL),
     HOE("a hoe", Tag.ITEMS_HOES, Tag.MINEABLE_HOE),
-    SWORD("a sword", Tag.ITEMS_SWORDS, null); // a guard's weapon: mines nothing
+    SWORD("a sword", Tag.ITEMS_SWORDS, null), // a guard's weapon: mines nothing
+    ROD("a fishing rod", m -> m == Material.FISHING_ROD),
+    SHEARS("shears", m -> m == Material.SHEARS);
 
     final String label;
-    private final Tag<Material> items, mines;
+    private final java.util.function.Predicate<Material> items;
+    private final Tag<Material> mines;
 
     Tool(String label, Tag<Material> items, Tag<Material> mines) {
         this.label = label;
-        this.items = items;
+        this.items = items::isTagged;
         this.mines = mines;
+    }
+
+    Tool(String label, java.util.function.Predicate<Material> items) { // mines nothing
+        this.label = label;
+        this.items = items;
+        this.mines = null;
+    }
+
+    /** Whether it mines blocks (not a sword, rod or shears). */
+    boolean digs() {
+        return mines != null;
     }
 
     /** The tool kind a block is mined with (hoe blocks only if {@code hoe}), or null if hands will do. */
@@ -53,7 +67,7 @@ public enum Tool {
 
     /** Whether {@code tool} is this kind and, for {@code block} (null: any), good enough to get its drops. */
     boolean fits(ItemStack tool, Block block) {
-        return tool != null && items.isTagged(tool.getType())
+        return tool != null && items.test(tool.getType())
                 && (block == null || !block.getBlockData().requiresCorrectToolForDrops() || block.isPreferredTool(tool));
     }
 }

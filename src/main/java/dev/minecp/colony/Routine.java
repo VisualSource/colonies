@@ -32,11 +32,20 @@ final class Routine {
         this.colony = colony;
     }
 
-    /** Counts a new colony day each morning, and a happiness day at nightfall, as in the mod. Called every tick with the world's day time. */
+    /**
+     * Counts a new colony day each morning (when mourning starts and ends), and a happiness day at nightfall, as in the
+     * mod. Called every tick with the world's day time. Ours: every citizen wakes at the same moment.
+     */
     void clock(long time) {
         boolean dayTime = time <= NIGHT;
         if (!started) { started = true; isDay = dayTime; } // a server started at night hasn't just seen nightfall
-        if (dayTime && !isDay) colony.day++;
+        if (dayTime && !isDay) {
+            colony.day++;
+            for (Colonist c : colony.colonists) { // the mod's onWakeUp: a day of mourning ends, and one begins for deaths since
+                c.mourns.subList(0, c.mourning).clear();
+                c.mourning = c.mourns.size();
+            }
+        }
         if (!dayTime && isDay) {
             colony.happiness.dayEnd();
             colony.raids.nightfall();

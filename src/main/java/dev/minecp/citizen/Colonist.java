@@ -73,6 +73,9 @@ public final class Colonist {
     public final java.util.Deque<Material> diet = new java.util.ArrayDeque<>();
     public int homelessDays, joblessDays, sleeplessDays, hurtDays, griefDays, defendedDays;
     public static final int DIET_SIZE = 10; // the mod's FOOD_QUEUE_SIZE
+    // Mourning (the mod's CitizenMournHandler), saved: who died that it mourns, and how many of them (the first) today.
+    public final List<String> mourns = new ArrayList<>();
+    public int mourning;
 
     /** Remembers a food it ate: the last {@link #DIET_SIZE} count towards happiness. */
     public void ate(Material food) {

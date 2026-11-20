@@ -22,16 +22,19 @@ public final class Grave implements InventoryHolder {
     static final int DECAY_TICKS = 20 * 60 * 10; // the mod's DEFAULT_DECAY_TIMER
     static final Material BLOCK = Material.STONE_BRICK_WALL, DECAYED_BLOCK = Material.MOSSY_STONE_BRICK_WALL;
 
-    final Block block;
-    final String name, job; // who lies here, for the undertaker's named grave
+    public final Block block;
+    public final String name, job; // who lies here, for the undertaker's named grave
+    final int skin;                // for a citizen the undertaker brings back
     public final Inventory items;
+    public boolean reserved;       // an undertaker is working on it (not saved: the undertaker saves its grave)
     int timer = DECAY_TICKS;
     boolean decayed;
 
-    Grave(Block block, String name, String job, List<ItemStack> contents) {
+    Grave(Block block, String name, String job, int skin, List<ItemStack> contents) {
         this.block = block;
         this.name = name;
         this.job = job;
+        this.skin = skin;
         this.items = Bukkit.createInventory(this, 54, Component.text("Grave of " + name));
         for (ItemStack i : contents) for (ItemStack over : items.addItem(i).values())
             block.getWorld().dropItemNaturally(block.getLocation().toCenterLocation(), over);
