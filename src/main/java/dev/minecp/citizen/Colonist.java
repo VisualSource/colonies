@@ -321,6 +321,35 @@ public final class Colonist {
         return body;
     }
 
+    /** The scoreboard team citizens' bodies are on: no pushing, made on first use. */
+    private static org.bukkit.scoreboard.Team noPush() {
+        var board = Bukkit.getScoreboardManager().getMainScoreboard();
+        var team = board.getTeam("minecp_citizens");
+        if (team == null) {
+            team = board.registerNewTeam("minecp_citizens");
+            team.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.NEVER);
+        }
+        return team;
+    }
+
+    /**
+     * What vanilla does when {@code from} hits it, as the hit itself is cancelled: an arrow is used up, as one hitting
+     * a player (a trident bounces off and keeps its loyalty); a mob, player or projectile knocks it back (strength 0.4,
+     * away from it). Lightning, explosions and falling blocks give no hit knockback, as in vanilla.
+     */
+    public void hitBy(org.bukkit.entity.Entity from) {
+        if (from instanceof org.bukkit.entity.AbstractArrow arrow && !(arrow instanceof org.bukkit.entity.Trident)) arrow.remove();
+        if (from instanceof LivingEntity || from instanceof org.bukkit.entity.Projectile) knockback(from);
+    }
+
+    private void knockback(org.bukkit.entity.Entity from) {
+        if (legs == null || bed != null || seat != null || climb != null) return; // not out of bed, off a seat or off a ladder
+        Location at = legs.getLocation(), src = from.getLocation();
+        double dx = src.getX() - at.getX(), dz = src.getZ() - at.getZ();
+        if (dx * dx + dz * dz < 1.0E-4) { dx = Math.random() - Math.random(); dz = Math.random() - Math.random(); } // as vanilla
+        legs.knockback(0.4, dx, dz);
+    }
+
     public boolean onGround() {
         return legs.isOnGround();
     }
@@ -719,11 +748,14 @@ public final class Colonist {
                     .body(Key.key("entity/player/" + (slim ? "slim/" : "wide/") + skinName))
                     .model(slim ? SkinModel.SLIM : SkinModel.CLASSIC)).build());
             m.setInvulnerable(false);
-            m.setCollidable(false);
+            // Collidable, or arrows fly through it (Paper: a non-collidable entity can't be hit by projectiles); the
+            // team keeps it from pushing or being pushed.
+            m.setCollidable(true);
             m.setGravity(false); // position comes from the legs every tick
             m.setPersistent(false);
             scale(m);
         });
+        noPush().addEntity(body);
         target = null;
         wait = 20;
     }
@@ -735,7 +767,7 @@ public final class Colonist {
         if (body != null && bed != null) Nms.wake(body); // else the bed stays marked occupied
         if (chair != null) chair.remove();
         chair = null;
-        if (body != null) body.remove();
+        if (body != null) { noPush().removeEntity(body); body.remove(); }
         if (legs != null) legs.remove();
         body = null;
         legs = null;

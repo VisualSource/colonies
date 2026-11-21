@@ -54,7 +54,7 @@ public final class Health {
         e.setCancelled(true);
         var cause = e.getCause();
         if (cause == DamageCause.SUFFOCATION) { c.hopAside(null); return; } // the mod teleports it out
-        Entity source = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null;
+        Entity direct = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null, source = direct;
         if (source instanceof Projectile p && p.getShooter() instanceof Entity shooter) source = shooter;
         if (source != null && colony.colonistOf(source) != null) return;
         // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
@@ -65,6 +65,7 @@ public final class Health {
         if (damage <= 0) return;
         c.health -= damage;
         c.showHurt();
+        if (direct != null) c.hitBy(direct);
         var type = e.getDamageSource().getDamageType(); // the mod's damage modifier skips fire (lava, magma, campfires too) and lightning
         if (!org.bukkit.tag.DamageTypeTags.IS_FIRE.isTagged(type) && !org.bukkit.tag.DamageTypeTags.IS_LIGHTNING.isTagged(type))
             colony.happiness.hurt(c); // the mod's damage modifier skips fire and lightning

@@ -211,13 +211,14 @@ public final class Visitors {
     public void hurt(Visitor v, EntityDamageEvent e) {
         e.setCancelled(true);
         if (e.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) { v.colonist.hopAside(null); return; }
-        Entity source = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null;
+        Entity direct = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null, source = direct;
         if (source instanceof Projectile pr && pr.getShooter() instanceof Entity shooter) source = shooter;
         if (source != null && (colony.colonistOf(source) != null || of(source) != null)) return;
         if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_VISITOR)) return;
         if (e.getDamage() <= 0) return;
         v.health -= e.getDamage();
         v.colonist.showHurt();
+        if (direct != null) v.colonist.hitBy(direct);
         if (v.health <= 0) { die(v, e.getCause()); return; }
         if (source instanceof LivingEntity attacker && e.getDamage() > 1.01)
             for (Visitor o : list) if (o == v || o.tavern == v.tavern && o.target == null) { o.target = attacker; o.fightTicks = FIGHT_TICKS; }
