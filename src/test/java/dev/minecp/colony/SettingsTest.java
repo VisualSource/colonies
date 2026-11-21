@@ -28,6 +28,12 @@ class SettingsTest {
     }
 
     @Test
+    void keysAreValidDialogInputNames() { // Paper refuses other characters (a hyphen threw when the menu opened)
+        for (Hut.Type t : Hut.Type.values())
+            for (Settings.Setting st : Settings.of(t)) assertTrue(st.key().matches("[a-z0-9_]+"), st.key());
+    }
+
+    @Test
     void whoHires() {
         assertTrue(Settings.hires(Hut.Type.LUMBERJACK));
         assertTrue(Settings.hires(Hut.Type.HOUSE));

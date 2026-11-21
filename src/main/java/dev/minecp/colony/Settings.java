@@ -12,7 +12,7 @@ import java.util.List;
 public final class Settings {
     /** The mod's HiringMode: DEFAULT follows the Town Hall's auto hiring (or auto housing for homes). */
     public enum Hiring {
-        DEFAULT("Default (the Town Hall's setting)"), AUTO("Automatic"), MANUAL("Manual"), LOCKED("Locked");
+        DEFAULT("Default"), AUTO("Automatic"), MANUAL("Manual"), LOCKED("Locked");
 
         public final String label;
 
@@ -39,11 +39,12 @@ public final class Settings {
     }
 
     // The Town Hall's (the colony's), all on by default as in the mod.
-    public static final String MOVE_IN = "move-in", AUTO_HIRING = "auto-hiring", AUTO_HOUSING = "auto-housing",
-            TAPE = "construction-tape", ENTER_LEAVE = "enter-leave-messages";
-    public static final String FILL_BLOCK = "fill-block", MAX_DEPTH = "max-depth", REPLANT = "replant", MIN_ORE = "min-ore",
+    // Keys are also the menu's input names, which allow only letters, digits and underscores.
+    public static final String MOVE_IN = "move_in", AUTO_HIRING = "auto_hiring", AUTO_HOUSING = "auto_housing",
+            TAPE = "construction_tape", ENTER_LEAVE = "enter_leave_messages";
+    public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
-            MILKING = "milking-amount", MILKING_DAYS = "milking-days", STEWING = "stewing-amount";
+            MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
