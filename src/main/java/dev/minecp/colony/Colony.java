@@ -280,7 +280,7 @@ public final class Colony {
 
     /** Whether the hut can take a worker now (the mod's canAssignCitizens): built to level 1, or the Builder's Hut. */
     public boolean canHire(Job j) {
-        return j.hut.level >= 1 || j == builder;
+        return j.hut.type.worker != null && (j.hut.level >= 1 || j == builder);
     }
 
     /**

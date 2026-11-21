@@ -12,6 +12,7 @@ import org.bukkit.advancement.Advancement;
 import org.bukkit.entity.Player;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -21,13 +22,16 @@ import java.util.logging.Logger;
  * the colony sends its messages to (RECEIVE_MESSAGES), as the mod does. Loaded at startup, so no data pack is needed.
  */
 public final class Advancements {
-    private record Def(String parent, String icon, String title, String description, String frame, boolean hidden) {}
+    /** {@code criteria}: awarded separately, all needed (most have one, "done"). */
+    private record Def(String parent, String icon, String title, String description, String frame, boolean hidden, List<String> criteria) {}
 
     private static final String ROOT = "minecolonies/root", PRODUCTION = "production/root";
+    /** The mod's post_and_stash: placing a postbox and placing a stash, its criteria "postbox" and "stash". */
+    static final String POST_AND_STASH = "production/post_and_stash";
     private static final Map<String, Def> ALL = new LinkedHashMap<>();
 
     private static void add(String id, String parent, String icon, String title, String description, String frame) {
-        ALL.put(id, new Def(parent, icon, title, description, frame, false));
+        ALL.put(id, new Def(parent, icon, title, description, frame, false, List.of("done")));
     }
 
     static {
@@ -65,6 +69,8 @@ public final class Advancements {
         add("production/build_baker", "production/build_cook", "bread", "Fresh From the Oven", "Finish a Bakery", "task");
         add("production/build_warehouse", PRODUCTION, "chest", "A Place for Everything", "Finish the Warehouse", "task");
         add("production/build_delivery_person", "production/build_warehouse", "leather_boots", "Special Delivery", "Finish a Courier's Hut", "task");
+        ALL.put(POST_AND_STASH, new Def("production/build_delivery_person", "barrel", "Same-Day Delivery",
+                "Place a Postbox and a Stash", "task", false, List.of("postbox", "stash")));
         add("production/build_sawmill", "production/build_delivery_person", "oak_planks", "Sawdust", "Finish a Sawmill", "task");
         add("production/build_stonemason", "production/build_sawmill", "stone_bricks", "Set in Stone", "Finish a Stonemason's Hut", "task");
         add("production/build_stone_smeltery", "production/build_sawmill", "furnace", "Fired Up", "Finish a Stone Smeltery", "task");
@@ -151,7 +157,7 @@ public final class Advancements {
                 + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"
                 + "\"description\":{\"text\":\"" + d.description + "\"},\"frame\":\"" + d.frame + "\",\"hidden\":" + d.hidden
                 + ",\"show_toast\":" + !vanillaTab + ",\"announce_to_chat\":" + !vanillaTab + bg + "},"  // roots too, as the mod's
-                + "\"criteria\":{\"done\":{\"trigger\":\"minecraft:impossible\"}}}";
+                + "\"criteria\":{" + String.join(",", d.criteria.stream().map(k -> "\"" + k + "\":{\"trigger\":\"minecraft:impossible\"}").toList()) + "}}";
     }
 
     /** Awards these ("a|b" for several) to one player. */
@@ -160,6 +166,12 @@ public final class Advancements {
             Advancement a = Bukkit.getAdvancement(key(id));
             if (a != null && !p.getAdvancementProgress(a).isDone()) p.getAdvancementProgress(a).awardCriteria("done");
         }
+    }
+
+    /** Awards one criterion of an advancement to one player. */
+    static void award(Player p, String id, String criterion) {
+        Advancement a = Bukkit.getAdvancement(key(id));
+        if (a != null) p.getAdvancementProgress(a).awardCriteria(criterion);
     }
 
     /** A colony's milestones, turned into advancements for its members. */

@@ -55,6 +55,8 @@ MODELS = {
     "hut/swineherd": "minecolonies:item/blockhutswineherder",
     "hut/rabbit_hutch": "minecolonies:item/blockhutrabbithutch",
     "hut/field": "minecolonies:item/blockhutfield",
+    "hut/post_box": "minecolonies:item/blockpostbox",
+    "hut/stash": "minecolonies:item/blockstash",
     "rack": "minecolonies:item/blockminecoloniesrack",
     "build_goggles": "minecolonies:item/build_goggles",
     "build_tool": "structurize:item/sceptergold",
@@ -77,7 +79,7 @@ CHEST_NAMES = {
     "Guard Tower": "hut/guard_tower", "Tavern": "hut/tavern", "Bakery": "hut/baker", "Storage Rack": "rack",
     "Graveyard": "hut/graveyard", "Fisherman's Hut": "hut/fisherman", "Chicken Farmer's Hut": "hut/chicken_herder",
     "Cowhand's Hut": "hut/cowboy", "Shepherd's Hut": "hut/shepherd", "Swineherd's Hut": "hut/swineherd",
-    "Rabbit Hutch": "hut/rabbit_hutch",
+    "Rabbit Hutch": "hut/rabbit_hutch", "Postbox": "hut/post_box", "Stash": "hut/stash",
 }
 FACES = ["north", "east", "south", "west"]  # a quarter turn clockwise (seen from above) moves each to the next
 

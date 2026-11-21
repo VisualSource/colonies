@@ -279,9 +279,14 @@ public final class MineCP extends JavaPlugin implements Listener {
         } else {
             c = claims.colonyAt(at.getLocation()); // the colony whose land it is on, which may not be the placer's own
             hut = c.addHut(type, at);
-            p.sendMessage(Component.text(type == Hut.Type.FIELD
-                    ? "Field placed. Right-click it to choose the crop and the size of the field."
-                    : type.title + " placed. Right-click it to build it.", NamedTextColor.GREEN));
+            p.sendMessage(Component.text(switch (type) {
+                case FIELD -> "Field placed. Right-click it to choose the crop and the size of the field.";
+                case POST_BOX -> "Postbox placed. Right-click it to order items from the warehouse.";
+                case STASH -> "Stash placed. Couriers take what you put in it to the warehouse"
+                        + (c.warehouse() == null ? ", once the colony has one (level 1 or higher)." : ".");
+                default -> type.title + " placed. Right-click it to build it.";
+            }, NamedTextColor.GREEN));
+            if (type == Hut.Type.POST_BOX || type == Hut.Type.STASH) Advancements.award(p, Advancements.POST_AND_STASH, type == Hut.Type.POST_BOX ? "postbox" : "stash");
         }
         ChestNames.name(at, type.title); // only chests take it: not the town hall's bell or a field's hay bale
         hut.rotation = rotation;
@@ -368,7 +373,8 @@ public final class MineCP extends JavaPlugin implements Listener {
                     : "Linked to the Builder's Hut of " + c.name + ".", NamedTextColor.GREEN));
             return;
         }
-        if (p.isSneaking()) return; // the block's own use (a chest): Protection checks it
+        // The block's own use (a chest), which Protection checks: sneaking, and always for a stash, which opens as the mod's.
+        if (p.isSneaking() || c.hutAt(e.getClickedBlock()).type == Hut.Type.STASH) return;
         e.setCancelled(true);
         if (!mayAccess(p, c)) return;
         menus.hut(p, c, c.hutAt(e.getClickedBlock()));

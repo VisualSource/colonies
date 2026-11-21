@@ -38,8 +38,8 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [ ] Colony connections (`core/colony/managers/ColonyConnectionManager.java`, `api/colony/connections/`): colony signs and gate houses link two colonies, with a diplomacy status of allies, neutral or hostile
 - [ ] Commands: the mod's `/mc colony ...` and `/mc citizens ...` (MineCP's `/colony` has give-item, `build`, `info` and `movement` subcommands)
 - [~] Advancements (the mod's `data/minecolonies/advancements/`): its MineColonies and production tabs, with the mod's tree, frames, triggers and vanilla icons (our own icons where the mod shows its hut blocks), in our own words. Loaded by the plugin at startup (`Advancements`), so no data pack is needed; a `/minecraft:reload` drops them until the next restart. Bukkit saves them in the world's `bukkit` data pack: when a MineCP update changes one, all of them are replaced at the next start (one data reload)
-  - Each is awarded when it happens to every online player the colony sends messages to (RECEIVE_MESSAGES), as the mod does: placing a supply camp or ship (the tab's root, with the mod's quiet copy in vanilla's Story tab; awarded to the one who placed it), placing the town hall, asking for the Builder's Hut, finishing huts and levels, 5/10/25/50/75 citizens, a citizen's first meal, teaching torches or a wooden door
-  - Left out until their features exist: the military tab, mystical site, the undertaker's totem, rotten flesh, the hut guide, fulfilling a request from the request screen, composter, crusher, enchanter, florist, library, sifter, post box and stash, deep mine, max fields
+  - Each is awarded when it happens to every online player the colony sends messages to (RECEIVE_MESSAGES), as the mod does: placing a supply camp or ship (the tab's root, with the mod's quiet copy in vanilla's Story tab; awarded to the one who placed it), placing the town hall, asking for the Builder's Hut, finishing huts and levels, 5/10/25/50/75 citizens, a citizen's first meal, teaching torches or a wooden door; placing a postbox and a stash (the mod's two placed_block criteria, each awarded to the one who placed it)
+  - Left out until their features exist: the military tab, mystical site, the undertaker's totem, rotten flesh, the hut guide, fulfilling a request from the request screen, composter, crusher, enchanter, florist, library, sifter, deep mine, max fields
 
 ## Citizens
 
@@ -121,6 +121,10 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - No minimum stock setting (`MinimumStockModule`: items a hut keeps topped up)
   - Builder chest is emptied to the warehouse while no build is running
 - [~] Storage rack: own item, recipe, required by the builder, warehouse counts only racks
+- [x] Postbox and stash (`PostBox`, `Stash`, `TileEntityStash`, `PostBoxRequestMessage`, `MinimumStockModule`): blocks, never built, nobody works there; placed inside a colony like a hut (PLACE_HUTS), any number. Recipes as the mod's with our Build Tool for its gold scepter: planks, the tool on top, and a row of three chests (postbox) or two chests with planks between (stash); plain chests or trapped chests (the mod's chests tag). The pack shows the mod's models by their chest names
+  - Postbox: its menu orders an item (by id, or the one in hand) and how many, up to 1000 (the mod's), a stack by default, waiting for all of it unless "deliver what the warehouse has" is ticked (the mod's minimum 1 instead of the whole amount). Orders become requests like any hut's: the warehouse sends what it has, crafters make the rest, else a player fills them. Whatever its chest gains, from couriers or players, counts against the orders; open orders are listed with Cancel. Ordering needs MANAGE_HUTS (the mod's default for building messages). Minimum stock: up to 5 items (the mod's 5 per level, the postbox always level 1, no research), each kept at a number of stacks, asked for a stack at a time with minimum 1 once below
+  - Ours: an item matches by type, worn or renamed (the mod compares item data), except enchanted books, potions and tipped arrows, which must be the same enchantment or potion; orders of the same item add up into one (the mod keeps one request per order), and if either may come in parts, all of it may; stock isn't asked for while the same item is on order; stock is 1 to 27 stacks; items taken out of the chest and put back count again; it is opened by sneaking or the menu's Open storage (the mod: its inventory button)
+  - Stash: right-clicking opens its chest, as the mod's (OPEN_CONTAINER). Couriers take everything in it to the warehouse, as any hut's surplus. Ours: after their deliveries, where the mod's pickup request gets the top priority; no "a courier will come along" message
   - Breaks into a plain chest when blown up
   - No custom model yet (the block is tagged for one)
 - [~] Hut settings (`SettingsModule`, `BuildingModules`' settings, `HiringMode`), the mod's defaults: a Settings button in each hut's menu (changes need MANAGE_HUTS), saved with the colony
@@ -287,8 +291,8 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - ~~Farmland and flooded farmland (for the mod's crops; rice needs flooded farmland)~~ (skipped)
 - ~~Crops (bell pepper, cabbage, chickpea, durum, eggplant, garlic, onion, soy bean, tomato, rice, butternut squash, corn, mint, nether pepper, peas)~~ (skipped)
 - [ ] Simple and medium quarry (blocks that mark a quarry for the Quarrier; a large one exists but is turned off)
-- [ ] Stash (a chest couriers empty to the warehouse): stand-in is a tagged chest
-- [ ] Post box (players order items from the warehouse): stand-in is a tagged chest or barrel
+- [x] Stash (a chest couriers empty to the warehouse): stand-in is a named chest (see Postbox and stash)
+- [x] Post box (players order items from the warehouse): stand-in is a named chest (see Postbox and stash)
 - [ ] Waypoint (helps citizens' pathing)
 - [ ] Decoration controller (`core/blocks/BlockDecorationController.java`: marks a placed decoration so builders can upgrade or repair it)
 - [ ] Colony sign

@@ -12,6 +12,8 @@ import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Miner;
+import dev.minecp.job.PostBox;
+import dev.minecp.job.Stash;
 import dev.minecp.job.Undertaker;
 
 import org.bukkit.Material;
@@ -96,7 +98,17 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
-                null, false);
+                null, false),
+        // MineColonies' postbox and stash: blocks, never built; nobody works there. Recipes: a row of three chests, or
+        // two with planks between; plain chests (the mod's chests tag), never huts or racks, which are chests too
+        POST_BOX("Postbox", Material.CHEST, null, "postbox", "Order items from the warehouse; couriers bring them here",
+                Type::plainChests, Type::plainChests, null, (h, c) -> new PostBox(h), false),
+        STASH("Stash", Material.CHEST, null, "stash", "Couriers take what you put in here to the warehouse",
+                () -> new RecipeChoice.MaterialChoice(Tag.PLANKS), Type::plainChests, null, (h, c) -> new Stash(h), false);
+
+        private static RecipeChoice plainChests() {
+            return RecipeChoice.exactChoice(new org.bukkit.inventory.ItemStack(Material.CHEST), new org.bukkit.inventory.ItemStack(Material.TRAPPED_CHEST));
+        }
 
         public final String title;
         public final Material block;
@@ -105,7 +117,7 @@ public final class Hut {
         public final String lore;     // on its item
         public final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, Build Tool on top); null: none or special
         public final String worker;   // the job's name ("Cook"), null for huts without a worker
-        final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without a worker
+        final BiFunction<Hut, Colony, Job> job; // makes its job; null for huts without one (the postbox and stash have one but no worker)
         public final boolean unique;  // one per colony
         public final Supplier<RecipeChoice> sides; // either side of the centre in its recipe; null: planks
 

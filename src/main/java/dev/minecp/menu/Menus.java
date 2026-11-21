@@ -16,6 +16,7 @@ import dev.minecp.job.Courier;
 import dev.minecp.job.Crafter;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Job;
+import dev.minecp.job.PostBox;
 import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
 
@@ -107,7 +108,7 @@ public final class Menus {
         Job job = c.jobAt(h);
         if (job != null) { // every worker hut: who works it and what it is doing, then what that job shows
             Colonist worker = c.worker(job);
-            body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + (h.level < 1 && job != c.builder
+            if (h.type.worker != null) body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + (h.level < 1 && job != c.builder
                     ? " until level 1 is built." : ": every citizen has a job.")
                     : worker.name + " — " + worker.status())));
             job.info(c).forEach(line -> body.add(text(line)));
@@ -131,6 +132,10 @@ public final class Menus {
             var missing = job.materials(); // null once the work ended while the menu was open
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
+        if (job instanceof PostBox pb) {
+            buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
+            buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + PostBox.MAX_STOCK + ")", p, c, h, player -> stock(player, c, h, pb)));
+        }
         if (job instanceof Crafter cr && h.level > 0 && !cr.oreSmelter) { // the Smeltery knows every ore by itself
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
             buttons.add(button("Teach a recipe", p, c, h, Action.MANAGE_HUTS, player -> {
@@ -210,15 +215,9 @@ public final class Menus {
             for (Settings.Setting s : Settings.of(h.type)) switch (s.kind()) {
                 case BOOL -> { Boolean on = view.getBoolean(s.key()); if (on != null) h.set(s.key(), on.toString()); }
                 case INT -> {
-                    String typed = view.getText(s.key());
-                    try {
-                        int n = Integer.parseInt(typed == null ? "" : typed.trim());
-                        if (n < s.min() || n > s.max()) throw new NumberFormatException();
-                        h.set(s.key(), String.valueOf(n));
-                    } catch (NumberFormatException e) {
-                        player.sendMessage(Component.text(s.label() + ": a whole number from " + s.min() + " to " + s.max() + ", please. Kept "
-                                + h.setting(s.key()) + ".", NamedTextColor.RED));
-                    }
+                    Integer n = number(player, s.label(), view.getText(s.key()), s.min(), s.max());
+                    if (n != null) h.set(s.key(), String.valueOf(n));
+                    else player.sendMessage(Component.text("Kept " + h.setting(s.key()) + ".", NamedTextColor.RED));
                 }
                 case BLOCK -> {}
             }
@@ -531,6 +530,100 @@ public final class Menus {
         body.add(text(Component.text("Fill a request by putting the items in " + (job == null ? "that hut's" : "the hut's") + " chest.", NamedTextColor.GRAY)));
         Dialogs.show(p, job == null ? "Requests" : from.type.title + ": requests", body, List.of(),
                 List.of(button("Back", p, c, from, player -> hut(player, c, from))), 1);
+    }
+
+    /**
+     * The postbox's order screen (the mod's postbox window): an item by name, or the one in hand when left blank, how many
+     * (the mod's default: a stack), and whether to take what the warehouse has; its open orders, each with Cancel.
+     */
+    void order(Player p, Colony c, Hut h, PostBox pb) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text("Couriers bring orders from the warehouse, or crafters make them, into the postbox's chest.", NamedTextColor.GRAY)));
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button("Order", p, c, h, (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
+            ItemStack item = itemFrom(player, view.getText("item"));
+            Integer n = item == null ? null : number(player, "How many", view.getText("amount"), 1, PostBox.MAX_ORDER);
+            if (n != null) {
+                pb.order(item, n, Boolean.TRUE.equals(view.getBoolean("partial")));
+                plugin.save(c);
+            }
+            order(player, c, h, pb);
+        }));
+        for (PostBox.Order o : List.copyOf(pb.orders)) {
+            String label = PostBox.label(o.item);
+            var r = c.requests.of(pb).stream().filter(x -> x.label().equals(label)).findFirst();
+            body.add(text(Component.text(o.amount + " × " + label + r.map(x -> " — " + x.stateText()).orElse(""))));
+            buttons.add(button("Cancel " + o.amount + " × " + label, p, c, h, Action.MANAGE_HUTS, player -> {
+                pb.cancel(o);
+                plugin.save(c);
+                order(player, c, h, pb);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        List<DialogInput> inputs = List.of(
+                DialogInput.text("item", Component.text("Item, like oak_log (blank: the one in your hand)")).width(250).build(),
+                DialogInput.text("amount", Component.text("How many (1 to " + PostBox.MAX_ORDER + ")")).initial("64").width(250).build(),
+                DialogInput.bool("partial", Component.text("Deliver what the warehouse has (else wait for all of it)")).initial(false).build());
+        Dialogs.show(p, h.type.title + ": order", body, inputs, buttons, 1);
+    }
+
+    /** The postbox's minimum stock (the mod's MinimumStockModule): up to 5 items, each kept at a number of stacks. */
+    void stock(Player p, Colony c, Hut h, PostBox pb) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text("Couriers keep these in the postbox's chest, a stack at a time.", NamedTextColor.GRAY)));
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button("Keep in stock", p, c, h, (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
+            ItemStack item = itemFrom(player, view.getText("item"));
+            Integer n = item == null ? null : number(player, "Stacks", view.getText("stacks"), 1, 27); // a chest's worth (ours)
+            if (n != null) {
+                if (pb.keepStocked(item, n)) plugin.save(c);
+                else player.sendMessage(Component.text("The postbox keeps at most " + PostBox.MAX_STOCK + " items in stock.", NamedTextColor.RED));
+            }
+            stock(player, c, h, pb);
+        }));
+        for (PostBox.Stock s : List.copyOf(pb.stock)) {
+            body.add(text(Component.text(s.stacks() + (s.stacks() == 1 ? " stack of " : " stacks of ") + PostBox.label(s.item()))));
+            buttons.add(button("Stop stocking " + PostBox.label(s.item()), p, c, h, Action.MANAGE_HUTS, player -> {
+                pb.stopStocking(s);
+                plugin.save(c);
+                stock(player, c, h, pb);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        List<DialogInput> inputs = List.of(
+                DialogInput.text("item", Component.text("Item, like torch (blank: the one in your hand)")).width(250).build(),
+                DialogInput.text("stacks", Component.text("Stacks to keep (1 to 27)")).initial("1").width(250).build());
+        Dialogs.show(p, h.type.title + ": minimum stock", body, inputs, buttons, 1);
+    }
+
+    /**
+     * The item named (a vanilla item id, "minecraft:" optional), or the one in hand if blank, as an order takes it
+     * (PostBox.orderable: worn or renamed doesn't matter, which enchanted book or potion does); says why if none.
+     */
+    private static ItemStack itemFrom(Player p, String typed) {
+        String name = typed == null ? "" : typed.trim();
+        if (name.isEmpty()) {
+            ItemStack held = p.getInventory().getItemInMainHand();
+            if (!held.isEmpty()) return PostBox.orderable(held);
+            p.sendMessage(Component.text("Name an item, or hold the one you want.", NamedTextColor.RED));
+            return null;
+        }
+        Material m = Material.matchMaterial(name);
+        if (m != null && m.isItem() && !m.isAir()) return new ItemStack(m);
+        p.sendMessage(Component.text("No item called \"" + name + "\".", NamedTextColor.RED));
+        return null;
+    }
+
+    /** A whole number typed in a menu's {@code field}, from {@code min} to {@code max}; says so and gives null if not. */
+    private static Integer number(Player p, String field, String typed, int min, int max) {
+        try {
+            int n = Integer.parseInt(typed == null ? "" : typed.trim());
+            if (n >= min && n <= max) return n;
+        } catch (NumberFormatException ignored) {}
+        p.sendMessage(Component.text(field + ": a whole number from " + min + " to " + max + ", please.", NamedTextColor.RED));
+        return null;
     }
 
     /** A crafter's taught recipes, each with a button to forget it. */
