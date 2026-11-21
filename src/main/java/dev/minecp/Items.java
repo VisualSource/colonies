@@ -32,13 +32,13 @@ public final class Items implements Listener {
 
     Items(Plugin plugin) {
         this.plugin = plugin;
-        hutKey = new NamespacedKey(plugin, "hut_item");
-        buildToolKey = new NamespacedKey(plugin, "build_tool");
-        gogglesKey = new NamespacedKey(plugin, "build_goggles");
-        clipboardKey = new NamespacedKey(plugin, "clipboard");     // value: the colony owner's UUID, "" until bound
-        scrollKey = new NamespacedKey(plugin, "resource_scroll");
-        supplyKey = new NamespacedKey(plugin, "supply");     // value: "camp" or "ship"
-        starterKey = new NamespacedKey(plugin, "starter");   // the converter's stand-ins in the supplies' barrels
+        hutKey = new NamespacedKey(MineCP.NAMESPACE, "hut_item");
+        buildToolKey = new NamespacedKey(MineCP.NAMESPACE, "build_tool");
+        gogglesKey = new NamespacedKey(MineCP.NAMESPACE, "build_goggles");
+        clipboardKey = new NamespacedKey(MineCP.NAMESPACE, "clipboard");     // value: the colony owner's UUID, "" until bound
+        scrollKey = new NamespacedKey(MineCP.NAMESPACE, "resource_scroll");
+        supplyKey = new NamespacedKey(MineCP.NAMESPACE, "supply");     // value: "camp" or "ship"
+        starterKey = new NamespacedKey(MineCP.NAMESPACE, "starter");   // the converter's stand-ins in the supplies' barrels
     }
 
     /**
@@ -145,7 +145,7 @@ public final class Items implements Listener {
     }
 
     private NamespacedKey key(String name) {
-        NamespacedKey key = new NamespacedKey(plugin, name);
+        NamespacedKey key = new NamespacedKey(MineCP.NAMESPACE, name);
         plugin.getServer().removeRecipe(key); // a reload would otherwise register it twice
         return key;
     }
@@ -273,7 +273,7 @@ public final class Items implements Listener {
     public void onPrepareCraft(org.bukkit.event.inventory.PrepareItemCraftEvent e) {
         if (e.getRecipe() instanceof org.bukkit.Keyed k && recipes.contains(k.getKey())) return;
         for (ItemStack it : e.getInventory().getMatrix())
-            if (it != null && it.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(plugin.getName().toLowerCase()))) {
+            if (it != null && it.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(MineCP.NAMESPACE))) {
                 e.getInventory().setResult(null);
                 return;
             }

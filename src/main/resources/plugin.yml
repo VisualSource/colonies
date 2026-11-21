@@ -1,5 +1,5 @@
-name: MineCP
-version: '0.1.0'
+name: Colonies
+version: '${version}'
 main: dev.minecp.MineCP
 api-version: '26.3'
 commands:

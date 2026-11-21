@@ -32,9 +32,9 @@ public final class Advancements {
 
     static {
         // The MineColonies tab. Its root is placing a supply camp or ship, as the mod's (its title is the mod's name).
-        add(ROOT, null, "paper", "MineCP", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
+        add(ROOT, null, "paper", "Colonies", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
         // The mod's copy of it in vanilla's Story tab: no toast or chat message.
-        add("story/craft_supply", "minecraft:story/root", "paper", "MineCP", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
+        add("story/craft_supply", "minecraft:story/root", "paper", "Colonies", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
         add("minecolonies/place_townhall", ROOT, "bell", "A Place to Call Home", "Place a Town Hall to found a colony", "task");
         add("minecolonies/start_builder", "minecolonies/place_townhall", "yellow_wool", "Hard Hat Needed", "Ask for the Builder's Hut to be built", "task");
         add("minecolonies/build_builder", "minecolonies/start_builder", "crafting_table", "The Builder's Yard", "Finish the Builder's Hut", "goal");
@@ -114,7 +114,7 @@ public final class Advancements {
             try (var files = java.nio.file.Files.walk(saved)) {
                 files.sorted(java.util.Comparator.reverseOrder()).forEach(f -> f.toFile().delete());
             } catch (java.io.IOException ex) {
-                log.warning("Couldn't replace MineCP's advancements: " + ex.getMessage());
+                log.warning("Couldn't replace the advancements: " + ex.getMessage());
             }
             Bukkit.reloadData();
         }
@@ -141,11 +141,11 @@ public final class Advancements {
     }
 
     private static NamespacedKey key(String id) {
-        return new NamespacedKey("minecp", id);
+        return new NamespacedKey(MineCP.NAMESPACE, id);
     }
 
     private static String json(Def d) {
-        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.title.equals("MineCP") ? "light_gray_wool" : "oak_planks") + "\"" : "";
+        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.title.equals("Colonies") ? "light_gray_wool" : "oak_planks") + "\"" : "";
         boolean vanillaTab = d.parent != null && d.parent.startsWith("minecraft:"); // quiet there, as the mod's
         return "{" + (d.parent == null ? "" : "\"parent\":\"" + (vanillaTab ? "" : "minecp:") + d.parent + "\",")
                 + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"

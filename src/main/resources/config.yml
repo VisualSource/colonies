@@ -1,4 +1,4 @@
-# MineCP settings. Restart the server after changing them.
+# Colonies settings. Restart the server after changing them.
 
 # Chunk claims: a colony's border. The numbers are MineColonies' defaults.
 claims:

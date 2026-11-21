@@ -176,7 +176,7 @@ public final class Builder extends Job {
         boolean remove = s.getBoolean("order.remove");
         if (o != null && remove) o = o.removal(); // taking it down
         if (o != null) start(o, h != null ? new Hut.WorkOrder(h, s.getInt("order.level"), remove) : null);
-        else Bukkit.getLogger().warning("[MineCP] Structure " + structure + " not found; build order of " + c.name + " dropped.");
+        else dev.minecp.colony.Colony.log.warning("Structure " + structure + " not found; build order of " + c.name + " dropped.");
     }
 
     @Override

@@ -98,6 +98,7 @@ public final class Health {
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         Block spot = Grave.spot(at.getBlock());
         String where = " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ();
+        Colony.log.info(colony.where() + ": " + c.name + (job != null ? " (" + job.hut.type.worker + ")" : "") + " " + deathCause(cause, source) + where + ".");
         if (spot == null) {
             items.forEach(i -> at.getWorld().dropItemNaturally(at, i));
             colony.tell(c.name + " " + deathCause(cause, source) + where + ". No grave could be made there." + mourn);

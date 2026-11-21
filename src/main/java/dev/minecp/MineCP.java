@@ -46,6 +46,12 @@ import java.util.UUID;
 
 /** The plugin: colonies by owner, their ticks and saves, and the world events on their huts, graves and citizens. */
 public final class MineCP extends JavaPlugin implements Listener {
+    /**
+     * The namespace of MineCP's tags, recipes, structures and advancements. Fixed, not the plugin's name ("Colonies"),
+     * because the converted data packs, item tags and the resource pack are written with it.
+     */
+    public static final String NAMESPACE = "minecp";
+
     // Every colony is saved on this timer: citizens move and get hungry every tick, so a "changed" flag would always be set.
     private static final long AUTOSAVE_TICKS = 20 * 30;
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
@@ -61,6 +67,7 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        Colony.log = getLogger();
         saveDefaultConfig();
         var cfg = getConfig();
         Claims.initialSize = cfg.getInt("claims.initial-size", Claims.initialSize);
@@ -103,6 +110,22 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
         getServer().getScheduler().runTaskTimer(this, this::borderTitles, 10L, 10L);
+        startupReport();
+    }
+
+    /** What an admin checks first when something is off: what loaded, and whether the style data packs are there. */
+    private void startupReport() {
+        List<String> styles = Colony.styles();
+        getLogger().info("Colonies " + getPluginMeta().getVersion() + ": " + colonies.size() + " colonies, "
+                + colonies.values().stream().mapToInt(c -> c.colonists.size()).sum() + " citizens; styles installed: "
+                + (styles.isEmpty() ? "none" : String.join(", ", styles)) + "; raids " + (dev.minecp.colony.Raids.enabled ? "on" : "off")
+                + ", protection " + (protection.enabled ? "on" : "off") + ".");
+        if (styles.isEmpty())
+            getLogger().severe("No style data packs are installed (world/datapacks/minecp-<style>): no hut can be placed or built.");
+        else if (!styles.contains(Colony.DEFAULT_STYLE))
+            getLogger().warning("The default style " + Colony.DEFAULT_STYLE + " isn't installed: new colonies get it and can't build until they pick another.");
+        for (Colony c : colonies.values())
+            if (!styles.contains(c.style)) getLogger().warning("Colony " + c.where() + " uses the style " + c.style + ", which isn't installed.");
     }
 
     private final Map<java.util.UUID, Colony> standingIn = new java.util.HashMap<>(); // the colony each player was last in
@@ -249,6 +272,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             colonies.put(c.owner, c);
             hook(c);
             Advancements.award(p, "minecolonies/place_townhall");
+            getLogger().info("Colony " + c.where() + " founded by " + p.getName() + ".");
             reindex();
             hut = c.townHall();
             p.sendMessage(Component.text(c.name + " founded! The first citizens will move in at the town hall over the next few minutes.", NamedTextColor.GREEN));
@@ -310,6 +334,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         c.despawn(); // first: serving food and meals go back into their chests
         c.jobs.forEach(Job::dropCarried); // every worker's load and tools, at its hut
         c.graves.forEach(Grave::dropAll); // grave contents only live in the colony
+        getLogger().info("Colony " + c.where() + " disbanded by " + p.getName() + " (" + c.colonists.size() + " citizens).");
         colonies.remove(c.owner);
         saves.delete(c.owner);
         reindex(); // its land is free

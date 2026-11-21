@@ -182,7 +182,7 @@ public final class Placement implements Listener {
     /** Whether the player has placed a camp or ship before (the mod counts uses of the item); creative may place more. */
     private boolean usedSupplies(Player p) {
         return p.getGameMode() != GameMode.CREATIVE
-                && p.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, SUPPLIES_USED));
+                && p.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(MineCP.NAMESPACE, SUPPLIES_USED));
     }
 
     /**
@@ -273,7 +273,9 @@ public final class Placement implements Listener {
         if (!townHall) missing.add(plugin.items.hutItem(Hut.Type.TOWN_HALL));
         if (!buildTool) missing.add(plugin.items.buildTool());
         inv.setItem(slot, null); // used up, in creative too (the mod's)
-        p.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, SUPPLIES_USED), org.bukkit.persistence.PersistentDataType.BOOLEAN, true); // creative too
+        p.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(MineCP.NAMESPACE, SUPPLIES_USED), org.bukkit.persistence.PersistentDataType.BOOLEAN, true); // creative too
+        plugin.getLogger().info(p.getName() + " placed a " + s.entry.name().toLowerCase() + " (" + s.style + ") at " + s.anchor.getWorld().getName()
+                + " " + s.anchor.getX() + " " + s.anchor.getY() + " " + s.anchor.getZ() + (missing.isEmpty() ? "." : "; kit given directly."));
         dev.minecp.Advancements.award(p, "minecolonies/root|story/craft_supply"); // the mod's: placing supplies, in its tab and the Story tab
         p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         missing.forEach(it -> inv.addItem(it).values().forEach(left -> p.getWorld().dropItem(p.getLocation(), left)));

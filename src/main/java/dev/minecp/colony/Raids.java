@@ -255,6 +255,8 @@ public final class Raids {
         Location from = first.raiders.isEmpty() ? centre : first.raiders.getFirst().getLocation();
         String dir = direction(colony.townHall().block.getLocation(), from);
         bar = BossBar.bossBar(Component.text(first.culture.title + " - " + dir), 1, BossBar.Color.RED, BossBar.Overlay.NOTCHED_10);
+        Colony.log.info(colony.where() + ": raid started, " + hordes.stream().mapToInt(h -> h.raiders.size()).sum() + " " + first.culture.title
+                + " from the " + dir.toLowerCase() + " (raid level " + level() + ").");
         colony.tell(first.culture.title + " have been spotted " + dir.toLowerCase() + " of " + colony.name + "! The citizens run for shelter.");
         for (Player p : Bukkit.getOnlinePlayers()) // the illagers' raid horn, from the raiders' side (ours: the mod plays its own alert)
             if (p.getWorld().equals(from.getWorld()) && colony.permissions.isMember(p.getUniqueId())) {
@@ -536,6 +538,7 @@ public final class Raids {
      * doesn't change the difficulty.
      */
     private void finish(End end) {
+        Colony.log.info(colony.where() + ": raid ended, " + end.name().toLowerCase() + "; " + lost + " citizens lost.");
         despawn();
         target = null;
         if (end == End.LEFT) {

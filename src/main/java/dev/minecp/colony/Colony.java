@@ -64,6 +64,15 @@ public final class Colony {
     private static final String[] STYLES = {"medievaloak", "medievalspruce", "medievalbirch", "medievaldarkoak", "cavern"};
 
     /** The styles whose data pack is installed (it has a town hall). */
+    /** The plugin's log (set when it starts), for what admins may need to look back on: founding, deaths, raids, builds. */
+    public static java.util.logging.Logger log = java.util.logging.Logger.getLogger("Colonies");
+
+    /** "Name (world x y z)" of the colony, for the log. */
+    public String where() {
+        Block b = townHall().block;
+        return "'" + name + "' (" + b.getWorld().getName() + " " + b.getX() + " " + b.getY() + " " + b.getZ() + ")";
+    }
+
     public static List<String> styles() {
         return java.util.Arrays.stream(STYLES).filter(s -> BuildOrder.exists(Hut.Type.TOWN_HALL.structure(s, 1))).toList();
     }
@@ -403,11 +412,13 @@ public final class Colony {
                     tell("A field came with the building: right-click its hay bale to choose a crop.");
                 }
             if (done == null) {
+                log.info(where() + ": the builder finished " + (building != null ? building.name() : order.structure) + ".");
                 tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + ".");
                 building = null;
                 return;
             }
             if (done.remove()) {
+                log.info(where() + ": the builder took down the " + done.hut().type.title + ".");
                 tell("Your builder took down the " + done.hut().type.title + ".");
                 onTakenDown.accept(done.hut());
                 return;
@@ -416,6 +427,7 @@ public final class Colony {
             assignHomes();
             assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
+            log.info(where() + ": " + done.hut().type.title + " is now level " + done.level() + ".");
             tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
             milestones.built(done.hut().type, done.level());
         });

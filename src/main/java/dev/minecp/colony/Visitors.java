@@ -252,6 +252,7 @@ public final class Visitors {
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         leave(v);
         timers.put(v.tavern, NO_VISITOR_TICKS + ThreadLocalRandom.current().nextInt(NO_VISITOR_RANDOM));
+        Colony.log.info(colony.where() + ": visitor " + v.colonist.name + " died (" + cause + ").");
         colony.tell("Visitor " + v.colonist.name + " died (" + cause.name().toLowerCase().replace('_', ' ') + ") at "
                 + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ() + ".");
     }

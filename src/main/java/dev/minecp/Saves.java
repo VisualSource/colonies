@@ -30,7 +30,7 @@ final class Saves {
     private final File dir;
     private final Logger log;
     private final Set<UUID> unloaded = new HashSet<>(); // owners whose file was skipped: no new colony may overwrite it
-    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> new Thread(r, "MineCP colony saves"));
+    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> new Thread(r, "Colonies saves"));
 
     Saves(File dir, Logger log) {
         this.dir = dir;

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.minecp"
-version = "0.1.0"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -16,6 +16,16 @@ dependencies {
     paperweight.paperDevBundle("26.3.build.253-stable") // matches the server build; includes the API
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.processResources {
+    val v = project.version.toString()
+    inputs.property("version", v)
+    filesMatching("plugin.yml") { expand("version" to v) } // plugin.yml's version is the build's
+}
+
+tasks.jar {
+    archiveBaseName = "Colonies" // the plugin's public name; the code and its namespace stay "minecp"
 }
 
 tasks.compileJava {
