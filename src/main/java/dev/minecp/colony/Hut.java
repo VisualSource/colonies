@@ -13,6 +13,7 @@ import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Miner;
 import dev.minecp.job.PostBox;
+import dev.minecp.job.Researcher;
 import dev.minecp.job.Stash;
 import dev.minecp.job.Undertaker;
 
@@ -96,6 +97,9 @@ public final class Hut {
                 Undertaker::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
+        // The mod's research building; its recipe is its own (books under the Build Tool: Items)
+        UNIVERSITY("University", Material.CHEST, "education/university", "university", "A researcher studies here: research unlocks huts and improvements",
+                null, "Researcher", Researcher::new, false),
         // MineColonies' scarecrow: marks a farm plot, never built or upgraded; its own recipe (Items)
         FIELD("Field", Material.HAY_BLOCK, null, "field", "Marks a farm plot; right-click it to pick the crop and size",
                 null, false),
@@ -207,6 +211,11 @@ public final class Hut {
                 String nested = style + "/" + path.substring(0, slash + 1) + "default/" + path.substring(slash + 1) + level;
                 return dev.minecp.build.BuildOrder.exists(nested) ? nested : plain;
             });
+        }
+
+        /** The mod's building id ("residence"), the last part of its structure path; null for blocks that aren't buildings. */
+        public String modId() {
+            return path == null ? null : path.substring(path.lastIndexOf('/') + 1);
         }
 
         /** The /colony subcommands that give a hut's item (admins). */

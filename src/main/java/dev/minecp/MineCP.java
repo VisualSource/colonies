@@ -85,6 +85,12 @@ public final class MineCP extends JavaPlugin implements Listener {
         } catch (IllegalArgumentException e) {
             getLogger().warning("protection.explosions must be everything, entities, players or nothing; using everything.");
         }
+        dev.minecp.research.Studies.creativeCompletion = cfg.getBoolean("research.creative-completion", true);
+        dev.minecp.research.Studies.resetCount = Math.max(0, cfg.getInt("research.reset-cost.amount", 1));
+        Material resetItem = Material.matchMaterial(cfg.getString("research.reset-cost.item", "enchanted_book"));
+        if (resetItem != null && resetItem.isItem()) dev.minecp.research.Studies.resetItem = resetItem;
+        else getLogger().warning("research.reset-cost.item isn't an item; using enchanted_book.");
+        dev.minecp.research.Studies.clipboard = items::isClipboard;
         Advancements.load(getLogger()); // first: it may reload data, which could drop recipes added before it
         items.addRecipes();
         saves = new Saves(new File(getDataFolder(), "colonies"), getLogger());
@@ -251,6 +257,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (!c.permissions.has(p, tool ? Action.MANAGE_HUTS : Action.PLACE_HUTS))
             return "You can't place huts in " + c.name + ".";
         if (type.unique && c.hut(type) != null) return c.name + " already has a " + type.title + ".";
+        String locked = c.research.lockReason(type); // the mod's research unlocks for some huts
+        if (locked != null) return locked;
         if (box != null && !claims.ownsAll(c, at.getWorld(), box)) return "The " + type.title + "'s building would reach outside " + c.name + "'s border.";
         return null;
     }

@@ -81,6 +81,7 @@ public final class ColonyStore {
         s.set("child-pool", colony.childPool);
         colony.visitors.save(s.createSection("visitors"));
         colony.raids.save(s.createSection("raids"));
+        colony.research.save(s.createSection("research"));
     }
 
     /** @return null if the colony's world is not loaded. */
@@ -182,6 +183,7 @@ public final class ColonyStore {
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
         if (s.isConfigurationSection("raids")) colony.raids.load(s.getConfigurationSection("raids"));
+        if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
         colony.assignHomes();
         colony.assignJobs();
         return colony;

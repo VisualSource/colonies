@@ -1,0 +1,7122 @@
+{
+ "branches": [
+  {
+   "id": "civilian",
+   "name": "Civilian",
+   "baseTime": 1.0,
+   "hidden": false,
+   "sort": 50
+  },
+  {
+   "id": "combat",
+   "name": "Combat",
+   "baseTime": 1.0,
+   "hidden": false,
+   "sort": 100
+  },
+  {
+   "id": "technology",
+   "name": "Technology",
+   "baseTime": 1.0,
+   "hidden": false,
+   "sort": 150
+  },
+  {
+   "id": "unlockable",
+   "name": "Unlockables",
+   "baseTime": 0.0,
+   "hidden": true,
+   "sort": 200
+  }
+ ],
+ "researches": [
+  {
+   "id": "civilian/academic",
+   "branch": "civilian",
+   "name": "Academic",
+   "depth": 6,
+   "parent": "civilian/reflective",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "levelingmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/agile",
+   "branch": "civilian",
+   "name": "Agile",
+   "depth": 4,
+   "parent": "civilian/nimble",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rabbit_foot"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "walkingmultiplier",
+     "strength": 0.15
+    }
+   ]
+  },
+  {
+   "id": "civilian/air",
+   "branch": "civilian",
+   "name": "Fresh Air",
+   "depth": 2,
+   "parent": "civilian/ambition",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:heart_of_the_sea"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "air",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/ambition",
+   "branch": "civilian",
+   "name": "Ambition",
+   "depth": 1,
+   "parent": null,
+   "sort": 5,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockhutmysticalsite",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/athlete",
+   "branch": "civilian",
+   "name": "Athlete",
+   "depth": 6,
+   "parent": "civilian/swift",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rabbit_foot"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "walkingmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/bachelor",
+   "branch": "civilian",
+   "name": "Bachelor's Degree",
+   "depth": 4,
+   "parent": "civilian/bookworm",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bookshelf"
+     ],
+     "count": 12
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "teachingmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/bandages",
+   "branch": "civilian",
+   "name": "Bandages",
+   "depth": 4,
+   "parent": "civilian/healingcream",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "regenerationmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/bandaid",
+   "branch": "civilian",
+   "name": "Plasters",
+   "depth": 2,
+   "parent": "civilian/stamina",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "regenerationmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/beanstalk",
+   "branch": "civilian",
+   "name": "Beanstalk",
+   "depth": 6,
+   "parent": "civilian/growth",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_chicken"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "growthmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/bookworm",
+   "branch": "civilian",
+   "name": "Bookworm",
+   "depth": 3,
+   "parent": "civilian/morebooks",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bookshelf"
+     ],
+     "count": 6
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "school"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "teachingmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/cast",
+   "branch": "civilian",
+   "name": "Plaster Cast",
+   "depth": 6,
+   "parent": "civilian/compress",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "regenerationmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/circus",
+   "branch": "civilian",
+   "name": "Circus",
+   "depth": 2,
+   "parent": "civilian/firstaid",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cake"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "happinessmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "civilian/city",
+   "branch": "civilian",
+   "name": "City",
+   "depth": 5,
+   "parent": "civilian/village",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_beef"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 5,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizencapaddition",
+     "strength": 500.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/compress",
+   "branch": "civilian",
+   "name": "Compress",
+   "depth": 5,
+   "parent": "civilian/bandages",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "regenerationmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/diligent",
+   "branch": "civilian",
+   "name": "Diligent",
+   "depth": 2,
+   "parent": "civilian/keen",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 6
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "levelingmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "civilian/epicure",
+   "branch": "civilian",
+   "name": "Epicure",
+   "depth": 5,
+   "parent": "civilian/stuffer",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cookie"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "saturationmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/festival",
+   "branch": "civilian",
+   "name": "Festival",
+   "depth": 3,
+   "parent": "civilian/circus",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cake"
+     ],
+     "count": 9
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "happinessmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/firstaid",
+   "branch": "civilian",
+   "name": "First Aid",
+   "depth": 1,
+   "parent": null,
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 1,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/firstaid2",
+   "branch": "civilian",
+   "name": "First Aid II",
+   "depth": 2,
+   "parent": "civilian/firstaid",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 2,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 4.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/fortitude",
+   "branch": "civilian",
+   "name": "Fortitude",
+   "depth": 5,
+   "parent": "civilian/vitality",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "healingsaturationlimitaddition",
+     "strength": -2.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/glutton",
+   "branch": "civilian",
+   "name": "Glutton",
+   "depth": 6,
+   "parent": "civilian/epicure",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cookie"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "saturationmultiplier",
+     "strength": 0.3
+    }
+   ]
+  },
+  {
+   "id": "civilian/gorger",
+   "branch": "civilian",
+   "name": "Gorger",
+   "depth": 3,
+   "parent": "civilian/gourmand",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cookie"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "saturationmultiplier",
+     "strength": 0.15
+    }
+   ]
+  },
+  {
+   "id": "civilian/gourmand",
+   "branch": "civilian",
+   "name": "Gourmand",
+   "depth": 2,
+   "parent": "civilian/firstaid",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cookie"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "saturationmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/gravedecaybonus1",
+   "branch": "civilian",
+   "name": "Slow Decay",
+   "depth": 2,
+   "parent": "civilian/remembrance",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rotten_flesh"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "gravedecaybonus",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/gravedecaybonus2",
+   "branch": "civilian",
+   "name": "Slower Decay",
+   "depth": 3,
+   "parent": "civilian/gravedecaybonus1",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:nether_wart_block"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "gravedecaybonus",
+     "strength": 10.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/growth",
+   "branch": "civilian",
+   "name": "Growth",
+   "depth": 5,
+   "parent": "civilian/puberty",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_chicken"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "growthmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/guardianangel",
+   "branch": "civilian",
+   "name": "Guardian Angel",
+   "depth": 5,
+   "parent": "civilian/lifesaver2",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 5,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 10.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/guardianangel2",
+   "branch": "civilian",
+   "name": "Guardian Angel II",
+   "depth": 6,
+   "parent": "civilian/guardianangel",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 20.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/hamlet",
+   "branch": "civilian",
+   "name": "Hamlet",
+   "depth": 3,
+   "parent": "civilian/outpost",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_beef"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "residence"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizencapaddition",
+     "strength": 100.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/haste",
+   "branch": "civilian",
+   "name": "Haste",
+   "depth": 2,
+   "parent": "civilian/keen",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rabbit_foot"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "walkingmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "civilian/healingcream",
+   "branch": "civilian",
+   "name": "Healing Cream",
+   "depth": 3,
+   "parent": "civilian/bandaid",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "regenerationmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/higherlearning",
+   "branch": "civilian",
+   "name": "Higher Learning",
+   "depth": 1,
+   "parent": null,
+   "sort": 4,
+   "onlyChild": true,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "residence"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutschool",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/hormones",
+   "branch": "civilian",
+   "name": "Hormones",
+   "depth": 3,
+   "parent": "civilian/nurture",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_chicken"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "school"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "growthmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/indefatigability",
+   "branch": "civilian",
+   "name": "Indefatigability",
+   "depth": 6,
+   "parent": "civilian/fortitude",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "healingsaturationlimitaddition",
+     "strength": -5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/keen",
+   "branch": "civilian",
+   "name": "Keen Mind",
+   "depth": 1,
+   "parent": null,
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "residence"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutlibrary",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/lifesaver",
+   "branch": "civilian",
+   "name": "Lifesaver",
+   "depth": 3,
+   "parent": "civilian/firstaid2",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 6.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/lifesaver2",
+   "branch": "civilian",
+   "name": "Lifesaver II",
+   "depth": 4,
+   "parent": "civilian/lifesaver",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "healthaddition",
+     "strength": 8.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/masks",
+   "branch": "civilian",
+   "name": "Masks",
+   "depth": 3,
+   "parent": "civilian/firstaid2",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:white_wool"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "masks",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/master",
+   "branch": "civilian",
+   "name": "Master's Degree",
+   "depth": 5,
+   "parent": "civilian/bachelor",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bookshelf"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "teachingmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/moq",
+   "branch": "technology",
+   "name": "Minimum Order",
+   "depth": 3,
+   "parent": "technology/memoryaid",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecp:clipboard"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "deliveryman"
+     ],
+     "level": 9,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "min_order",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/morebooks",
+   "branch": "civilian",
+   "name": "More Books",
+   "depth": 2,
+   "parent": "civilian/higherlearning",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 6
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "school"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "teachingmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "civilian/nightowl",
+   "branch": "civilian",
+   "name": "Night Owl",
+   "depth": 3,
+   "parent": "civilian/circus",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 25
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "workingdayhaddition",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/nightowl2",
+   "branch": "civilian",
+   "name": "Night Owl II",
+   "depth": 4,
+   "parent": "civilian/nightowl",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 75
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "workingdayhaddition",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/nimble",
+   "branch": "civilian",
+   "name": "Nimble",
+   "depth": 3,
+   "parent": "civilian/haste",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rabbit_foot"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "walkingmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/nurture",
+   "branch": "civilian",
+   "name": "Nurture",
+   "depth": 2,
+   "parent": "civilian/higherlearning",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_chicken"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "school"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "growthmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "civilian/opera",
+   "branch": "civilian",
+   "name": "Opera",
+   "depth": 5,
+   "parent": "civilian/spectacle",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cake"
+     ],
+     "count": 27
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "happinessmultiplier",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "civilian/outpost",
+   "branch": "civilian",
+   "name": "Outpost",
+   "depth": 2,
+   "parent": "civilian/keen",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_beef"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "residence"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizencapaddition",
+     "strength": 50.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/phd",
+   "branch": "civilian",
+   "name": "Doctorate",
+   "depth": 6,
+   "parent": "civilian/master",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bookshelf"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "teachingmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/puberty",
+   "branch": "civilian",
+   "name": "Puberty",
+   "depth": 4,
+   "parent": "civilian/hormones",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_chicken"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "growthmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/rails",
+   "branch": "civilian",
+   "name": "Rails",
+   "depth": 2,
+   "parent": "civilian/keen",
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rail"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "deliveryman"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "railsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/raisingthedead",
+   "branch": "civilian",
+   "name": "Raising the Dead",
+   "depth": 4,
+   "parent": "civilian/resurrectchance2",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:totem_of_undying"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "usetotemunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/reflective",
+   "branch": "civilian",
+   "name": "Reflective",
+   "depth": 5,
+   "parent": "civilian/scholarly",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 48
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "levelingmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/remembrance",
+   "branch": "civilian",
+   "name": "Remembrance",
+   "depth": 1,
+   "parent": null,
+   "sort": 6,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bone"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 2,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutgraveyard",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/resilience",
+   "branch": "civilian",
+   "name": "Resilience",
+   "depth": 3,
+   "parent": "civilian/resistance",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "healingsaturationlimitaddition",
+     "strength": -1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/resistance",
+   "branch": "civilian",
+   "name": "Resistance",
+   "depth": 2,
+   "parent": "civilian/stamina",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "healingsaturationlimitaddition",
+     "strength": -0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/resurrectchance1",
+   "branch": "civilian",
+   "name": "Second Chance",
+   "depth": 2,
+   "parent": "civilian/remembrance",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:ghast_tear"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "resurrectchanceaddition",
+     "strength": 0.01
+    }
+   ]
+  },
+  {
+   "id": "civilian/resurrectchance2",
+   "branch": "civilian",
+   "name": "Second Chance II",
+   "depth": 3,
+   "parent": "civilian/resurrectchance1",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:chorus_fruit"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "resurrectchanceaddition",
+     "strength": 0.03
+    }
+   ]
+  },
+  {
+   "id": "civilian/scholarly",
+   "branch": "civilian",
+   "name": "Scholarly",
+   "depth": 4,
+   "parent": "civilian/studious",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 24
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "levelingmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "civilian/spectacle",
+   "branch": "civilian",
+   "name": "Spectacle",
+   "depth": 4,
+   "parent": "civilian/festival",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cake"
+     ],
+     "count": 18
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "happinessmultiplier",
+     "strength": 0.15
+    }
+   ]
+  },
+  {
+   "id": "civilian/stamina",
+   "branch": "civilian",
+   "name": "Stamina",
+   "depth": 1,
+   "parent": null,
+   "sort": 1000,
+   "onlyChild": true,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:carrot"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockhuthospital",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/studious",
+   "branch": "civilian",
+   "name": "Studious",
+   "depth": 3,
+   "parent": "civilian/diligent",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:book"
+     ],
+     "count": 12
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "levelingmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "civilian/stuffer",
+   "branch": "civilian",
+   "name": "Stuffer",
+   "depth": 4,
+   "parent": "civilian/gorger",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cookie"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "saturationmultiplier",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "civilian/swift",
+   "branch": "civilian",
+   "name": "Swift",
+   "depth": 5,
+   "parent": "civilian/agile",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rabbit_foot"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 5,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "walkingmultiplier",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "civilian/theater",
+   "branch": "civilian",
+   "name": "Theatre",
+   "depth": 6,
+   "parent": "civilian/opera",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:enchanted_golden_apple"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "happinessmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "civilian/undertakeremergency",
+   "branch": "civilian",
+   "name": "Undertaker on Call",
+   "depth": 2,
+   "parent": "civilian/remembrance",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_boots"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "graveyard"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "undertakerrun",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/vaccines",
+   "branch": "civilian",
+   "name": "Vaccines",
+   "depth": 4,
+   "parent": "civilian/masks",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:egg"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "hospital"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "vaccines",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/village",
+   "branch": "civilian",
+   "name": "Village",
+   "depth": 4,
+   "parent": "civilian/hamlet",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:cooked_beef"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizencapaddition",
+     "strength": 150.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/vines",
+   "branch": "civilian",
+   "name": "Vines",
+   "depth": 2,
+   "parent": "civilian/keen",
+   "sort": 5,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:vine"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "residence"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "vinesunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "civilian/vitality",
+   "branch": "civilian",
+   "name": "Vitality",
+   "depth": 4,
+   "parent": "civilian/resilience",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "cook"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "healingsaturationlimitaddition",
+     "strength": -1.5
+    }
+   ]
+  },
+  {
+   "id": "combat/accuracy",
+   "branch": "combat",
+   "name": "Accuracy",
+   "depth": 1,
+   "parent": null,
+   "sort": 1000,
+   "onlyChild": true,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "guardcrit",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "combat/advancedbarding",
+   "branch": "combat",
+   "name": "Advanced Barding",
+   "depth": 5,
+   "parent": "combat/improvedbarding",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_horse_armor"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 5,
+     "single": false
+    },
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mountarmor",
+     "strength": 0.45
+    }
+   ]
+  },
+  {
+   "id": "combat/agilearcher",
+   "branch": "combat",
+   "name": "Agile Archer",
+   "depth": 6,
+   "parent": "combat/improvedevasion",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "archerarmormultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/arrowpierce",
+   "branch": "combat",
+   "name": "Piercing Arrows",
+   "depth": 3,
+   "parent": "combat/arrowuse",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:arrow"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "piercingarrowsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/arrowuse",
+   "branch": "combat",
+   "name": "Arrow Supply",
+   "depth": 2,
+   "parent": "combat/taunt",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:arrow"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "consumearrowsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/avoid",
+   "branch": "combat",
+   "name": "Avoid",
+   "depth": 3,
+   "parent": "combat/regeneration",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingspeedaddition",
+     "strength": 0.0
+    }
+   ]
+  },
+  {
+   "id": "combat/avoidance",
+   "branch": "combat",
+   "name": "Avoidance",
+   "depth": 1,
+   "parent": null,
+   "sort": 3,
+   "onlyChild": true,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "shieldusageunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/barding",
+   "branch": "combat",
+   "name": "Barding",
+   "depth": 3,
+   "parent": "combat/mountedcombat",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather_horse_armor"
+     ],
+     "count": 8
+    },
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 3,
+     "single": false
+    },
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mountarmor",
+     "strength": 0.15
+    }
+   ]
+  },
+  {
+   "id": "combat/boiledleather",
+   "branch": "combat",
+   "name": "Boiled Leather",
+   "depth": 2,
+   "parent": "combat/improvedleather",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 2,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "combat/bucephalus",
+   "branch": "combat",
+   "name": "Warhorse",
+   "depth": 6,
+   "parent": "combat/exerciseregimen",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:nether_star"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:black_banner"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mounthealth",
+     "strength": 0.8
+    }
+   ]
+  },
+  {
+   "id": "combat/captainoftheguard",
+   "branch": "combat",
+   "name": "Captain of the Guard",
+   "depth": 6,
+   "parent": "combat/captaintraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:shield"
+     ],
+     "count": 27
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockattacksmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/captaintraining",
+   "branch": "combat",
+   "name": "Captain Training",
+   "depth": 5,
+   "parent": "combat/knighttraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:shield"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockattacksmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "combat/cleave",
+   "branch": "combat",
+   "name": "Cleave",
+   "depth": 4,
+   "parent": "combat/powerattack",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 10,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleedamageaddition",
+     "strength": 1.5
+    }
+   ]
+  },
+  {
+   "id": "combat/coffee",
+   "branch": "combat",
+   "name": "Coffee",
+   "depth": 2,
+   "parent": "combat/tactictraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "sleeplessmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/deadlyaim",
+   "branch": "combat",
+   "name": "Deadly Aim",
+   "depth": 6,
+   "parent": "combat/woundingshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:flint"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "archerdamageaddition",
+     "strength": 4.0
+    }
+   ]
+  },
+  {
+   "id": "combat/diamondskin",
+   "branch": "combat",
+   "name": "Diamond Skin",
+   "depth": 6,
+   "parent": "combat/steelarmor",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/dodge",
+   "branch": "combat",
+   "name": "Dodge",
+   "depth": 2,
+   "parent": "combat/avoidance",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerarmormultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "combat/druidpotion",
+   "branch": "combat",
+   "name": "Druid's Potion",
+   "depth": 3,
+   "parent": "combat/arrowuse",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:mistletoe"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "consumepotions",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/duelist",
+   "branch": "combat",
+   "name": "Duelist",
+   "depth": 4,
+   "parent": "combat/riposte",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleearmormultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "combat/evade",
+   "branch": "combat",
+   "name": "Evade",
+   "depth": 4,
+   "parent": "combat/avoid",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 8,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingspeedaddition",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/evasion",
+   "branch": "combat",
+   "name": "Evasion",
+   "depth": 4,
+   "parent": "combat/improveddodge",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerarmormultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "combat/exerciseregimen",
+   "branch": "combat",
+   "name": "Exercise Regimen",
+   "depth": 5,
+   "parent": "combat/healthdiet",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:golden_apple"
+     ],
+     "count": 4
+    },
+    {
+     "items": [
+      "minecraft:golden_carrot"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mounthealth",
+     "strength": 0.6
+    }
+   ]
+  },
+  {
+   "id": "combat/fear",
+   "branch": "combat",
+   "name": "Fear",
+   "depth": 4,
+   "parent": "combat/feint",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 8,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingdamagemultiplier",
+     "strength": 0.3
+    }
+   ]
+  },
+  {
+   "id": "combat/feint",
+   "branch": "combat",
+   "name": "Feint",
+   "depth": 3,
+   "parent": "combat/regeneration",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingdamagemultiplier",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "combat/flee",
+   "branch": "combat",
+   "name": "Flee",
+   "depth": 5,
+   "parent": "combat/evade",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 12,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingspeedaddition",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "combat/fullretreat",
+   "branch": "combat",
+   "name": "Full Retreat",
+   "depth": 6,
+   "parent": "combat/retreat",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "fleeingdamagemultiplier",
+     "strength": 0.75
+    }
+   ]
+  },
+  {
+   "id": "combat/healthdiet",
+   "branch": "combat",
+   "name": "Healthy Diet",
+   "depth": 4,
+   "parent": "combat/ivermectin",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:hay_block"
+     ],
+     "count": 2
+    },
+    {
+     "items": [
+      "minecraft:apple"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mounthealth",
+     "strength": 0.4
+    }
+   ]
+  },
+  {
+   "id": "combat/hotfoot",
+   "branch": "combat",
+   "name": "Hot Foot",
+   "depth": 6,
+   "parent": "combat/flee",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "fleeingspeedaddition",
+     "strength": 3.0
+    }
+   ]
+  },
+  {
+   "id": "combat/improvedbarding",
+   "branch": "combat",
+   "name": "Improved Barding",
+   "depth": 4,
+   "parent": "combat/barding",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_horse_armor"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:gold_ingot"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 4,
+     "single": false
+    },
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mountarmor",
+     "strength": 0.3
+    }
+   ]
+  },
+  {
+   "id": "combat/improvedbows",
+   "branch": "combat",
+   "name": "Improved Bows",
+   "depth": 2,
+   "parent": "combat/tactictraining",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 6
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutarchery",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "combat/improveddodge",
+   "branch": "combat",
+   "name": "Improved Dodge",
+   "depth": 3,
+   "parent": "combat/dodge",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerarmormultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "combat/improvedevasion",
+   "branch": "combat",
+   "name": "Improved Evasion",
+   "depth": 5,
+   "parent": "combat/evasion",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerarmormultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/improvedleather",
+   "branch": "combat",
+   "name": "Improved Leather",
+   "depth": 1,
+   "parent": null,
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 1,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "combat/improvedswords",
+   "branch": "combat",
+   "name": "Improved Swords",
+   "depth": 2,
+   "parent": "combat/tactictraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 6
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutcombatacademy",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "combat/ironarmor",
+   "branch": "combat",
+   "name": "Iron Armor",
+   "depth": 4,
+   "parent": "combat/ironskin",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 0.4
+    }
+   ]
+  },
+  {
+   "id": "combat/ironskin",
+   "branch": "combat",
+   "name": "Iron Skin",
+   "depth": 3,
+   "parent": "combat/boiledleather",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 0.3
+    }
+   ]
+  },
+  {
+   "id": "combat/ivermectin",
+   "branch": "combat",
+   "name": "Ivermectin",
+   "depth": 3,
+   "parent": "combat/mountedcombat",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:red_mushroom"
+     ],
+     "count": 8
+    },
+    {
+     "items": [
+      "minecraft:warped_fungus"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 2,
+     "single": false
+    },
+    {
+     "buildings": [
+      "hospital"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mounthealth",
+     "strength": 0.2
+    }
+   ]
+  },
+  {
+   "id": "combat/knighttraining",
+   "branch": "combat",
+   "name": "Knight Training",
+   "depth": 4,
+   "parent": "combat/squiretraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:shield"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockattacksmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "combat/masterbarding",
+   "branch": "combat",
+   "name": "Master Barding",
+   "depth": 6,
+   "parent": "combat/advancedbarding",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond_horse_armor"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:netherite_ingot"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stable"
+     ],
+     "level": 5,
+     "single": false
+    },
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "mountarmor",
+     "strength": 0.6
+    }
+   ]
+  },
+  {
+   "id": "combat/masterbowman",
+   "branch": "combat",
+   "name": "Master Bowman",
+   "depth": 6,
+   "parent": "combat/rapidshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bow"
+     ],
+     "count": 27
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "doublearrowsmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/masterswordsman",
+   "branch": "combat",
+   "name": "Master Swordsman",
+   "depth": 6,
+   "parent": "combat/provost",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "meleearmormultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/mightycleave",
+   "branch": "combat",
+   "name": "Mighty Cleave",
+   "depth": 5,
+   "parent": "combat/cleave",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleedamageaddition",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "combat/mountedcombat",
+   "branch": "combat",
+   "name": "Mounted Combat",
+   "depth": 2,
+   "parent": "combat/tactictraining",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:saddle"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:lead"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockhutstable",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "combat/multishot",
+   "branch": "combat",
+   "name": "Multishot",
+   "depth": 4,
+   "parent": "combat/trickshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bow"
+     ],
+     "count": 9
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "doublearrowsmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "combat/parry",
+   "branch": "combat",
+   "name": "Parry",
+   "depth": 2,
+   "parent": "combat/avoidance",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleearmormultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "combat/penetratingshot",
+   "branch": "combat",
+   "name": "Penetrating Shot",
+   "depth": 3,
+   "parent": "combat/preciseshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:flint"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerdamageaddition",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/piercingshot",
+   "branch": "combat",
+   "name": "Piercing Shot",
+   "depth": 4,
+   "parent": "combat/penetratingshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:flint"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 10,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerdamageaddition",
+     "strength": 1.5
+    }
+   ]
+  },
+  {
+   "id": "combat/platearmor",
+   "branch": "combat",
+   "name": "Plate Armor",
+   "depth": 5,
+   "parent": "combat/ironarmor",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "platearmorunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/powerattack",
+   "branch": "combat",
+   "name": "Power Attack",
+   "depth": 3,
+   "parent": "combat/quickdraw",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleedamageaddition",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/preciseshot",
+   "branch": "combat",
+   "name": "Precise Shot",
+   "depth": 2,
+   "parent": "combat/accuracy",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:flint"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerdamageaddition",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/provost",
+   "branch": "combat",
+   "name": "Provost",
+   "depth": 5,
+   "parent": "combat/duelist",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleearmormultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/quickdraw",
+   "branch": "combat",
+   "name": "Quick Draw",
+   "depth": 2,
+   "parent": "combat/accuracy",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 2
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleedamageaddition",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/rapidshot",
+   "branch": "combat",
+   "name": "Rapid Shot",
+   "depth": 5,
+   "parent": "combat/multishot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bow"
+     ],
+     "count": 18
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "doublearrowsmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "combat/regeneration",
+   "branch": "combat",
+   "name": "Regeneration",
+   "depth": 2,
+   "parent": "combat/improvedleather",
+   "sort": 2,
+   "onlyChild": true,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "retreatunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/retreat",
+   "branch": "combat",
+   "name": "Retreat",
+   "depth": 5,
+   "parent": "combat/fear",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 12,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fleeingdamagemultiplier",
+     "strength": 0.4
+    }
+   ]
+  },
+  {
+   "id": "combat/riposte",
+   "branch": "combat",
+   "name": "Riposte",
+   "depth": 3,
+   "parent": "combat/parry",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "meleearmormultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "combat/savagestrike",
+   "branch": "combat",
+   "name": "Savage Strike",
+   "depth": 6,
+   "parent": "combat/mightycleave",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "meleedamageaddition",
+     "strength": 4.0
+    }
+   ]
+  },
+  {
+   "id": "combat/slicedanddecided",
+   "branch": "combat",
+   "name": "Sliced and Diced",
+   "depth": 3,
+   "parent": "combat/improvedswords",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond_axe"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "huscarl",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/squiretraining",
+   "branch": "combat",
+   "name": "Squire Training",
+   "depth": 3,
+   "parent": "combat/improvedswords",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:shield"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "combatacademy"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockattacksmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "combat/standard",
+   "branch": "combat",
+   "name": "Standard Bearer",
+   "depth": 5,
+   "parent": "combat/telescope",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "standard",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/steelarmor",
+   "branch": "combat",
+   "name": "Steel Armor",
+   "depth": 5,
+   "parent": "combat/ironarmor",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "townhall"
+     ],
+     "level": 5,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "armordurabilitymultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "combat/tactictraining",
+   "branch": "combat",
+   "name": "Tactic Training",
+   "depth": 1,
+   "parent": null,
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutbarracks",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "combat/taunt",
+   "branch": "combat",
+   "name": "Taunt",
+   "depth": 1,
+   "parent": null,
+   "sort": 5,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:rotten_flesh"
+     ],
+     "count": 8
+    },
+    {
+     "items": [
+      "minecraft:bone"
+     ],
+     "count": 8
+    },
+    {
+     "items": [
+      "minecraft:spider_eye"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "guardtower"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "knighttauntmobsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/telescope",
+   "branch": "combat",
+   "name": "Telescope",
+   "depth": 4,
+   "parent": "combat/ironskin",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "telescope",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/thathitthemark",
+   "branch": "combat",
+   "name": "On Target",
+   "depth": 3,
+   "parent": "combat/improvedbows",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:crossbow"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "marksman",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/trickshot",
+   "branch": "combat",
+   "name": "Trick Shot",
+   "depth": 3,
+   "parent": "combat/improvedbows",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bow"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "archery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "doublearrowsmultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "combat/whirlwind",
+   "branch": "combat",
+   "name": "Whirlwind",
+   "depth": 4,
+   "parent": "combat/arrowpierce",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecraft:gold_ingot"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecraft:lapis_lazuli"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "whirlwindabilityunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "combat/woundingshot",
+   "branch": "combat",
+   "name": "Wounding Shot",
+   "depth": 5,
+   "parent": "combat/piercingshot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:flint"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "barracks"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "archerdamageaddition",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/ability",
+   "branch": "technology",
+   "name": "Ability",
+   "depth": 2,
+   "parent": "technology/hittingiron",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockplacespeedmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "technology/alchemist",
+   "branch": "technology",
+   "name": "Alchemy",
+   "depth": 3,
+   "parent": "technology/opennether",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:nether_wart"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockhutalchemist",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/amazingveins",
+   "branch": "technology",
+   "name": "Amazing Veins",
+   "depth": 5,
+   "parent": "technology/richveins",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:gold_ores",
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "moreoresmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/assistanthammers",
+   "branch": "technology",
+   "name": "Assistant Hammers",
+   "depth": 2,
+   "parent": "technology/hittingiron",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 2
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "assistanthammerunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/biodegradable",
+   "branch": "technology",
+   "name": "Biodegradable",
+   "depth": 1,
+   "parent": null,
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bone_meal"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutcomposter",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/bonemeal",
+   "branch": "technology",
+   "name": "Bone Meal",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:wheat_seeds"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer",
+      "composter"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "farmingmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "technology/buildermodes",
+   "branch": "technology",
+   "name": "Builder Modes",
+   "depth": 3,
+   "parent": "technology/memoryaid",
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond_axe"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "builder"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "buildermodeunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/capacity",
+   "branch": "technology",
+   "name": "Capacity",
+   "depth": 4,
+   "parent": "technology/space",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecp:rack"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "minimumstockmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/cheatsheet",
+   "branch": "technology",
+   "name": "Cheat Sheet",
+   "depth": 3,
+   "parent": "technology/memoryaid",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:paper"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "sawmill"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "recipesmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/compost",
+   "branch": "technology",
+   "name": "Compost",
+   "depth": 4,
+   "parent": "technology/dung",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:wheat_seeds"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer",
+      "composter"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "farmingmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/croprotation",
+   "branch": "technology",
+   "name": "Crop Rotation",
+   "depth": 3,
+   "parent": "technology/letitgrow",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:sugar_cane"
+     ],
+     "count": 32
+    },
+    {
+     "items": [
+      "minecraft:cactus"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "plantation"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "plantationlarge",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/deeppockets",
+   "branch": "technology",
+   "name": "Deep Pockets",
+   "depth": 4,
+   "parent": "technology/cheatsheet",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": true,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizeninvslotsaddition",
+     "strength": 9.0
+    }
+   ]
+  },
+  {
+   "id": "technology/depthknowledge",
+   "branch": "technology",
+   "name": "Knowledge of the Depths",
+   "depth": 3,
+   "parent": "technology/rockingroll",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:deepslate"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "crusher"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "knowledgeofthedepthsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/diamondcoated",
+   "branch": "technology",
+   "name": "Diamond Coated",
+   "depth": 6,
+   "parent": "technology/steelbracing",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "tooldurabilitymultiplier",
+     "strength": 0.9
+    }
+   ]
+  },
+  {
+   "id": "technology/dung",
+   "branch": "technology",
+   "name": "Dung",
+   "depth": 3,
+   "parent": "technology/bonemeal",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:wheat_seeds"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer",
+      "composter"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "farmingmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/enhanced_gates1",
+   "branch": "technology",
+   "name": "Sturdy Gates",
+   "depth": 3,
+   "parent": "technology/whatyaneed",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:gate_wood"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecolonies:ancienttome"
+     ],
+     "count": 2
+    },
+    {
+     "items": [
+      "minecraft:iron_block"
+     ],
+     "count": 5
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "enhancesgatedurabilityaddition",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/enhanced_gates2",
+   "branch": "technology",
+   "name": "Sturdier Gates",
+   "depth": 4,
+   "parent": "technology/enhanced_gates1",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:gate_iron"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecolonies:ancienttome"
+     ],
+     "count": 2
+    },
+    {
+     "items": [
+      "minecraft:obsidian"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "enhancesgatedurabilityaddition",
+     "strength": 15.0
+    }
+   ]
+  },
+  {
+   "id": "technology/exoticfruits",
+   "branch": "technology",
+   "name": "Exotic Fruits",
+   "depth": 3,
+   "parent": "technology/letitgrow",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:glow_berries"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "plantation"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "plantationexotic",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/fertilizer",
+   "branch": "technology",
+   "name": "Fertilizer",
+   "depth": 5,
+   "parent": "technology/compost",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:wheat_seeds"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "farmingmultiplier",
+     "strength": 0.75
+    }
+   ]
+  },
+  {
+   "id": "technology/flowerpower",
+   "branch": "technology",
+   "name": "Flower Power",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:compost"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "composter"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutflorist",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/fullstock",
+   "branch": "technology",
+   "name": "Full Stock",
+   "depth": 5,
+   "parent": "technology/capacity",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecp:rack"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "minimumstockmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/gargamel",
+   "branch": "technology",
+   "name": "Potion Brewing",
+   "depth": 4,
+   "parent": "technology/croprotation",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:crimson_fungus"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:warped_fungus"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "plantation"
+     ],
+     "level": 3,
+     "single": false
+    },
+    {
+     "buildings": [
+      "netherworker"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "plantationnether",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/gildedhammer",
+   "branch": "technology",
+   "name": "Gilded Hammer",
+   "depth": 3,
+   "parent": "technology/rockingroll",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:gravel"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecraft:sand"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecraft:clay"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "crusher"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "crushing11unlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/goodveins",
+   "branch": "technology",
+   "name": "Good Veins",
+   "depth": 3,
+   "parent": "technology/veinminer",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:iron_ores",
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "moreoresmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/greenrevolution",
+   "branch": "technology",
+   "name": "Green Revolution",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:compost"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "greenrevolution",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/hardened",
+   "branch": "technology",
+   "name": "Hardened",
+   "depth": 3,
+   "parent": "technology/strong",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "tooldurabilitymultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "technology/heavilyloaded",
+   "branch": "technology",
+   "name": "Heavily Loaded",
+   "depth": 6,
+   "parent": "technology/loaded",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": true,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "citizeninvslotsaddition",
+     "strength": 27.0
+    }
+   ]
+  },
+  {
+   "id": "technology/heavymachinery",
+   "branch": "technology",
+   "name": "Heavy Machinery",
+   "depth": 4,
+   "parent": "technology/redstonepowered",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockbreakspeedmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/hittingiron",
+   "branch": "technology",
+   "name": "Hitting Iron",
+   "depth": 1,
+   "parent": null,
+   "sort": 7,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:anvil"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutblacksmith",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/honeypot",
+   "branch": "technology",
+   "name": "Honey Pot",
+   "depth": 3,
+   "parent": "technology/rainbowheaven",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:beehive"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "beekeeper"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "beekeep2unlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/hot",
+   "branch": "technology",
+   "name": "Hot",
+   "depth": 1,
+   "parent": null,
+   "sort": 6,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:lava_bucket"
+     ],
+     "count": 4
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutsmeltery",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/hotboots",
+   "branch": "technology",
+   "name": "Hot Boots",
+   "depth": 3,
+   "parent": "technology/stringwork",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:leather"
+     ],
+     "count": 32
+    },
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "fletcher"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "minerfireresunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/isthisredstone",
+   "branch": "technology",
+   "name": "Is This Redstone?",
+   "depth": 2,
+   "parent": "technology/hot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockbreakspeedmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "technology/junglemaster",
+   "branch": "technology",
+   "name": "Jungle Master",
+   "depth": 3,
+   "parent": "technology/letitgrow",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:bamboo"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:cocoa_beans"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:vine"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "plantation"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "plantationjungle",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/knowtheend",
+   "branch": "technology",
+   "name": "Knowledge of the End",
+   "depth": 3,
+   "parent": "technology/theflintstones",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:chorus_fruit"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "baker"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "knowledgeoftheendunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/letitgrow",
+   "branch": "technology",
+   "name": "Let It Grow",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecolonies:compost"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "farmer"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutplantation",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/lightning",
+   "branch": "technology",
+   "name": "Lightning",
+   "depth": 6,
+   "parent": "technology/whatisthisspeed",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 2048
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockbreakspeedmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/loaded",
+   "branch": "technology",
+   "name": "Loaded",
+   "depth": 5,
+   "parent": "technology/deeppockets",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": true,
+   "costs": [
+    {
+     "items": [
+      "minecraft:emerald"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "library"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "citizeninvslotsaddition",
+     "strength": 18.0
+    }
+   ]
+  },
+  {
+   "id": "technology/madness",
+   "branch": "technology",
+   "name": "Madness",
+   "depth": 6,
+   "parent": "technology/seemsautomatic",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 1024
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockplacespeedmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/magiccompost",
+   "branch": "technology",
+   "name": "Magic Compost",
+   "depth": 6,
+   "parent": "technology/fertilizer",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:wheat_seeds"
+     ],
+     "count": 2048
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "farmingmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/memoryaid",
+   "branch": "technology",
+   "name": "Memory Aid",
+   "depth": 2,
+   "parent": "technology/woodwork",
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:paper"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "sawmill"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "recipesmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/morescrolls",
+   "branch": "technology",
+   "name": "More Scrolls",
+   "depth": 1,
+   "parent": null,
+   "sort": 3,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:paper"
+     ],
+     "count": 64
+    },
+    {
+     "items": [
+      "minecolonies:ancienttome"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:lapis_lazuli"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "enchanter"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "morescrollsunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/motherlode",
+   "branch": "technology",
+   "name": "Motherlode",
+   "depth": 6,
+   "parent": "technology/amazingveins",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:diamond_ores",
+     "count": 64
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "moreoresmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/netherlog",
+   "branch": "technology",
+   "name": "Nether Log",
+   "depth": 3,
+   "parent": "technology/opennether",
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:ender_eye"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecolonies:ancienttome"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "netherworker"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "netherexpeditionlog",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/oceanheart",
+   "branch": "technology",
+   "name": "Ocean Heart",
+   "depth": 4,
+   "parent": "technology/alchemist",
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:heart_of_the_sea"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "fisherman"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "fishingtreasure",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/opennether",
+   "branch": "technology",
+   "name": "Open the Nether",
+   "depth": 2,
+   "parent": "technology/morescrolls",
+   "sort": 1,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:gilded_blackstone"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockhutnetherworker",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/pavetheroad",
+   "branch": "technology",
+   "name": "Pave the Road",
+   "depth": 3,
+   "parent": "technology/rockingroll",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:white_concrete",
+      "minecraft:orange_concrete",
+      "minecraft:magenta_concrete",
+      "minecraft:light_blue_concrete",
+      "minecraft:yellow_concrete",
+      "minecraft:lime_concrete",
+      "minecraft:pink_concrete",
+      "minecraft:gray_concrete",
+      "minecraft:light_gray_concrete",
+      "minecraft:cyan_concrete",
+      "minecraft:purple_concrete",
+      "minecraft:blue_concrete",
+      "minecraft:brown_concrete",
+      "minecraft:green_concrete",
+      "minecraft:red_concrete",
+      "minecraft:black_concrete"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "crusher"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutconcretemixer",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/podzolchance",
+   "branch": "technology",
+   "name": "Podzol",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:podzol"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "composter"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "podzolchancemultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/podzolchance2",
+   "branch": "technology",
+   "name": "More Podzol",
+   "depth": 3,
+   "parent": "technology/podzolchance",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:podzol"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "composter"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "podzolchancemultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/rainbowheaven",
+   "branch": "technology",
+   "name": "Rainbow Heaven",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:poppy"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "composter"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutdyer",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/rainman",
+   "branch": "technology",
+   "name": "Rain Man",
+   "depth": 6,
+   "parent": "technology/rtm",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:salmon_bucket"
+     ],
+     "count": 27
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "workinginrainunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/recipebook",
+   "branch": "technology",
+   "name": "Recipe Book",
+   "depth": 4,
+   "parent": "technology/cheatsheet",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:paper"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "sawmill"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "recipesmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/redstonepowered",
+   "branch": "technology",
+   "name": "Redstone Powered",
+   "depth": 3,
+   "parent": "technology/isthisredstone",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockbreakspeedmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/reinforced",
+   "branch": "technology",
+   "name": "Reinforced",
+   "depth": 4,
+   "parent": "technology/hardened",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "tooldurabilitymultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/richveins",
+   "branch": "technology",
+   "name": "Rich Veins",
+   "depth": 4,
+   "parent": "technology/goodveins",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:gold_ores",
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "moreoresmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/rockingroll",
+   "branch": "technology",
+   "name": "Rock and Roll",
+   "depth": 2,
+   "parent": "technology/stonecake",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:stone"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stonemason"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutcrusher",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/rtm",
+   "branch": "technology",
+   "name": "Read the Manual",
+   "depth": 5,
+   "parent": "technology/recipebook",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:paper"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "sawmill"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "recipesmultiplier",
+     "strength": 2.0
+    }
+   ]
+  },
+  {
+   "id": "technology/seemsautomatic",
+   "branch": "technology",
+   "name": "Seems Automatic",
+   "depth": 5,
+   "parent": "technology/tools",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 512
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockplacespeedmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/sieving",
+   "branch": "technology",
+   "name": "Sieving",
+   "depth": 2,
+   "parent": "technology/woodwork",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:string"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "fisherman"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutsifter",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/skilledbutcher",
+   "branch": "technology",
+   "name": "Skilled Butcher",
+   "depth": 2,
+   "parent": "technology/biodegradable",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond_axe"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:enchanted_book"
+     ],
+     "count": 1
+    },
+    {
+     "items": [
+      "minecraft:anvil"
+     ],
+     "count": 1
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "enchanter"
+     ],
+     "level": 2,
+     "single": false
+    },
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "looting",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/skills",
+   "branch": "technology",
+   "name": "Skills",
+   "depth": 3,
+   "parent": "technology/ability",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 128
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockplacespeedmultiplier",
+     "strength": 0.25
+    }
+   ]
+  },
+  {
+   "id": "technology/softshoes",
+   "branch": "technology",
+   "name": "Soft Shoes",
+   "depth": 1,
+   "parent": null,
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:white_wool"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:feather"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "softshoesunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/space",
+   "branch": "technology",
+   "name": "Space",
+   "depth": 3,
+   "parent": "technology/sieving",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecp:rack"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "minimumstockmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/steelbracing",
+   "branch": "technology",
+   "name": "Steel Bracing",
+   "depth": 5,
+   "parent": "technology/reinforced",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 5,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "tooldurabilitymultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/stonecake",
+   "branch": "technology",
+   "name": "Stone Cake",
+   "depth": 1,
+   "parent": null,
+   "sort": 4,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:chiseled_stone_bricks"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutstonemason",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/stringwork",
+   "branch": "technology",
+   "name": "String Work",
+   "depth": 2,
+   "parent": "technology/woodwork",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:string"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "sawmill"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutfletcher",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/strong",
+   "branch": "technology",
+   "name": "Strong",
+   "depth": 2,
+   "parent": "technology/hittingiron",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:diamond"
+     ],
+     "count": 8
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "tooldurabilitymultiplier",
+     "strength": 0.05
+    }
+   ]
+  },
+  {
+   "id": "technology/takingdivinglessons",
+   "branch": "technology",
+   "name": "Diving Lessons",
+   "depth": 3,
+   "parent": "technology/letitgrow",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:kelp"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:seagrass"
+     ],
+     "count": 16
+    },
+    {
+     "items": [
+      "minecraft:sea_pickle"
+     ],
+     "count": 16
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "plantation"
+     ],
+     "level": 2,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "plantationsea",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/theflintstones",
+   "branch": "technology",
+   "name": "Flint and Stone",
+   "depth": 2,
+   "parent": "technology/stonecake",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:brick"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "stonemason"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutstonesmeltery",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/thoselungs",
+   "branch": "technology",
+   "name": "Those Lungs",
+   "depth": 2,
+   "parent": "technology/hot",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:glass"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "smeltery"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutglassblower",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/tools",
+   "branch": "technology",
+   "name": "Tools",
+   "depth": 4,
+   "parent": "technology/skills",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:iron_ingot"
+     ],
+     "count": 256
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 4,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockplacespeedmultiplier",
+     "strength": 0.5
+    }
+   ]
+  },
+  {
+   "id": "technology/veinminer",
+   "branch": "technology",
+   "name": "Vein Miner",
+   "depth": 2,
+   "parent": "technology/hittingiron",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:iron_ores",
+     "count": 32
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "miner"
+     ],
+     "level": 1,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "moreoresmultiplier",
+     "strength": 0.1
+    }
+   ]
+  },
+  {
+   "id": "technology/warehousemaster",
+   "branch": "technology",
+   "name": "Warehouse Master",
+   "depth": 3,
+   "parent": "technology/memoryaid",
+   "sort": 2,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecp:rack"
+     ],
+     "count": 3
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "warehouse"
+     ],
+     "level": 3,
+     "single": false
+    },
+    {
+     "buildings": [
+      "sawmill",
+      "stonemason"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "recipemodeunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/whatisthisspeed",
+   "branch": "technology",
+   "name": "What Is This Speed?",
+   "depth": 5,
+   "parent": "technology/heavymachinery",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 1024
+    }
+   ],
+   "requirements": [],
+   "effects": [
+    {
+     "id": "blockbreakspeedmultiplier",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "technology/whatyaneed",
+   "branch": "technology",
+   "name": "What You Need",
+   "depth": 2,
+   "parent": "technology/hittingiron",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "items": [
+      "minecraft:redstone"
+     ],
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "blacksmith"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutmechanic",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "technology/woodwork",
+   "branch": "technology",
+   "name": "Woodwork",
+   "depth": 1,
+   "parent": null,
+   "sort": 5,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [
+    {
+     "tag": "minecraft:planks",
+     "count": 64
+    }
+   ],
+   "requirements": [
+    {
+     "buildings": [
+      "lumberjack"
+     ],
+     "level": 3,
+     "single": false
+    }
+   ],
+   "effects": [
+    {
+     "id": "blockhutsawmill",
+     "strength": 5.0
+    }
+   ]
+  },
+  {
+   "id": "unlockable/diamondmesh",
+   "branch": "unlockable",
+   "name": "Diamond Mesh",
+   "depth": 4,
+   "parent": "unlockable/ironmesh",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [],
+   "requirements": [
+    {
+     "buildings": [
+      "sifter"
+     ],
+     "level": 5,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "sifterdiamondunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "unlockable/flintmesh",
+   "branch": "unlockable",
+   "name": "Flint Mesh",
+   "depth": 2,
+   "parent": "unlockable/stringmesh",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [],
+   "requirements": [
+    {
+     "buildings": [
+      "sifter"
+     ],
+     "level": 3,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "sifterflintunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "unlockable/ironmesh",
+   "branch": "unlockable",
+   "name": "Iron Mesh",
+   "depth": 3,
+   "parent": "unlockable/flintmesh",
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [],
+   "requirements": [
+    {
+     "buildings": [
+      "sifter"
+     ],
+     "level": 4,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "sifterironunlock",
+     "strength": 1.0
+    }
+   ]
+  },
+  {
+   "id": "unlockable/stringmesh",
+   "branch": "unlockable",
+   "name": "String Mesh",
+   "depth": 1,
+   "parent": null,
+   "sort": 1000,
+   "onlyChild": false,
+   "noReset": false,
+   "costs": [],
+   "requirements": [
+    {
+     "buildings": [
+      "sifter"
+     ],
+     "level": 1,
+     "single": true
+    }
+   ],
+   "effects": [
+    {
+     "id": "sifterstringunlock",
+     "strength": 1.0
+    }
+   ]
+  }
+ ]
+}

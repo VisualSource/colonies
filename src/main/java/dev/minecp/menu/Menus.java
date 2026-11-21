@@ -44,8 +44,11 @@ import org.bukkit.block.Block;
 public final class Menus {
     private final MineCP plugin;
 
+    private final ResearchMenus research;
+
     public Menus(MineCP plugin) {
         this.plugin = plugin;
+        this.research = new ResearchMenus(plugin, this);
     }
 
     /** The menu of any hut: level and upgrade, plus what that kind of hut shows. */
@@ -132,6 +135,7 @@ public final class Menus {
             var missing = job.materials(); // null once the work ended while the menu was open
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
+        if (h.type == Hut.Type.UNIVERSITY && h.level > 0) buttons.add(button("Research", p, c, h, player -> research.branches(player, c, h)));
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + PostBox.MAX_STOCK + ")", p, c, h, player -> stock(player, c, h, pb)));

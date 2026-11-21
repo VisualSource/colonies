@@ -89,6 +89,7 @@ public final class Colony {
     public final Happiness happiness = new Happiness(this);
     public final Visitors visitors = new Visitors(this);
     public final Raids raids = new Raids(this);
+    public final dev.minecp.research.Studies research = new dev.minecp.research.Studies(this);
     public ClaimMap claimMap; // every colony's claims, set by the plugin: raids don't spawn on another colony's land
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
     public Runnable onClaimsChanged = () -> {}; // the plugin re-reads every colony's claims
@@ -536,6 +537,7 @@ public final class Colony {
             if (moving) birth();
             growUp();
             visitors.colonyTick(COLONY_TICK);
+            research.colonyTick();
         }
         long time = townHall().block.getWorld().getTime(); // 0..23999
         routine.clock(time);

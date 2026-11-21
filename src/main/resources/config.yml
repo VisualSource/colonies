@@ -31,3 +31,11 @@ raids:
   minimum-nights: 10
   # Zombie raiders break doors (on Normal and Hard).
   break-doors: true
+
+research:
+  # Research a creative player starts is finished at once (as the mod's default).
+  creative-completion: true
+  # What undoing a finished research costs. The mod takes 1 ancient tome, which Colonies doesn't have.
+  reset-cost:
+    item: enchanted_book
+    amount: 1

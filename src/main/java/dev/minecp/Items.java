@@ -95,6 +95,13 @@ public final class Items implements Listener {
         field.setIngredient('S', RecipeChoice.exactChoice(new ItemStack(Material.STICK))); // plain sticks, never the Build Tool
         field.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
         add(field);
+        // MineColonies' university: planks around the build tool and two books.
+        ShapedRecipe university = new ShapedRecipe(key("university"), hutItem(Hut.Type.UNIVERSITY));
+        university.shape("PTP", "PBP", "PBP");
+        university.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
+        university.setIngredient('T', tool);
+        university.setIngredient('B', new RecipeChoice.MaterialChoice(Material.BOOK));
+        add(university);
         // MineColonies' supply camp (chests) and supply ship (boats): a row of three under two corners. Plain items only
         // (chests or trapped chests; any boat): hut items and racks are chests too, and a Supply Ship is a boat.
         ShapedRecipe camp = new ShapedRecipe(key("supply_camp"), supply(false));

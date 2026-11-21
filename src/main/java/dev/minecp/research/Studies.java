@@ -1,0 +1,316 @@
+package dev.minecp.research;
+
+import dev.minecp.colony.Colony;
+import dev.minecp.colony.Hut;
+import dev.minecp.logistics.Warehouse;
+import dev.minecp.research.ResearchTree.Research;
+
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
+import org.bukkit.block.Container;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+
+/**
+ * A colony's research (the mod's LocalResearchTree and ResearchManager): what was started, how far along it is, and the
+ * effects of what is finished. Its University's researchers move it on each colony tick (500 ticks): each university
+ * moves on as many researches as it has researchers, the oldest first (the mod's BuildingUniversity.onColonyTick).
+ */
+public final class Studies {
+    /** One started research: its progress in steps, until {@link ResearchTree#steps}. */
+    static final class Entry {
+        int progress;
+        boolean done;
+    }
+
+    /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
+    private static final Map<String, String> MISSING = Map.ofEntries(
+            Map.entry("hospital", "Hospital"), Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
+            Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
+            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"), Map.entry("crusher", "Crusher"),
+            Map.entry("sifter", "Sifter"), Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
+            Map.entry("netherworker", "Nether Mine"), Map.entry("fletcher", "Fletcher's Hut"), Map.entry("beekeeper", "Apiary"),
+            Map.entry("florist", "Flower Shop"), Map.entry("dyer", "Dyer's Hut"), Map.entry("glassblower", "Glassblower's Hut"),
+            Map.entry("concretemixer", "Concrete Mixer"), Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
+    /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
+    public static Predicate<ItemStack> clipboard = i -> false;
+    /** What undoing a finished research costs: the mod's 1 ancient tome, which Colonies doesn't have (config). */
+    public static Material resetItem = Material.ENCHANTED_BOOK;
+    public static int resetCount = 1;
+    /** "1 × enchanted book". */
+    public static String resetCost() {
+        return resetCount + " × " + resetItem.name().toLowerCase().replace('_', ' ');
+    }
+
+    /** Creative players' researches finish at once (the mod's researchCreativeCompletion). */
+    public static boolean creativeCompletion = true;
+
+    private final Colony colony;
+    private final Map<String, Entry> started = new LinkedHashMap<>(); // in the order started: the oldest moves on first
+
+    public Studies(Colony colony) {
+        this.colony = colony;
+    }
+
+    // ---- reading ---------------------------------------------------------------------------------------------
+
+    public boolean isDone(String id) {
+        Entry e = started.get(id);
+        return e != null && e.done;
+    }
+
+    public boolean isStarted(String id) {
+        return started.containsKey(id);
+    }
+
+    /** 0..1 of the way through, for a started research. */
+    public double progress(Research r) {
+        Entry e = started.get(r.id());
+        return e == null ? 0 : e.done ? 1 : Math.min(1, (double) e.progress / ResearchTree.steps(r));
+    }
+
+    /** The researches under way, oldest first. */
+    public List<Research> inProgress() {
+        List<Research> out = new ArrayList<>();
+        started.forEach((id, e) -> { if (!e.done) out.add(ResearchTree.get(id)); }); // load and start keep only ids in the tree
+        return out;
+    }
+
+    /** An effect's strength: the strongest of the finished researches that give it (the mod's overrides), 0 if none. */
+    double effect(String id) {
+        double best = 0;
+        for (var en : started.entrySet()) {
+            if (!en.getValue().done) continue;
+            for (var e : ResearchTree.get(en.getKey()).effects()) if (e.id().equals(id) && Math.abs(e.strength()) > Math.abs(best)) best = e.strength();
+        }
+        return best;
+    }
+
+    /** The research that unlocks this hut, if one does (the mod's blockhut effects); null if it needs none. */
+    static Research unlockOf(Hut.Type t) {
+        if (t.modId() == null) return null;
+        String effect = "blockhut" + t.modId();
+        for (Research r : ResearchTree.all()) for (var e : r.effects()) if (e.id().equals(effect)) return r;
+        return null;
+    }
+
+    /** Why a hut of this type can't be placed yet, or null: its unlocking research isn't finished. */
+    public String lockReason(Hut.Type t) {
+        Research r = unlockOf(t);
+        if (r == null || effect("blockhut" + t.modId()) > 0) return null;
+        return "The " + t.title + " needs research first: " + r.name() + " (" + ResearchTree.branch(r.branch()).name() + "), at a University.";
+    }
+
+    /** The hut type with this mod building id (Hut.Type.modId), or null if Colonies hasn't got it. */
+    private static Hut.Type hut(String modId) {
+        for (Hut.Type t : Hut.Type.values()) if (modId.equals(t.modId())) return t;
+        return null;
+    }
+
+    /** A hut by the mod's building id, as players read it. */
+    private static String hutName(String modId) {
+        Hut.Type t = hut(modId);
+        return t != null ? t.title : MISSING.getOrDefault(modId, modId) + " (not in Colonies yet)";
+    }
+
+    /** What an effect does, for the menus: hut unlocks by name; the rest by the mod's effect id until Colonies has them. */
+    public static String describe(ResearchTree.Effect e) {
+        if (e.id().startsWith("blockhut")) return "Unlocks the " + hutName(e.id().substring("blockhut".length()));
+        double v = e.strength();
+        return e.id() + " " + (v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v)) + " (not in Colonies yet)";
+    }
+
+    /** A University at this level shows researches this deep: any at its top level (the mod's canDisplay). */
+    public static boolean shows(Research r, int universityLevel) {
+        return universityLevel >= Hut.Type.UNIVERSITY.maxLevel() || r.depth() <= universityLevel;
+    }
+
+    public boolean met(ResearchTree.Requirement q) {
+        for (String b : q.buildings()) {
+            Hut.Type t = hut(b);
+            if (t == null) continue;
+            int sum = 0;
+            for (Hut h : colony.huts) {
+                if (h.type != t) continue;
+                if (q.single() ? h.level >= q.level() : (sum += h.level) >= q.level()) return true;
+            }
+        }
+        return false;
+    }
+
+    /** "Lumberjack's Hut levels adding up to 3", "a Town Hall at level 2"; alternatives joined with "or". */
+    public static String describe(ResearchTree.Requirement q) {
+        List<String> names = q.buildings().stream().map(Studies::hutName).toList();
+        return q.single() ? "a " + String.join(" or ", names) + " at level " + q.level()
+                : String.join(" or ", names) + " levels adding up to " + q.level();
+    }
+
+    /** What a cost takes, or null if Colonies has no such item (the mod's compost, ancient tome, gates, mistletoe). */
+    static Predicate<ItemStack> matcher(ResearchTree.Cost c) {
+        Predicate<ItemStack> any = i -> false;
+        if (c.tag() != null) {
+            NamespacedKey key = NamespacedKey.fromString(c.tag());
+            Tag<Material> tag = key == null ? null : Bukkit.getTag(Tag.REGISTRY_ITEMS, key, Material.class);
+            if (tag == null) return null;
+            any = i -> tag.isTagged(i.getType()) && plain(i);
+        } else for (String k : c.items()) {
+            Predicate<ItemStack> one;
+            if (k.equals("minecp:rack")) one = dev.minecp.logistics.Rack::is;
+            else if (k.equals("minecp:clipboard")) one = clipboard;
+            else {
+                Material m = k.startsWith("minecraft:") ? Material.matchMaterial(k) : null;
+                if (m == null) return null;
+                one = i -> i.getType() == m && plain(i);
+            }
+            any = any.or(one);
+        }
+        return any;
+    }
+
+    /** Not one of Colonies' items (a hut is a chest, a supply item is paper): costs never take those by mistake. */
+    private static boolean plain(ItemStack i) {
+        return i.getPersistentDataContainer().getKeys().stream().noneMatch(k -> k.getNamespace().equals(dev.minecp.MineCP.NAMESPACE));
+    }
+
+    /** "8 × hay block", or the mod's item's name if Colonies hasn't got it. */
+    public static String describe(ResearchTree.Cost c) {
+        String what = c.tag() != null ? c.tag().replaceFirst("^minecraft:", "").replace('_', ' ') + " (any)"
+                : c.items().size() > 2 ? c.items().getFirst().replaceAll(".*_", "") + " (any)" // a converted tag: "concrete (any)"
+                : String.join(" or ", c.items().stream().map(k -> k.equals("minecp:rack") ? "storage rack" : k.equals("minecp:clipboard") ? "clipboard"
+                : k.replaceFirst("^[a-z_]+:", "").replace('_', ' ')).toList());
+        return c.count() + " × " + what + (matcher(c) == null ? " (not in Colonies yet)" : "");
+    }
+
+    /**
+     * Why {@code r} can't be started at the University {@code uni}, or null (the mod's canResearch, its requirements and
+     * costs). Costs count what is in the university's chest and the player's inventory.
+     */
+    public String problem(Player p, Hut uni, Research r) {
+        if (started.containsKey(r.id())) return r.name() + " is already started.";
+        if (!shows(r, uni.level)) return "A University at level " + r.depth() + " is needed for research this deep.";
+        if (r.parent() != null && !isDone(r.parent())) return "Finish " + ResearchTree.parent(r).name() + " first.";
+        if (r.parent() != null && ResearchTree.parent(r).onlyChild()
+                && ResearchTree.children(r.parent()).stream().anyMatch(ch -> started.containsKey(ch.id())))
+            return "Only one research after " + ResearchTree.parent(r).name() + " can be chosen.";
+        if (r.depth() == ResearchTree.MAX_DEPTH && started.keySet().stream().map(ResearchTree::get)
+                .anyMatch(o -> o.branch().equals(r.branch()) && o.depth() == ResearchTree.MAX_DEPTH))
+            return "Only one research at the deepest level of each branch.";
+        for (var q : r.requirements()) if (!met(q)) return "Needs " + describe(q) + ".";
+        Inventory chest = chestOf(uni);
+        for (var c : r.costs()) { // shortcut: each cost counts the same items alone; no research has two costs that overlap
+            var m = matcher(c);
+            if (m == null) return "Needs " + describe(c) + ".";
+            if (count(chest, m) + count(p.getInventory(), m) < c.count()) return "Needs " + describe(c) + " in your inventory or the University's chest.";
+        }
+        return null;
+    }
+
+    /** Starts it, taking its costs from the University's chest first, then the player (the mod's order). @return why not, or null. */
+    public String start(Player p, Hut uni, Research r) {
+        boolean creative = p.getGameMode() == GameMode.CREATIVE; // the mod: no costs or checks, done at once
+        Entry under = started.get(r.id());
+        if (under != null) {
+            if (!creative || !creativeCompletion || under.done) return r.name() + " is already started.";
+            finish(r, under); // the mod: a creative player finishes one under way
+            return null;
+        }
+        if (!creative) {
+            String problem = problem(p, uni, r);
+            if (problem != null) return problem;
+            Inventory chest = chestOf(uni);
+            for (var c : r.costs()) {
+                var m = matcher(c);
+                take(p.getInventory(), m, take(chest, m, c.count()));
+            }
+        }
+        Entry e = new Entry();
+        started.put(r.id(), e);
+        if (creative && creativeCompletion) finish(r, e);
+        else Colony.log.info(colony.where() + ": " + p.getName() + " started research " + r.id() + ".");
+        return null;
+    }
+
+    /** Stops a research under way, or undoes a finished one (no started child; costs the reset item). @return why not, or null. */
+    public String reset(Player p, Research r) {
+        Entry e = started.get(r.id());
+        if (e == null) return null;
+        if (e.done) {
+            if (r.noReset()) return r.name() + " can't be undone.";
+            for (Research ch : ResearchTree.children(r.id()))
+                if (started.containsKey(ch.id())) return "Undo what came after " + r.name() + " first.";
+            if (p.getGameMode() != GameMode.CREATIVE) {
+                Predicate<ItemStack> m = i -> i.getType() == resetItem && plain(i);
+                if (count(p.getInventory(), m) < resetCount)
+                    return "Undoing a research costs " + resetCost() + ".";
+                take(p.getInventory(), m, resetCount);
+            }
+        }
+        started.remove(r.id());
+        Colony.log.info(colony.where() + ": " + p.getName() + (e.done ? " undid" : " stopped") + " research " + r.id() + ".");
+        return null;
+    }
+
+    /** One colony tick: each built University with its researcher moves on as many researches as its level. */
+    public void colonyTick() {
+        for (Hut u : List.copyOf(colony.huts)) {
+            if (u.type != Hut.Type.UNIVERSITY || u.level < 1) continue;
+            var job = colony.jobAt(u);
+            if (job == null || colony.worker(job) == null) continue;
+            int n = u.level; // shortcut: the mod's university has one researcher per level; ours has one doing the work of them all
+            for (Research r : inProgress()) {
+                if (n-- <= 0) break;
+                Entry e = started.get(r.id());
+                if (++e.progress >= ResearchTree.steps(r)) finish(r, e);
+            }
+        }
+    }
+
+    private void finish(Research r, Entry e) {
+        e.done = true;
+        e.progress = ResearchTree.steps(r);
+        Colony.log.info(colony.where() + ": research " + r.id() + " finished.");
+        colony.tell("Research finished: " + r.name() + ".");
+    }
+
+    private static int count(Inventory inv, Predicate<ItemStack> m) {
+        int n = 0;
+        if (inv != null) for (ItemStack i : inv.getContents()) if (i != null && m.test(i)) n += i.getAmount();
+        return n;
+    }
+
+    /** Takes up to {@code n}; @return how many it couldn't. */
+    private static int take(Inventory inv, Predicate<ItemStack> m, int n) {
+        return inv == null ? n : n - Warehouse.take(inv, m, n, Integer.MAX_VALUE, new ArrayList<>());
+    }
+
+    private static Inventory chestOf(Hut h) {
+        return h.block.getState(false) instanceof Container ct ? ct.getInventory() : null;
+    }
+
+    public void save(ConfigurationSection s) {
+        started.forEach((id, e) -> s.set(id.replace('/', '|'), e.done ? -1 : e.progress)); // -1: finished
+    }
+
+    public void load(ConfigurationSection s) {
+        for (String k : s.getKeys(false)) {
+            String id = k.replace('|', '/');
+            if (ResearchTree.get(id) == null) continue; // gone from the tree
+            Entry e = new Entry();
+            int v = s.getInt(k);
+            e.done = v < 0;
+            e.progress = e.done ? ResearchTree.steps(ResearchTree.get(id)) : v;
+            started.put(id, e);
+        }
+    }
+}

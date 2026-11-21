@@ -35,7 +35,13 @@ public final class Dialogs {
      */
     public static ActionButton button(Plugin plugin, String label, int width, Player shownTo, BooleanSupplier stillValid,
                                BiConsumer<Player, DialogResponseView> action) {
-        return ActionButton.builder(Component.text(label)).width(width).action(DialogAction.customClick((view, audience) -> {
+        return button(plugin, label, null, width, shownTo, stillValid, action);
+    }
+
+    /** The same, with a tooltip shown on hover (none if null). */
+    static ActionButton button(Plugin plugin, String label, Component tooltip, int width, Player shownTo, BooleanSupplier stillValid,
+                               BiConsumer<Player, DialogResponseView> action) {
+        return ActionButton.builder(Component.text(label)).tooltip(tooltip).width(width).action(DialogAction.customClick((view, audience) -> {
             if (!(audience instanceof Player player) || !player.getUniqueId().equals(shownTo.getUniqueId())) return;
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (stillValid.getAsBoolean()) action.accept(player, view);
