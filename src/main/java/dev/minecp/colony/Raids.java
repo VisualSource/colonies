@@ -132,7 +132,8 @@ public final class Raids {
         final java.util.Map<Mob, Spec> specs = new java.util.HashMap<>();
         final List<Block> campfires = new ArrayList<>();
         int initial, killed, camp; // killed: died, not just unloaded; camp: updates left camping by the fires
-        Horde(Culture culture) { this.culture = culture; }
+        final Location landed; // where it spawned: the mod's first waypoint
+        Horde(Culture culture, Location landed) { this.culture = culture; this.landed = landed; }
     }
 
     private final Colony colony;
@@ -239,7 +240,7 @@ public final class Raids {
         }
         if (spots.isEmpty()) return "No place to spawn raiders was found around the colony.";
         for (Location at : spots) { // split among the points found, as in the mod
-            Horde h = new Horde(Culture.at(centre));
+            Horde h = new Horde(Culture.at(centre), at);
             spawn(h, at, (int) Math.ceil((double) amount / spots.size()), level, d);
             camp(h, at, centre);
             hordes.add(h);
@@ -456,9 +457,11 @@ public final class Raids {
 
     /**
      * A raider without a target looks for a citizen or player within sight; else, done camping, it marches on the shared
-     * target hut in steps of up to 32 blocks (vanilla paths reach about that far), fast while far (the mod's 1.8 and 1.1).
+     * target hut in steps of up to 32 blocks (vanilla paths reach about that far). As in the mod, a step that isn't the hut
+     * and lies over 50 blocks (Manhattan) from where the horde landed is walked at 1.8, else 1.1.
      */
     private void steer(Horde h, Mob m) {
+        dev.minecp.citizen.Nms.keepActive(m, 40);
         LivingEntity t = m.getTarget();
         if (t == null || !t.isValid() || t.isDead()) {
             t = nearestTarget(m);
@@ -472,7 +475,8 @@ public final class Raids {
         if (dist < 5) { target = null; return; } // reached: another hut next (the mod roams its bounds for 30 s first)
         Location step = dist <= 32 ? there : at.clone().add(there.toVector().subtract(at.toVector()).normalize().multiply(32));
         if (dist > 32) step = step.getWorld().getHighestBlockAt(step).getLocation().add(0.5, 1, 0.5);
-        m.getPathfinder().moveTo(step, dist > 50 ? 1.8 : 1.1);
+        double fromLanding = Math.abs(step.getX() - h.landed.getX()) + Math.abs(step.getY() - h.landed.getY()) + Math.abs(step.getZ() - h.landed.getZ());
+        m.getPathfinder().moveTo(step, dist > 32 && fromLanding > 50 ? 1.8 : 1.1);
     }
 
     private Hut target() {

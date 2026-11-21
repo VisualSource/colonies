@@ -1,6 +1,7 @@
 package dev.minecp.citizen;
 
 import net.minecraft.core.BlockPos;
+import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.craftbukkit.entity.CraftLivingEntity;
 import org.bukkit.craftbukkit.entity.CraftMob;
@@ -9,11 +10,19 @@ import org.bukkit.entity.Mob;
 
 /**
  * Server internals (Mojang names via paperweight-userdev), for what the API can't do. The only other use is
- * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Re-check both against each new
+ * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Raids use keepActive. Re-check all against each new
  * Minecraft/Paper release.
  */
-final class Nms {
+public final class Nms {
     private Nms() {}
+
+    /**
+     * Keeps a mob's AI running for the next {@code ticks} ticks even with no player within Spigot's entity activation
+     * range (32 blocks for monsters), past which it would think only 1 tick in 20. The API has no switch for this.
+     */
+    public static void keepActive(Mob m, int ticks) {
+        ((CraftMob) m).getHandle().activatedTick = Math.max(((CraftMob) m).getHandle().activatedTick, Bukkit.getCurrentTick() + ticks);
+    }
 
     /** Vanilla sleep: the client lays the body out along the bed only if it knows the bed. Marks the bed occupied. */
     static void sleep(LivingEntity e, Block head) {
