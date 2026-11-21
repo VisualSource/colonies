@@ -109,10 +109,10 @@ public final class Items implements Listener {
 
     /**
      * The mod's supply camp or ship deployer: right-click to place the camp on land or the ship on water, with a
-     * Town Hall, a Build Tool and supplies in it (Placement). A chest or a boat stands in for its model.
+     * Town Hall, a Build Tool and supplies in it (Placement). Paper stands in for its model: it places nothing itself.
      */
     private ItemStack supply(boolean ship) {
-        ItemStack item = new ItemStack(ship ? Material.OAK_BOAT : Material.CHEST);
+        ItemStack item = new ItemStack(Material.PAPER);
         item.editMeta(m -> {
             m.itemName(Component.text(ship ? "Supply Ship" : "Supply Camp", NamedTextColor.GOLD));
             m.lore(List.of(Component.text(ship ? "Right-click by the water to place a ship with" : "Right-click the ground to place a camp with", NamedTextColor.GRAY),
@@ -263,6 +263,20 @@ public final class Items implements Listener {
     public Hut.Type hutType(ItemStack item) {
         String type = item.getPersistentDataContainer().get(hutKey, PersistentDataType.STRING);
         return type == null ? null : Hut.Type.valueOf(type);
+    }
+
+    /**
+     * MineCP's items are vanilla items with a tag (paper, chests, a stick...), so vanilla recipes would take them as
+     * plain ones: a Supply Camp into a book, the Build Tool into torches. Only MineCP's own recipes may use them.
+     */
+    @EventHandler
+    public void onPrepareCraft(org.bukkit.event.inventory.PrepareItemCraftEvent e) {
+        if (e.getRecipe() instanceof org.bukkit.Keyed k && recipes.contains(k.getKey())) return;
+        for (ItemStack it : e.getInventory().getMatrix())
+            if (it != null && it.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(plugin.getName().toLowerCase()))) {
+                e.getInventory().setResult(null);
+                return;
+            }
     }
 
     /** Recipes keep their Build Tool: it goes back into the grid (or to the player) after each craft. */

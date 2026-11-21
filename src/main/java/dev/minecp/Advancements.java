@@ -31,8 +31,10 @@ public final class Advancements {
     }
 
     static {
-        // The MineColonies tab. The mod's root is placing a supply camp or ship; here also placing the town hall.
-        add(ROOT, null, "bell", "MineCP", "Start a colony of your own", "task");
+        // The MineColonies tab. Its root is placing a supply camp or ship, as the mod's (its title is the mod's name).
+        add(ROOT, null, "paper", "MineCP", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
+        // The mod's copy of it in vanilla's Story tab: no toast or chat message.
+        add("story/craft_supply", "minecraft:story/root", "paper", "MineCP", "Craft a Supply Camp or Ship and place it by right-clicking the ground", "task");
         add("minecolonies/place_townhall", ROOT, "bell", "A Place to Call Home", "Place a Town Hall to found a colony", "task");
         add("minecolonies/start_builder", "minecolonies/place_townhall", "yellow_wool", "Hard Hat Needed", "Ask for the Builder's Hut to be built", "task");
         add("minecolonies/build_builder", "minecolonies/start_builder", "crafting_table", "The Builder's Yard", "Finish the Builder's Hut", "goal");
@@ -100,8 +102,22 @@ public final class Advancements {
         return type == Hut.Type.BUILDER && level == 1 ? id + "|" + PRODUCTION : id; // the production tab's root too
     }
 
-    /** Registers them with the server (the server keeps them until the next data reload). */
+    /**
+     * Registers them with the server. Bukkit saves each one in the world's "bukkit" data pack and loads it from there
+     * on the next start. If any saved by an older MineCP differs from ours, all of them are deleted and loaded again
+     * (one data reload; all, as children can't load without their parent).
+     */
     static void load(Logger log) {
+        var saved = Bukkit.getWorldContainer().toPath().resolve(Bukkit.getWorlds().getFirst().getName()).resolve("datapacks/bukkit/data/minecp/advancement");
+        boolean outdated = ALL.entrySet().stream().anyMatch(e -> Bukkit.getAdvancement(key(e.getKey())) != null && !same(saved.resolve(e.getKey() + ".json"), e.getValue()));
+        if (outdated) {
+            try (var files = java.nio.file.Files.walk(saved)) {
+                files.sorted(java.util.Comparator.reverseOrder()).forEach(f -> f.toFile().delete());
+            } catch (java.io.IOException ex) {
+                log.warning("Couldn't replace MineCP's advancements: " + ex.getMessage());
+            }
+            Bukkit.reloadData();
+        }
         int n = 0;
         for (var e : ALL.entrySet()) {
             NamespacedKey key = key(e.getKey());
@@ -115,16 +131,26 @@ public final class Advancements {
         if (n > 0) log.info("Loaded " + n + " advancements.");
     }
 
+    /** Whether the saved copy is this definition: compared as parsed JSON, as Bukkit saves it reformatted. */
+    private static boolean same(java.nio.file.Path file, Def d) {
+        try {
+            return com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(file)).equals(com.google.gson.JsonParser.parseString(json(d)));
+        } catch (java.io.IOException | RuntimeException e) {
+            return false; // missing or unreadable: replaced
+        }
+    }
+
     private static NamespacedKey key(String id) {
         return new NamespacedKey("minecp", id);
     }
 
     private static String json(Def d) {
-        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.icon.equals("bell") ? "light_gray_wool" : "oak_planks") + "\"" : "";
-        return "{" + (d.parent == null ? "" : "\"parent\":\"minecp:" + d.parent + "\",")
+        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.title.equals("MineCP") ? "light_gray_wool" : "oak_planks") + "\"" : "";
+        boolean vanillaTab = d.parent != null && d.parent.startsWith("minecraft:"); // quiet there, as the mod's
+        return "{" + (d.parent == null ? "" : "\"parent\":\"" + (vanillaTab ? "" : "minecp:") + d.parent + "\",")
                 + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"
                 + "\"description\":{\"text\":\"" + d.description + "\"},\"frame\":\"" + d.frame + "\",\"hidden\":" + d.hidden
-                + ",\"show_toast\":" + (d.parent != null) + ",\"announce_to_chat\":" + (d.parent != null) + bg + "},"
+                + ",\"show_toast\":" + (d.parent != null && !vanillaTab) + ",\"announce_to_chat\":" + (d.parent != null && !vanillaTab) + bg + "},"
                 + "\"criteria\":{\"done\":{\"trigger\":\"minecraft:impossible\"}}}";
     }
 

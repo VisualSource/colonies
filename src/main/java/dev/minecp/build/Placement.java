@@ -85,10 +85,9 @@ public final class Placement implements Listener {
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent e) {
         String supply = plugin.items.supplyKind(e.getItem());
-        if (supply != null && e.getHand() == EquipmentSlot.OFF_HAND) { e.setCancelled(true); return; } // never put down as a plain chest or boat
         if (e.getHand() != EquipmentSlot.HAND || supply == null && !plugin.items.isBuildTool(e.getItem())) return;
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK && e.getAction() != Action.RIGHT_CLICK_AIR) return;
-        e.setCancelled(true); // no chest or boat put down
+        e.setCancelled(true); // nothing else happens with the click
         Player p = e.getPlayer();
         Session s = sessions.get(p.getUniqueId());
         if (s != null) controls(p, s);
@@ -275,7 +274,7 @@ public final class Placement implements Listener {
         if (!buildTool) missing.add(plugin.items.buildTool());
         inv.setItem(slot, null); // used up, in creative too (the mod's)
         p.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, SUPPLIES_USED), org.bukkit.persistence.PersistentDataType.BOOLEAN, true); // creative too
-        dev.minecp.Advancements.award(p, "minecolonies/root"); // the mod's root advancement is placing supplies
+        dev.minecp.Advancements.award(p, "minecolonies/root|story/craft_supply"); // the mod's: placing supplies, in its tab and the Story tab
         p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         missing.forEach(it -> inv.addItem(it).values().forEach(left -> p.getWorld().dropItem(p.getLocation(), left)));
         p.sendMessage(Component.text("Your " + s.entry.name().toLowerCase() + " has arrived. " + (missing.isEmpty()

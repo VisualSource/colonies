@@ -78,11 +78,11 @@ public final class MineCP extends JavaPlugin implements Listener {
         } catch (IllegalArgumentException e) {
             getLogger().warning("protection.explosions must be everything, entities, players or nothing; using everything.");
         }
+        Advancements.load(getLogger()); // first: it may reload data, which could drop recipes added before it
         items.addRecipes();
         saves = new Saves(new File(getDataFolder(), "colonies"), getLogger());
         saves.loadAll(colonies);
         colonies.values().forEach(this::hook);
-        Advancements.load(getLogger());
         reindex();
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(protection, this);
@@ -248,7 +248,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             c = Colony.found(p.getUniqueId(), p.getName() + "'s Colony", at);
             colonies.put(c.owner, c);
             hook(c);
-            Advancements.award(p, "minecolonies/root|minecolonies/place_townhall");
+            Advancements.award(p, "minecolonies/place_townhall");
             reindex();
             hut = c.townHall();
             p.sendMessage(Component.text(c.name + " founded! The first citizens will move in at the town hall over the next few minutes.", NamedTextColor.GREEN));
