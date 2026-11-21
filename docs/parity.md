@@ -119,7 +119,12 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Storage rack: own item, recipe, required by the builder, warehouse counts only racks
   - Breaks into a plain chest when blown up
   - No custom model yet (the block is tagged for one)
-- [ ] Hut settings (`SettingsModule`, `core/colony/buildings/modules/settings/`): hiring mode and each hut's own settings
+- [~] Hut settings (`SettingsModule`, `BuildingModules`' settings, `HiringMode`), the mod's defaults: a Settings button in each hut's menu (changes need MANAGE_HUTS), saved with the colony
+  - Hiring mode on every worker hut, house and tavern: Default (follows the Town Hall), Automatic, Manual; homes also Locked (nobody moves in or out, no births there, and it counts only its residents towards the colony's room), as in the mod. Whenever the colony doesn't fill a hut or home itself (Manual, or Default with the Town Hall's switch off), its menu has Hire / Fire or Move in / Move out; hiring someone moves them from their old job. Automatic housing only moves the homeless in, as in the mod
+  - Town Hall: citizens move in (off: no new citizens, children or visitors), auto hiring, auto housing, construction tape, entering/leaving messages (ours: shown as a title, not a chat message; not to the colony's owner and officers, as in the mod; walking straight into another colony shows one title naming both)
+  - Builder: foundation fill block. Miner: fill block (holes, liquids, floors; the ladder's backing stays cobblestone, as in the mod) and max depth (it can only make the mine shallower). Lumberjack: replant. Smeltery: fewest ores a delivery may bring (at most 32, what it asks for at a time; 0 acts as 1). Herders: breeding; shepherd: shearing and dyeing; cowhand: milk and stew per milking, days between milkings (it keeps the mod's ceil(2 × amount ÷ days) buckets and bowls)
+  - Block settings take the block in the player's hand (the mod has a block picker); number settings are typed, within our ranges
+  - Not done, as their features don't exist yet: the lumberjack's restricted area, defoliating and shears, the farmer's fertilizing, the builder's work order mode and building patterns, crafters' recipe mode, the guard tower's tasks, retreat and trainees, the tavern's music
 
 ## Builder and construction
 

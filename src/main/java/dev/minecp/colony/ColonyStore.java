@@ -46,6 +46,8 @@ public final class ColonyStore {
             if (h.rotation != null) hs.set("rotation", h.rotation.name());
             hs.set("mirror", h.mirror);
             if (h.blueprint != null) hs.set("blueprint", h.blueprint);
+            if (h.hiring != Settings.Hiring.DEFAULT) hs.set("hiring", h.hiring.name());
+            h.settings.forEach((k, v) -> hs.set("settings." + k, v));
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
@@ -94,6 +96,9 @@ public final class ColonyStore {
             if (hs.contains("rotation")) h.rotation = StructureRotation.valueOf(hs.getString("rotation"));
             h.mirror = hs.getBoolean("mirror");
             h.blueprint = hs.getString("blueprint");
+            h.hiring = Settings.Hiring.valueOf(hs.getString("hiring", "DEFAULT"));
+            var set = hs.getConfigurationSection("settings");
+            if (set != null) for (String k : set.getKeys(false)) h.settings.put(k, set.getString(k));
             h.seed = Material.matchMaterial(hs.getString("seed", ""));
             List<Integer> extent = hs.getIntegerList("extent");
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);

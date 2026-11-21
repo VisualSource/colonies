@@ -2,6 +2,7 @@ package dev.minecp.job;
 
 import dev.minecp.build.BuildOrder;
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 
@@ -39,7 +40,7 @@ public final class Miner extends Job {
     private static final int[] MINING_LEVELS = {48, 16, -16, -100}; // the mod's: each hut level reaches the next (copper, iron, gold, diamond)
     private static final int REACH = 6;            // ours: the first layer under the shaft room is only 1 high: work from the room's hole
     private static final int FAR_REACH = 8;        // ours: if there is nowhere to stand nearer
-    private static final int COBBLE_STOCK = 64, LADDER_STOCK = 16; // ours: the mod requests 32 cobblestone and 10 ladders at a time
+    private static final int BLOCK_STOCK = 64, LADDER_STOCK = 16; // ours, of cobblestone and the fill block: the mod requests 32 cobblestone and 10 ladders at a time
     private static final int DELIVER_AT = 256;     // ours: loot carried before a trip up
     private static final int HUT_RANGE = 12;       // ours: how far from the hut block the shaft's ladder may be
     private static final String SHAFTS = "/infrastructure/mineshafts/";
@@ -155,7 +156,19 @@ public final class Miner extends Job {
             if (m < below) { y = m; levelsLeft--; }
             if (levelsLeft == 0) break;
         }
+        int max = hut.number(Settings.MAX_DEPTH); // the mod's setting can only keep it shallower; its default means no limit
+        if (max != Settings.NO_MAX_DEPTH) y = Math.max(y, max);
         return Math.max(ladder.getWorld().getMinHeight() + 5, y);
+    }
+
+    /** What fills holes, liquids and floors (its fill block setting); the ladder's backing is always cobblestone, as in the mod. */
+    private Material fillBlock() {
+        return hut.block(Settings.FILL_BLOCK);
+    }
+
+    /** The blocks it keeps a stock of: cobblestone for the ladder's backing, and its fill block. */
+    private java.util.Set<Material> stockBlocks() {
+        return java.util.EnumSet.of(Material.COBBLESTONE, fillBlock()); // the same block once when the fill block is cobblestone
     }
 
     /** For the menu: how deep the shaft goes and how deep this hut level lets it go. */
@@ -222,7 +235,7 @@ public final class Miner extends Job {
         Block c = center(y);
         for (int x = -SHAFT_RADIUS - 2; x <= SHAFT_RADIUS + 2; x++) for (int z = -SHAFT_RADIUS - 2; z <= SHAFT_RADIUS + 2; z++) {
             Block b = c.getRelative(x, 0, z);
-            if (b.isLiquid()) { fill(w, b); return; } // keep water and lava out of the shaft, as the mod does
+            if (b.isLiquid()) { fill(w, b, fillBlock()); return; } // keep water and lava out of the shaft, as the mod does
         }
         for (int x = SHAFT_RADIUS; x >= -SHAFT_RADIUS; x--) for (int z = -SHAFT_RADIUS; z <= SHAFT_RADIUS; z++) {
             Block b = c.getRelative(x, 0, z);
@@ -234,10 +247,10 @@ public final class Miner extends Job {
         for (int x = -SAFE_RANGE; x <= SAFE_RANGE; x++) for (int z = -SAFE_RANGE; z <= SAFE_RANGE; z++) {
             Block f = c.getRelative(x, -2, z);
             if (f.getType().getHardness() < 0 || f.getY() < f.getWorld().getMinHeight()) continue;
-            if (!f.getType().isSolid() || f.isLiquid() || isOre(f.getType())) { fill(w, f); return; } // ores are dug out first
+            if (!f.getType().isSolid() || f.isLiquid() || isOre(f.getType())) { fill(w, f, fillBlock()); return; } // ores are dug out first
         }
         Block nextCobble = cobbleAt(y - 1), nextLadder = ladderAt(y - 1);
-        if (nextCobble.getType() != Material.COBBLESTONE) { fill(w, nextCobble); return; }
+        if (nextCobble.getType() != Material.COBBLESTONE) { fill(w, nextCobble, Material.COBBLESTONE); return; }
         if (nextLadder.getType() != Material.LADDER) {
             if (!nextLadder.isEmpty()) { mine(w, nextLadder); return; }
             if (!supply(w, Material.LADDER, LADDER_STOCK)) return;
@@ -248,12 +261,12 @@ public final class Miner extends Job {
         }
     }
 
-    /** Puts cobblestone at {@code b}, digging out what is there first (keeping its drops). */
-    private void fill(Colonist w, Block b) {
+    /** Puts {@code m} at {@code b}, digging out what is there first (keeping its drops). */
+    private void fill(Colonist w, Block b, Material m) {
         if (!b.isEmpty() && !b.isLiquid() && !b.isReplaceable()) { mine(w, b); return; }
-        if (!supply(w, Material.COBBLESTONE, COBBLE_STOCK)) return;
+        if (!supply(w, m, BLOCK_STOCK)) return;
         if (!near(w, b)) return;
-        place(w, b, Material.COBBLESTONE.createBlockData(), Material.COBBLESTONE);
+        place(w, b, m.createBlockData(), m);
     }
 
     private Level levelAt(int depth) {
@@ -492,7 +505,7 @@ public final class Miner extends Job {
         if (t != null && !hasTool(t, null) && inChest(i -> fits(t, i, null)) == 0)
             out.put(new ItemStack(switch (t) { case AXE -> Material.WOODEN_AXE; case HOE -> Material.WOODEN_HOE; case SHOVEL -> Material.WOODEN_SHOVEL; default -> Material.WOODEN_PICKAXE; }), 1);
         Map<Material, Integer> need = needs();
-        need.merge(Material.COBBLESTONE, COBBLE_STOCK, Math::max);
+        for (Material m : stockBlocks()) need.merge(m, BLOCK_STOCK, Math::max);
         need.merge(Material.LADDER, LADDER_STOCK, Math::max);
         need.forEach((m, n) -> {
             int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
@@ -506,10 +519,10 @@ public final class Miner extends Job {
     }
 
     /** Drops off what it dug up; keeps its cobblestone, ladders and what the current structure needs. */
-    /** What it keeps when it delivers: what the current work still needs, plus its stock of cobblestone and ladders. */
+    /** What it keeps when it delivers: what the current work still needs, plus its stock of cobblestone, fill block and ladders. */
     private Map<Material, Integer> keep() {
         Map<Material, Integer> keep = needs();
-        keep.merge(Material.COBBLESTONE, COBBLE_STOCK, Integer::sum);
+        for (Material m : stockBlocks()) keep.merge(m, BLOCK_STOCK, Integer::sum);
         keep.merge(Material.LADDER, LADDER_STOCK, Integer::sum);
         return keep;
     }
@@ -550,8 +563,10 @@ public final class Miner extends Job {
     public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
-        int cobble = inChest(i -> i.getType() == Material.COBBLESTONE) + carried.getOrDefault(Material.COBBLESTONE, 0);
-        if (cobble < COBBLE_STOCK / 2) wants.add(new Want("cobblestone", i -> i.getType() == Material.COBBLESTONE, COBBLE_STOCK - cobble, 1)); // minimum 1, as the mod
+        for (Material m : stockBlocks()) {
+            int have = inChest(i -> i.getType() == m) + carried.getOrDefault(m, 0);
+            if (have < BLOCK_STOCK / 2) wants.add(new Want(name(m), i -> i.getType() == m, BLOCK_STOCK - have, 1)); // minimum 1, as the mod
+        }
         int ladders = inChest(i -> i.getType() == Material.LADDER) + carried.getOrDefault(Material.LADDER, 0);
         if (ladders < LADDER_STOCK / 2) wants.add(new Want("ladders", i -> i.getType() == Material.LADDER, LADDER_STOCK - ladders, 1));
         needs().forEach((m, n) -> {
@@ -565,12 +580,12 @@ public final class Miner extends Job {
         return wants;
     }
 
-    /** Tools, cobblestone, ladders and the current structure's materials stay; the ore and stone go to the warehouse. */
+    /** Tools, cobblestone, the fill block, ladders and the current structure's materials stay; the ore and stone go to the warehouse. */
     @Override
     int keep(ItemStack item) {
         if (isDiggingTool(item)) return Integer.MAX_VALUE;
         Material m = item.getType();
-        if (m == Material.COBBLESTONE) return COBBLE_STOCK;
+        if (stockBlocks().contains(m)) return BLOCK_STOCK;
         if (m == Material.LADDER) return LADDER_STOCK;
         return needs().containsKey(m) ? Integer.MAX_VALUE : 0;
     }

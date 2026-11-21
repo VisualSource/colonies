@@ -103,7 +103,7 @@ public final class Visitors {
             if (h.type != Hut.Type.TAVERN || h.level < 1) continue;
             int t = timers.getOrDefault(h, FIRST_VISITOR) - ticks;
             if (t <= 0) {
-                if (list.stream().filter(v -> v.tavern == h).count() < 3L * h.level) arrive(h);
+                if (colony.setting(Settings.MOVE_IN) && list.stream().filter(v -> v.tavern == h).count() < 3L * h.level) arrive(h);
                 t = rnd.nextInt(3000) + (6000 / h.level) * colony.colonists.size() / Math.max(1, colony.capacity());
             }
             timers.put(h, t);

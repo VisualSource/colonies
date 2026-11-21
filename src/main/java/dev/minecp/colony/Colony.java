@@ -149,7 +149,9 @@ public final class Colony {
 
     /** How many citizens the colony has beds for: houses and taverns, at least 1, at most {@link #CITIZEN_CAP} (the mod's getMaxCitizens). */
     public int capacity() {
-        return Math.max(1, Math.min(CITIZEN_CAP, huts.stream().mapToInt(h -> h.type.rooms(h.level)).sum()));
+        // a Locked home counts only who lives there now (the mod's calculateMaxCitizens)
+        return Math.max(1, Math.min(CITIZEN_CAP, huts.stream().mapToInt(h -> h.hiring == Settings.Hiring.LOCKED
+                ? Math.min(residents(h).size(), h.type.rooms(h.level)) : h.type.rooms(h.level)).sum()));
     }
 
     /** Whether another citizen fits: born, or recruited from a tavern. */
@@ -211,7 +213,7 @@ public final class Colony {
     }
 
     private Hut spareBed() {
-        for (Hut h : huts) if (residents(h).size() < h.type.rooms(h.level)) return h;
+        for (Hut h : huts) if (h.hiring != Settings.Hiring.LOCKED && residents(h).size() < h.type.rooms(h.level)) return h; // the mod skips Locked homes
         return null;
     }
 
@@ -235,12 +237,78 @@ public final class Colony {
         return colonists.stream().filter(c -> c.home == house).toList();
     }
 
-    /** Gives homeless citizens a bed in a house or tavern with room (a level N house sleeps N, a tavern 4). */
+    /**
+     * Gives homeless citizens a bed in a house or tavern with room (a level N house sleeps N, a tavern 4), in homes
+     * that take residents on their own (the mod's LivingBuildingModule: auto housing, or its hiring mode).
+     */
     void assignHomes() {
         for (Colonist c : colonists) {
             if (c.home != null) continue;
-            for (Hut h : huts) if (residents(h).size() < h.type.rooms(h.level)) { c.home = h; break; }
+            for (Hut h : huts) if (autoAssigns(h, Settings.AUTO_HOUSING) && residents(h).size() < h.type.rooms(h.level)) { c.home = h; break; }
         }
+    }
+
+    /** The colony's owner or an officer (the mod's colony managers). */
+    public boolean isManager(java.util.UUID player) {
+        Rank r = permissions.rank(player);
+        return r == Rank.OWNER || r == Rank.OFFICER;
+    }
+
+    /** A Town Hall setting (Settings.of(TOWN_HALL)). */
+    public boolean setting(String key) {
+        return townHall().on(key);
+    }
+
+    /** Whether the colony fills this hut or home itself, so players don't (the mod's canAutoHire and auto housing). */
+    public boolean fillsItself(Hut h) {
+        return autoAssigns(h, h.type.isHome() ? Settings.AUTO_HOUSING : Settings.AUTO_HIRING);
+    }
+
+    /** Whether the colony fills this hut itself: Automatic, or Default with the Town Hall's switch on (the mod's canAutoHire). */
+    private boolean autoAssigns(Hut h, String townHallSwitch) {
+        return h.hiring == Settings.Hiring.AUTO || h.hiring == Settings.Hiring.DEFAULT && setting(townHallSwitch);
+    }
+
+    /** Whether the hut can take a worker now (the mod's canAssignCitizens): built to level 1, or the Builder's Hut. */
+    public boolean canHire(Job j) {
+        return j.hut.level >= 1 || j == builder;
+    }
+
+    /**
+     * A player hires {@code c} for {@code j} (manual hiring): it leaves its old job, and the hut's worker before it
+     * becomes jobless; then auto-hiring huts fill again.
+     */
+    public void hire(Job j, Colonist c) {
+        Job old = jobOf(c);
+        if (old != null) old.worker = null;
+        j.worker = c.id;
+        assignJobs();
+    }
+
+    /** A player fires the hut's worker: jobless, and free for huts that hire on their own. */
+    public void fire(Job j) {
+        j.worker = null;
+        assignJobs();
+    }
+
+    /** A player moves {@code c} into the home {@code h} (manual housing), if it has room. */
+    public boolean moveInto(Hut h, Colonist c) {
+        if (c.home == h || residents(h).size() >= h.type.rooms(h.level)) return false;
+        c.home = h;
+        assignHomes();
+        return true;
+    }
+
+    /** A player moves {@code c} out of its home: homeless, until a home that takes residents on its own has room. */
+    public void moveOut(Colonist c) {
+        c.home = null;
+        assignHomes();
+    }
+
+    /** After a hiring mode or the Town Hall's switches change: the huts and homes now filled automatically fill. */
+    public void hiringChanged() {
+        assignHomes();
+        assignJobs();
     }
 
     public Hut addHut(Hut.Type type, Block block) {
@@ -299,7 +367,7 @@ public final class Colony {
      */
     void assignJobs() {
         for (Job j : jobs) {
-            if (worker(j) != null || j.hut.level < 1 && j != builder) continue;
+            if (worker(j) != null || !canHire(j) || !autoAssigns(j.hut, Settings.AUTO_HIRING)) continue;
             j.worker = colonists.stream().filter(c -> !c.child && jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
         }
     }
@@ -370,7 +438,9 @@ public final class Colony {
      * at the hut block's floor while the hut is unbuilt or has an upgrade queued or under way. Called once a second.
      */
     public void tape() {
+        boolean on = setting(Settings.TAPE);
         for (Hut h : huts) {
+            if (!on) { removeTape(h); continue; }
             Hut.WorkOrder up = h.type.isBuilding() ? upgradeOf(h) : null;
             if (up == null && (h.level > 0 || !h.type.isBuilding())) { removeTape(h); continue; }
             int level = up != null ? up.level() : 1;
@@ -446,11 +516,12 @@ public final class Colony {
             else if (!decorations.isEmpty()) startNextDecoration();
         }
         if (++colonyTick % COLONY_TICK == 0) {
-            if (colonists.size() < STARTING_CITIZENS && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
+            boolean moving = setting(Settings.MOVE_IN); // off: no new citizens, children or visitors (the mod's MOVE_IN)
+            if (moving && colonists.size() < STARTING_CITIZENS && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
                 moveIn = 60 * 20;
                 moveIn();
             }
-            birth();
+            if (moving) birth();
             growUp();
             visitors.colonyTick(COLONY_TICK);
         }

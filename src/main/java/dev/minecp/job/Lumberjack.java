@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 
@@ -157,7 +158,8 @@ public final class Lumberjack extends Job {
                     return;
                 }
                 w.setStatus("Lumberjack: working");
-                state = replant() ? State.TO_HUT : State.SAPLINGS; // none dropped: from the hut chest (the mod's checkAndTransferFromHut)
+                // none dropped: from the hut chest (the mod's checkAndTransferFromHut); not at all with replanting off
+                state = !hut.on(Settings.REPLANT) || replant() ? State.TO_HUT : State.SAPLINGS;
             }
             case SAPLINGS -> {
                 if (!atHut(w)) { goToHut(w); return; }

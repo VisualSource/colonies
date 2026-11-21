@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 
@@ -77,7 +78,9 @@ public final class Herder extends Job {
     private final Kind kind;
     private Act act = Act.NONE;
     private Entity target, partner;
-    private int tries, actions, breedUntil, milkedDay = -1, stewDay = -1;
+    private int tries, actions, breedUntil;
+    // The mod's cowhand counters: milkings and stews since the last reset, which comes every "days between milkings".
+    private int milked, stewed, milkDays, countedDay = -1;
 
     public Herder(Hut hut, Colony colony, Kind kind) {
         super(hut);
@@ -93,8 +96,10 @@ public final class Herder extends Job {
         int food = inChest(i -> i.getType() == kind.food) + carried.getOrDefault(kind.food, 0);
         if (food < FOOD_MIN) wants.add(new Want(Job.name(kind.food), i -> i.getType() == kind.food, FOOD_WANTED - food, FOOD_MIN));
         if (kind == Kind.COW) { // the mod keeps 2 of each for one a day
-            if (inChest(i -> i.getType() == Material.BUCKET) == 0) wants.add(new Want("bucket", i -> i.getType() == Material.BUCKET, 2, 1));
-            if (inChest(i -> i.getType() == Material.BOWL) == 0) wants.add(new Want("bowl", i -> i.getType() == Material.BOWL, 2, 1));
+            if (containers(Material.BUCKET) > 0 && inChest(i -> i.getType() == Material.BUCKET) == 0)
+                wants.add(new Want("bucket", i -> i.getType() == Material.BUCKET, containers(Material.BUCKET), 1));
+            if (containers(Material.BOWL) > 0 && inChest(i -> i.getType() == Material.BOWL) == 0)
+                wants.add(new Want("bowl", i -> i.getType() == Material.BOWL, containers(Material.BOWL), 1));
         }
         return wants;
     }
@@ -104,7 +109,7 @@ public final class Herder extends Job {
     int keep(ItemStack item) {
         if (fits(Tool.AXE, item, null) || kind == Kind.SHEEP && fits(Tool.SHEARS, item, null)) return Integer.MAX_VALUE;
         if (item.getType() == kind.food) return 64;
-        if (kind == Kind.COW && (item.getType() == Material.BUCKET || item.getType() == Material.BOWL)) return 2;
+        if (kind == Kind.COW && (item.getType() == Material.BUCKET || item.getType() == Material.BOWL)) return containers(item.getType());
         return 0;
     }
 
@@ -165,11 +170,11 @@ public final class Herder extends Job {
             Animals victim = farthestFromHerd(adults);
             if (victim != null) { start(Act.BUTCHER, victim, null); return; }
         }
-        if (kind == Kind.SHEEP) {
+        if (kind == Kind.SHEEP && hut.on(Settings.SHEARING)) {
             Animals sheep = adults.stream().filter(a -> a instanceof Sheep s && !s.isSheared()).findFirst().orElse(null);
             if (sheep != null) { start(Act.SHEAR, sheep, null); return; }
         }
-        if (Bukkit.getCurrentTick() >= breedUntil && carried.getOrDefault(kind.food, 0) > 1) {
+        if (hut.on(Settings.BREEDING) && Bukkit.getCurrentTick() >= breedUntil && carried.getOrDefault(kind.food, 0) > 1) {
             List<Animals> ready = animals.stream().filter(a -> a.isAdult() && a.canBreed() && !a.isLoveMode()).toList();
             if (ready.size() < 2) pause(BREED_PAUSE);
             else { // the one nearest the middle of those that can breed, and its nearest partner
@@ -182,10 +187,15 @@ public final class Herder extends Job {
                 pause(NO_PARTNER_PAUSE);
             }
         }
-        if (kind == Kind.COW) { // the mod's cowhand: one milking and one stew a day (its settings' defaults)
+        if (kind == Kind.COW) { // the mod's cowhand: so many milkings and stews, then again after so many days (its settings)
+            if (countedDay != colony.day) { // a new day (the mod counts its wake-ups)
+                if (countedDay >= 0) milkDays += colony.day - countedDay;
+                countedDay = colony.day;
+                if (milkDays >= hut.number(Settings.MILKING_DAYS)) { milked = 0; stewed = 0; milkDays = 0; }
+            }
             Animals cow = null;
-            if (milkedDay != colony.day) cow = adults.stream().filter(a -> a.getType() != EntityType.MOOSHROOM).findFirst().orElse(null);
-            if (cow == null && stewDay != colony.day) cow = adults.stream().filter(a -> a instanceof MushroomCow).findFirst().orElse(null);
+            if (milked < hut.number(Settings.MILKING)) cow = adults.stream().filter(a -> a.getType() != EntityType.MOOSHROOM).findFirst().orElse(null);
+            if (cow == null && stewed < hut.number(Settings.STEWING)) cow = adults.stream().filter(a -> a instanceof MushroomCow).findFirst().orElse(null);
             if (cow != null && carried.getOrDefault(cow instanceof MushroomCow ? Material.BOWL : Material.BUCKET, 0) > 0) {
                 start(Act.MILK, cow, null);
                 return;
@@ -254,7 +264,7 @@ public final class Herder extends Job {
                 s.getWorld().playSound(s.getLocation(), Sound.ENTITY_SHEEP_SHEAR, SoundCategory.PLAYERS, 1, 1);
                 Material wool = Material.matchMaterial((s.getColor() == null ? DyeColor.WHITE : s.getColor()).name() + "_WOOL");
                 if (wool != null) load.add(new ItemStack(wool)); // 1 wool: the mod's amount without Fortune
-                if (rnd.nextInt(100) <= hut.level) s.setColor(DyeColor.values()[rnd.nextInt(DyeColor.values().length)]); // the mod's dyeing
+                if (hut.on(Settings.DYEING) && rnd.nextInt(100) <= hut.level) s.setColor(DyeColor.values()[rnd.nextInt(DyeColor.values().length)]); // the mod's dyeing
                 actions++;
                 act = Act.NONE;
                 cooldown = BUTCHER_TICKS;
@@ -267,7 +277,7 @@ public final class Herder extends Job {
                 load.add(new ItemStack(stew ? Material.MUSHROOM_STEW : Material.MILK_BUCKET));
                 target.getWorld().playSound(target.getLocation(), stew ? Sound.ENTITY_MOOSHROOM_MILK : Sound.ENTITY_COW_MILK, SoundCategory.PLAYERS, 1, 1);
                 w.swing();
-                if (stew) stewDay = colony.day; else milkedDay = colony.day;
+                if (stew) stewed++; else milked++;
                 act = Act.NONE;
                 actions = ACTIONS_FOR_DUMP; // the mod takes it to the hut straight away
             }
@@ -349,19 +359,29 @@ public final class Herder extends Job {
                         .thenComparingDouble(a -> a.getLocation().distanceSquared(centre))).orElse(null);
     }
 
+    /** Buckets (milk) or bowls (stew) the cowhand keeps: the mod's ceil(2 × amount ÷ days), none when the amount is 0. */
+    private int containers(Material m) {
+        int amount = hut.number(m == Material.BUCKET ? Settings.MILKING : Settings.STEWING);
+        return (int) Math.ceil(2.0 * amount / Math.max(1, hut.number(Settings.MILKING_DAYS)));
+    }
+
     @Override
     public void save(org.bukkit.configuration.ConfigurationSection s, Colony c) {
         super.save(s, c);
         s.set("actions", actions);
-        s.set("milked-day", milkedDay);
-        s.set("stew-day", stewDay);
+        s.set("milked", milked);
+        s.set("stewed", stewed);
+        s.set("milk-days", milkDays);
+        s.set("counted-day", countedDay);
     }
 
     @Override
     public void load(org.bukkit.configuration.ConfigurationSection s, Colony c) {
         super.load(s, c);
         actions = s.getInt("actions");
-        milkedDay = s.getInt("milked-day", -1);
-        stewDay = s.getInt("stew-day", -1);
+        milked = s.getInt("milked");
+        stewed = s.getInt("stewed");
+        milkDays = s.getInt("milk-days");
+        countedDay = s.getInt("counted-day", -1);
     }
 }

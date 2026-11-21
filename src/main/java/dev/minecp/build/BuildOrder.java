@@ -231,6 +231,11 @@ public final class BuildOrder {
     /** Where the structure has a burial spot. */
     public final List<GraveSpot> graves = new ArrayList<>();
 
+    /** Lays {@code m} as the foundation filler instead of dirt (the builder's fill block setting). */
+    public void fillWith(Material m) {
+        steps.replaceAll(s -> s.fill ? new Step(s.block, m.createBlockData(), true, false) : s);
+    }
+
     /** Tag of the marker entities on a blueprint's seats (its "sit" tag positions: the tavern's chairs). */
     static final String SIT_TAG = "minecp_sit";
     /** Where the structure has a seat. */

@@ -102,6 +102,32 @@ public final class MineCP extends JavaPlugin implements Listener {
         }), 1L, 1L);
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
+        getServer().getScheduler().runTaskTimer(this, this::borderTitles, 10L, 10L);
+    }
+
+    private final Map<java.util.UUID, Colony> standingIn = new java.util.HashMap<>(); // the colony each player was last in
+
+    /**
+     * Twice a second: a title for players who cross a colony's border, unless they are its owner or an officer, or
+     * its Town Hall turned them off (the mod's ENTER_LEAVE_MESSAGES, which it sends as a chat message).
+     */
+    private void borderTitles() {
+        standingIn.keySet().removeIf(id -> getServer().getPlayer(id) == null); // gone offline
+        for (Player p : getServer().getOnlinePlayers()) {
+            Colony now = claims.colonyAt(p.getLocation()), was = standingIn.get(p.getUniqueId());
+            if (now == was) continue;
+            standingIn.put(p.getUniqueId(), now);
+            boolean leaving = shows(was, p), entering = shows(now, p);
+            if (!leaving && !entering) continue;
+            // one title: straight from one colony into another names both (the mod sends both messages)
+            p.showTitle(net.kyori.adventure.title.Title.title(Component.text(entering ? now.name : was.name, NamedTextColor.GOLD),
+                    Component.text(entering ? "Entering colony" + (leaving ? " (leaving " + was.name + ")" : "") : "Leaving colony")));
+        }
+    }
+
+    /** Whether {@code c} shows its border titles to {@code p}: switched on, and not one of its managers (the mod's). */
+    private boolean shows(Colony c, Player p) {
+        return c != null && colonies.containsValue(c) && c.setting(dev.minecp.colony.Settings.ENTER_LEAVE) && !c.isManager(p.getUniqueId());
     }
 
     @Override

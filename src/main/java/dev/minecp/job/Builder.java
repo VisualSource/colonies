@@ -56,6 +56,7 @@ public final class Builder extends Job {
     }
 
     public void start(BuildOrder o, Hut.WorkOrder w) {
+        o.fillWith(hut.block(dev.minecp.colony.Settings.FILL_BLOCK));
         order = o;
         work = w;
         needed = null;

@@ -10,6 +10,7 @@ import dev.minecp.colony.Visitors;
 import dev.minecp.colony.Hut;
 import dev.minecp.colony.Permissions;
 import dev.minecp.colony.Rank;
+import dev.minecp.colony.Settings;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Courier;
 import dev.minecp.job.Crafter;
@@ -137,6 +138,25 @@ public final class Menus {
                 else plugin.teaching.start(player, c, cr);
             }));
         }
+        if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
+            Colonist worker = job == null ? null : c.worker(job);
+            if (worker != null) buttons.add(button("Fire " + worker.name, p, c, h, Action.MANAGE_HUTS, player -> {
+                if (c.worker(job) != null) c.fire(job);
+                plugin.save(c);
+                hut(player, c, h);
+            }));
+            else if (job != null && c.canHire(job)) buttons.add(button("Hire a " + h.type.worker.toLowerCase(), p, c, h, player -> hire(player, c, h, job)));
+            if (h.type.isHome()) {
+                if (c.residents(h).size() < h.type.rooms(h.level)) buttons.add(button("Move someone in", p, c, h, player -> moveIn(player, c, h)));
+                for (Colonist x : c.residents(h)) buttons.add(button("Move out " + x.name, p, c, h, Action.MANAGE_HUTS, player -> {
+                    if (x.home == h) c.moveOut(x);
+                    plugin.save(c);
+                    hut(player, c, h);
+                }));
+            }
+        }
+        if (Settings.hires(h.type) || !Settings.of(h.type).isEmpty())
+            buttons.add(button("Settings", p, c, h, player -> settings(player, c, h)));
         if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
             buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h, null)));
@@ -150,6 +170,99 @@ public final class Menus {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
             }));
         Dialogs.show(p, h.type.title, body, List.of(), buttons, 1);
+    }
+
+    /**
+     * A hut's settings (the mod's Settings tab): its hiring mode and its own settings, saved together (MANAGE_HUTS).
+     * A block setting takes the block in the player's hand from its own button, as the mod's block picker offers blocks.
+     */
+    void settings(Player p, Colony c, Hut h) {
+        boolean home = h.type.isHome();
+        List<DialogBody> body = new ArrayList<>();
+        List<DialogInput> inputs = new ArrayList<>();
+        List<ActionButton> buttons = new ArrayList<>();
+        if (Settings.hires(h.type)) {
+            List<SingleOptionDialogInput.OptionEntry> modes = new ArrayList<>();
+            for (Settings.Hiring m : Settings.modes(h.type))
+                modes.add(SingleOptionDialogInput.OptionEntry.create(m.name(), Component.text(m.label), m == h.hiring));
+            inputs.add(DialogInput.singleOption("hiring", Component.text(home ? "Who lives here" : "Who works here"), modes).width(250).build());
+            body.add(text(Component.text("Automatic: the colony " + (home ? "moves the homeless in" : "hires") + ". Manual: you choose, with the "
+                    + (home ? "Move in / Move out" : "Hire / Fire") + " buttons. Default follows the Town Hall" + (home ? ". Locked: nobody moves in or out, not even babies." : "."), NamedTextColor.GRAY)));
+        }
+        for (Settings.Setting s : Settings.of(h.type)) switch (s.kind()) {
+            case BOOL -> inputs.add(DialogInput.bool(s.key(), Component.text(s.label())).initial(h.on(s.key())).build());
+            case INT -> inputs.add(DialogInput.text(s.key(), Component.text(s.label() + " (" + s.min() + " to " + s.max() + ")"))
+                    .initial(h.setting(s.key())).width(250).build());
+            case BLOCK -> {
+                body.add(text(Component.text(s.label() + ": " + Job.name(h.block(s.key())))));
+                buttons.add(button("Use held block: " + s.label().toLowerCase(), p, c, h, Action.MANAGE_HUTS, player -> {
+                    Material held = player.getInventory().getItemInMainHand().getType();
+                    if (!held.isBlock() || !held.isSolid()) player.sendMessage(Component.text("Hold a solid block to use it.", NamedTextColor.RED));
+                    else { h.set(s.key(), held.name()); plugin.save(c); }
+                    settings(player, c, h);
+                }));
+            }
+        }
+        buttons.addFirst(button("Save", p, c, h, (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
+            String mode = view.getText("hiring");
+            if (mode != null) h.hiring = Settings.Hiring.valueOf(mode);
+            for (Settings.Setting s : Settings.of(h.type)) switch (s.kind()) {
+                case BOOL -> { Boolean on = view.getBoolean(s.key()); if (on != null) h.set(s.key(), on.toString()); }
+                case INT -> {
+                    String typed = view.getText(s.key());
+                    try {
+                        int n = Integer.parseInt(typed == null ? "" : typed.trim());
+                        if (n < s.min() || n > s.max()) throw new NumberFormatException();
+                        h.set(s.key(), String.valueOf(n));
+                    } catch (NumberFormatException e) {
+                        player.sendMessage(Component.text(s.label() + ": a whole number from " + s.min() + " to " + s.max() + ", please. Kept "
+                                + h.setting(s.key()) + ".", NamedTextColor.RED));
+                    }
+                }
+                case BLOCK -> {}
+            }
+            c.hiringChanged(); // a hiring mode or the Town Hall's switches may now fill huts and homes
+            plugin.save(c);
+            hut(player, c, h);
+        }));
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, h.type.title + " settings", body, inputs, buttons, 1);
+    }
+
+    /** Manual hiring: the colony's adults, the jobless first; hiring one moves it from its old job. */
+    private void hire(Player p, Colony c, Hut h, Job job) {
+        List<Colonist> adults = new ArrayList<>(c.colonists.stream().filter(x -> !x.child).toList());
+        adults.sort(java.util.Comparator.comparing((Colonist x) -> c.jobOf(x) != null).thenComparing(x -> x.name));
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Colonist x : adults) {
+            Job now = c.jobOf(x);
+            buttons.add(button(x.name + " — " + (now == null ? "jobless" : now.hut.type.worker), p, c, h, Action.MANAGE_HUTS, player -> {
+                if (!c.fillsItself(h) && c.colonists.contains(x) && c.worker(job) == null && c.canHire(job)) c.hire(job, x);
+                plugin.save(c);
+                hut(player, c, h);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Hire a " + h.type.worker.toLowerCase(), List.of(text(Component.text(adults.isEmpty() ? "No adults in the colony yet."
+                : "Hiring someone with a job leaves that hut without a worker."))), List.of(), buttons, 1);
+    }
+
+    /** Manual housing: citizens living elsewhere or nowhere, the homeless first. */
+    private void moveIn(Player p, Colony c, Hut h) {
+        List<Colonist> others = new ArrayList<>(c.colonists.stream().filter(x -> x.home != h).toList());
+        others.sort(java.util.Comparator.comparing((Colonist x) -> x.home != null).thenComparing(x -> x.name));
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Colonist x : others)
+            buttons.add(button(x.name + (x.child ? " (child)" : "") + " — " + (x.home == null ? "homeless" : x.home.type.title), p, c, h, Action.MANAGE_HUTS, player -> {
+                if (!c.fillsItself(h) && h.hiring != Settings.Hiring.LOCKED && c.colonists.contains(x) && !c.moveInto(h, x))
+                    player.sendMessage(Component.text("No room left.", NamedTextColor.RED));
+                plugin.save(c);
+                hut(player, c, h);
+            }));
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Move someone in", List.of(text(Component.text(others.isEmpty() ? "Everyone already lives here."
+                : "Moving someone in frees their old bed."))), List.of(), buttons, 1);
     }
 
     /**

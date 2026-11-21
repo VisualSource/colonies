@@ -167,6 +167,11 @@ public final class Hut {
             return this == HOUSE ? level : this == TAVERN ? 4 : 0;
         }
 
+        /** A house or the tavern: citizens live there. */
+        public boolean isHome() {
+            return this == HOUSE || this == TAVERN;
+        }
+
         public boolean isBuilding() {
             return path != null;
         }
@@ -243,6 +248,34 @@ public final class Hut {
      * "fundamentals/altbuilder"; null: the usual one. Saved.
      */
     public String blueprint;
+
+    /** Its hiring mode (Settings.hires): who works or lives here, chosen by the colony or by players. Saved. */
+    public Settings.Hiring hiring = Settings.Hiring.DEFAULT;
+    final java.util.Map<String, String> settings = new java.util.HashMap<>(); // changed settings only (Settings.of); saved
+
+    /** A setting's value, its default if unchanged. */
+    public String setting(String key) {
+        String v = settings.get(key);
+        return v != null ? v : Settings.initial(type, key);
+    }
+
+    public boolean on(String key) {
+        return Boolean.parseBoolean(setting(key));
+    }
+
+    public int number(String key) {
+        return Integer.parseInt(setting(key));
+    }
+
+    public Material block(String key) {
+        return Material.valueOf(setting(key));
+    }
+
+    /** Sets a setting (checked against its kind by the menu). */
+    public void set(String key, String value) {
+        if (Settings.initial(type, key).equals(value)) settings.remove(key);
+        else settings.put(key, value);
+    }
 
     /** Its building at {@code level}: the version it was placed as, else (or where a style lacks that version) the usual one. */
     public String structure(String style, int level) {

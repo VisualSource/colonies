@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Requests;
@@ -198,7 +199,7 @@ public final class Crafter extends Job {
             if (more > 0) wants.add(new Want(label(c), c::test, more));
         });
         if (oreSmelter && hut.level >= 1 && inChest(Crafter::isOre) < ORES / 2) // the mod's smelter asks for any ore, minimum 1
-            wants.add(new Want("ores to smelt", Crafter::isOre, ORES - inChest(Crafter::isOre), 1));
+            wants.add(new Want("ores to smelt", Crafter::isOre, ORES - inChest(Crafter::isOre), Math.max(1, hut.number(Settings.MIN_ORE))));
         if (smelts && !furnaces.isEmpty() && (!need.isEmpty() || oreSmelter) && inChest(this::isFuel) < FUEL / 2)
             wants.add(new Want("fuel", this::isFuel, FUEL - inChest(this::isFuel), 1)); // as the mod's fuel request: minimum 1
         return wants;
