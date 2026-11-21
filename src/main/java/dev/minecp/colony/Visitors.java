@@ -9,6 +9,7 @@ import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Projectile;
@@ -36,6 +37,10 @@ public final class Visitors {
     // The mod's EntityAIVisitor combat: it hits what hurt it for 10 every second from 2 blocks, for up to 30 seconds.
     private static final double MAX_HEALTH = 20, HIT = 10, REACH = 2;
     private static final int ATTACK_DELAY = 20, FIGHT_TICKS = 30 * 20;
+    // The mod's EntityAIVisitor: every 50 ticks an idle visitor picks from nextInt(5): 0 (or 1 at night) sits on a free
+    // seat of its tavern for 3000 + rand(2500) ticks, 2 wanders within 10 blocks (a new spot every 200 ticks) for
+    // 1000 + rand(1000) ticks by day or 300 at night, else it stays idle.
+    private static final int DECIDE_TICKS = 50, WANDER_STEP = 200, WANDER_RANGE = 10, SIT_REACH = 3;
     private static final int NO_VISITOR_TICKS = 30_000, NO_VISITOR_RANDOM = 5000; // a tavern whose visitor died waits this long
     /**
      * What visitors ask, by rarity 1 to 9 (the mod's recruitment_items). Its own foods are left out: rarity 7 had
@@ -63,6 +68,9 @@ public final class Visitors {
         double health = MAX_HEALTH; // shortcut: not saved and never heals; save and heal it if visitors die of old wounds
         LivingEntity target;        // what hurt it, which it fights
         int fightTicks, attackIn;
+        Activity activity = Activity.IDLE;
+        int activityTicks, nextCheck;
+        Block seat;                 // its seat while it sits (or heads there); null with SIT: beside the hut block
 
         Visitor(Colonist colonist, Hut tavern, Material item, int count, int stay) {
             this.colonist = colonist;
@@ -73,7 +81,10 @@ public final class Visitors {
         }
     }
 
+    enum Activity { IDLE, SIT, WANDER }
+
     private final Colony colony;
+    private final Map<Hut, Map.Entry<Integer, List<Block>>> seats = new HashMap<>(); // per tavern: its level, its seats
     public final List<Visitor> list = new ArrayList<>();
     // shortcut: not saved, so a restart waits FIRST_VISITOR again; save it if restarts turn out to starve taverns
     private final Map<Hut, Integer> timers = new HashMap<>();
@@ -113,19 +124,83 @@ public final class Visitors {
         list.add(new Visitor(c, tavern, item, count, STAY_TICKS));
     }
 
-    /**
-     * Each tick: visitors wander around their tavern until their stay runs out (shortcut: the mod's also sit on the
-     * tavern's seats, which the converted buildings don't mark; they wander within 12 blocks instead of 10).
-     */
+    /** Each tick: visitors sit, wander and idle around their tavern (or fight) until their stay runs out. */
     void tick() {
         for (Visitor v : List.copyOf(list)) {
             if (--v.stay <= 0) { leave(v); continue; }
             if (!v.colonist.tick()) continue;
-            if (v.target != null) { fight(v); continue; }
+            if (v.target != null) {
+                v.colonist.standUp();
+                v.activity = Activity.IDLE;
+                v.seat = null; // free for the others
+                fight(v);
+                continue;
+            }
             if (v.colonist.talkTicks > 0) { v.colonist.talkTicks--; continue; } // a player clicked it
             v.colonist.setStatus("Visitor");
-            v.colonist.wander(v.tavern.block.getLocation().toCenterLocation());
+            if (--v.nextCheck > 0) continue;
+            switch (v.activity) {
+                case IDLE -> { decide(v); v.nextCheck = DECIDE_TICKS; }
+                case SIT -> { sit(v); v.nextCheck = DECIDE_TICKS; }
+                case WANDER -> {
+                    if ((v.activityTicks -= WANDER_STEP) <= 0) v.activity = Activity.IDLE;
+                    else v.colonist.walkRandom(WANDER_RANGE);
+                    v.nextCheck = WANDER_STEP;
+                }
+            }
         }
+    }
+
+    /** The mod's decide: what an idle visitor does next. */
+    private void decide(Visitor v) {
+        var rnd = ThreadLocalRandom.current();
+        int r = rnd.nextInt(5);
+        boolean day = colony.routine.isDay();
+        if (r == 0 || r == 1 && !day) {
+            List<Block> all = seatsOf(v.tavern);
+            if (all.isEmpty()) v.seat = null; // ours: no seats at all, so it stands beside the hut block, indoors
+            else {
+                List<Block> free = new ArrayList<>(all);
+                for (Visitor o : list) free.remove(o.seat);
+                if (free.isEmpty()) return; // every seat taken: it stays idle, as in the mod
+                v.seat = free.get(rnd.nextInt(free.size()));
+            }
+            v.activity = Activity.SIT;
+            v.activityTicks = 3000 + rnd.nextInt(2500);
+            if (v.seat != null) v.colonist.walkBeside(v.seat);
+            else v.colonist.walkBeside(v.tavern.block);
+        } else if (r == 2) {
+            v.activity = Activity.WANDER;
+            v.activityTicks = day ? 1000 + rnd.nextInt(1000) : 300;
+            v.colonist.walkRandom(WANDER_RANGE);
+        }
+    }
+
+    /** The mod's sit: once there (within 3 blocks) it sits down, until its time is up or the seat is gone. */
+    private void sit(Visitor v) {
+        boolean gone = v.seat != null && v.seat.getType().isOccluding(); // walled up: nothing to sit on
+        if ((v.activityTicks -= DECIDE_TICKS) <= 0 || gone) {
+            v.colonist.standUp();
+            v.seat = null;
+            v.activity = Activity.IDLE;
+            return;
+        }
+        if (v.colonist.seat() != null || v.colonist.isMoving()) return;
+        if (v.seat == null) { if (!v.colonist.isBeside(v.tavern.block)) v.colonist.walkBeside(v.tavern.block); return; }
+        if (v.colonist.isBeside(v.seat) || v.colonist.location().distance(v.seat.getLocation().toCenterLocation()) <= SIT_REACH) v.colonist.sitOn(v.seat);
+        else if (v.colonist.walkBeside(v.seat) == null) { v.seat = null; v.activity = Activity.IDLE; } // can't get there
+    }
+
+    /** The tavern's seats as built at its level (its blueprint's sit tags). */
+    private List<Block> seatsOf(Hut tavern) {
+        var known = seats.get(tavern);
+        if (known == null || known.getKey() != tavern.level) {
+            var o = dev.minecp.build.BuildOrder.create(tavern.structure(colony.style, tavern.level), tavern.block.getLocation(),
+                    tavern.rotation, tavern.mirror, tavern.block);
+            known = Map.entry(tavern.level, o == null ? List.of() : List.copyOf(o.seats));
+            seats.put(tavern, known);
+        }
+        return known.getValue();
     }
 
     /**
@@ -189,6 +264,7 @@ public final class Visitors {
     void tavernRemoved(Hut tavern) {
         for (Visitor v : List.copyOf(list)) if (v.tavern == tavern) leave(v);
         timers.remove(tavern);
+        seats.remove(tavern);
     }
 
     void despawn() {
@@ -215,6 +291,7 @@ public final class Visitors {
             v.colonist.despawn();
             return v.colonist.name + " took the payment and ran off!";
         }
+        v.colonist.standUp();
         colony.join(v.colonist);
         return v.colonist.name + " joined " + colony.name + ".";
     }

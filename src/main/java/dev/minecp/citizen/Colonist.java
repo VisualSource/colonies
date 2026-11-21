@@ -107,6 +107,8 @@ public final class Colonist {
     private WanderingTrader legs;
     private Location target; // wander destination
     private Block bed;       // head of the bed it is asleep in
+    private Block seat;      // the seat it sits on (a stair, or a tagged spot), or null
+    private org.bukkit.entity.ItemDisplay chair; // what the body rides while seated (the mod's SittingEntity)
     public boolean bedtime;         // on its way to bed or asleep (the mod keeps a citizen in its sleep state once there)
     private String status = "Unemployed";
     private int wait = 0;
@@ -151,6 +153,10 @@ public final class Colonist {
         }
         if (bed != null) { // lying still: keep the body on the bed (respawning resets its pose)
             if (body.getPose() != Pose.SLEEPING) lieDown();
+            return true;
+        }
+        if (seat != null) { // seated: the body rides the chair (respawning or a chunk reload drops it)
+            if (chair == null || !chair.isValid() || !chair.getPassengers().contains(body)) sitDown();
             return true;
         }
         Location to = legs.getLocation();
@@ -224,6 +230,7 @@ public final class Colonist {
     }
 
     private void follow(Route.Result r, int gx, int gy, int gz, Route.Goal goal) {
+        standUp();
         climb = null;
         climbResume = -1;
         route = r.steps().isEmpty() ? null : new ArrayList<>(r.steps());
@@ -490,6 +497,41 @@ public final class Colonist {
         last = at;
     }
 
+    /** The seat it sits on, or null. */
+    public Block seat() {
+        return seat;
+    }
+
+    /** Sits on {@code block} (a stair faces away from its back), as the mod's SittingEntity.sitDown. */
+    public void sitOn(Block block) {
+        stopWalking();
+        seat = block;
+        sitDown();
+    }
+
+    private void sitDown() {
+        var data = seat.getBlockData();
+        boolean half = data instanceof org.bukkit.block.data.type.Stairs
+                || data instanceof org.bukkit.block.data.type.Slab sl && sl.getType() == org.bukkit.block.data.type.Slab.Type.BOTTOM;
+        // A stair or slab seat is half a block up; a tagged open spot (air, a carpet) is the floor; anything else, on top.
+        Location at = seat.getLocation().add(0.5, half ? 0.5 : seat.isPassable() ? 0 : 1, 0.5);
+        if (seat.getBlockData() instanceof org.bukkit.block.data.type.Stairs s) at.setDirection(s.getFacing().getOppositeFace().getDirection());
+        legs.teleport(at);
+        Nms.halt(legs);
+        if (chair == null || !chair.isValid()) chair = at.getWorld().spawn(at, org.bukkit.entity.ItemDisplay.class, d -> d.setPersistent(false));
+        body.teleport(at);
+        chair.addPassenger(body); // a rider's legs go forward: the client draws it sitting
+        last = at;
+    }
+
+    /** Gets up from its seat, standing on it. */
+    public void standUp() {
+        if (seat == null) return;
+        seat = null;
+        if (chair != null) chair.remove(); // drops the body, which follows the legs again
+        chair = null;
+    }
+
     /** Gets up and steps out beside the bed. */
     public void wake() {
         if (bed == null) return;
@@ -567,15 +609,20 @@ public final class Colonist {
             return;
         }
         if (--wait > 0) return;
-        Location spot = randomStandSpot(center);
+        Location spot = randomStandSpot(center, WANDER_RADIUS);
         if (spot != null && walk(spot)) target = spot;
         else wait = 20;
     }
 
-    private static Location randomStandSpot(Location center) {
+    /** Walks to a random spot up to {@code range} blocks from where it stands. @return false if none was reachable. */
+    public boolean walkRandom(int range) {
+        Location spot = randomStandSpot(location(), range);
+        return spot != null && walk(spot);
+    }
+
+    private static Location randomStandSpot(Location center, int range) {
         var rnd = ThreadLocalRandom.current();
-        Block base = center.getBlock().getRelative(rnd.nextInt(-WANDER_RADIUS, WANDER_RADIUS + 1), 4,
-                rnd.nextInt(-WANDER_RADIUS, WANDER_RADIUS + 1));
+        Block base = center.getBlock().getRelative(rnd.nextInt(-range, range + 1), 4, rnd.nextInt(-range, range + 1));
         for (int dy = 0; dy <= 8; dy++) {
             Block b = base.getRelative(0, -dy, 0);
             if (canStandIn(b)) return b.getLocation().toCenterLocation();
@@ -616,6 +663,7 @@ public final class Colonist {
 
     /** Teleports the legs while walking (not into bed): counted, it's what better movement should make rare. */
     private void warp(Location to) {
+        standUp();
         stats.teleports++;
         legs.teleport(to);
     }
@@ -685,6 +733,8 @@ public final class Colonist {
             if (toggles(b) && b.getBlockData() instanceof org.bukkit.block.data.Openable d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();
         if (body != null && bed != null) Nms.wake(body); // else the bed stays marked occupied
+        if (chair != null) chair.remove();
+        chair = null;
         if (body != null) body.remove();
         if (legs != null) legs.remove();
         body = null;

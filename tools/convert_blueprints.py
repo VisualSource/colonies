@@ -66,6 +66,7 @@ FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
 FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
 GRAVE = "minecolonies:blockminecoloniesnamedgrave"  # a graveyard's burial spot, left as structure void
 GRAVE_TAG = "minecp_grave"                           # tag of the marker entity there (BuildOrder.GRAVE_TAG), plus minecp_facing_<facing>
+SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
@@ -146,7 +147,21 @@ def marker(pos, tags):
             "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"), "Tags": (nbt.LIST, (nbt.STRING, tags))})}
 
 
-def convert(path, blocks):
+def sit_spots(root):
+    """A blueprint's seats: its hut's "sit" tag positions ("sit", "sit_in", "sit_out", "sitting"), relative to the blueprint's corner."""
+    spots = []
+    for t_typed in root.get("tile_entities", (None, (None, [])))[1][1]:
+        provider = nbt.plain((nbt.COMPOUND, t_typed)).get("blueprintDataProvider") or {}
+        hx, hy, hz = (t_typed[k][1] for k in ("x", "y", "z"))
+        for entry in provider.get("posTagMap", []):
+            if any(n.get("tagName", "").startswith("sit") for n in entry.get("tagNameList", [])):
+                p = entry["tagPos"]
+                spots.append((hx + p["x"], hy + p["y"], hz + p["z"]))
+    return spots
+
+
+def convert(path, blocks, siblings=()):
+    """siblings: the same blueprint in other style packs, to borrow seats from when this one has no tags."""
     root = nbt.load(path)
     sx, sy, sz = (root[k][1] for k in ("size_x", "size_y", "size_z"))
     palette = nbt.plain((nbt.LIST, root["palette"][1]))
@@ -157,8 +172,11 @@ def convert(path, blocks):
             tes[pos] = t_typed
     out_palette, out_index, out_blocks, out_entities = [], {}, [], []
     notes = collections.defaultdict(list)
+    stairs = set()
     for pos, idx in read_blocks(root["blocks"][1], sx, sy, sz):
         state = palette[idx]
+        if state["Name"].endswith("_stairs"):
+            stairs.add(pos)
         te_typed = tes.get(pos)
         te = nbt.plain((nbt.COMPOUND, te_typed)) if te_typed else None
         name, props, note = convert_state(state["Name"], state.get("Properties", {}), te, blocks)
@@ -195,6 +213,18 @@ def convert(path, blocks):
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {RACK_TAG: (nbt.BYTE, 1)})})
         out_blocks.append(block)
+    seats = sit_spots(root)
+    for other in siblings:  # some packs' blueprints lost their tags (medieval birch's taverns 2 and 3): the same
+        if seats:           # building in another style, where each of its seats is a stair here too
+            break
+        o = nbt.load(other)
+        if tuple(o[k][1] for k in ("size_x", "size_y", "size_z")) == (sx, sy, sz):
+            borrowed = sit_spots(o)
+            if borrowed and all(s in stairs for s in borrowed):
+                seats = borrowed
+    for pos in seats:
+        if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
+            out_entities.append(marker(pos, [SIT_TAG]))
     structure = {
         "DataVersion": (nbt.INT, root.get("mcversion", (nbt.INT, 3955))[1]),  # vanilla upgrades old block names on load
         "size": (nbt.LIST, (nbt.INT, [sx, sy, sz])),
@@ -238,7 +268,10 @@ def main():
     for rel in files:
         name = rel[: -len(".blueprint")].lower()
         out = os.path.join(a.datapack_dir, "data", "minecp", "structure", pack, name + ".nbt")
-        structure, size, notes, entities = convert(os.path.join(a.pack_dir, rel), blocks)
+        packs = os.path.dirname(os.path.normpath(a.pack_dir))
+        siblings = sorted(os.path.join(packs, d, rel) for d in os.listdir(packs)
+                          if os.path.join(packs, d) != os.path.normpath(a.pack_dir) and os.path.isfile(os.path.join(packs, d, rel)))
+        structure, size, notes, entities = convert(os.path.join(a.pack_dir, rel), blocks, siblings)
         os.makedirs(os.path.dirname(out), exist_ok=True)
         nbt.save(out, structure)
         written += 1

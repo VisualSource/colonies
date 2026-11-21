@@ -53,6 +53,11 @@ final class Routine {
         isDay = dayTime;
     }
 
+    /** Whether it is day by the colony's clock (the mod's isDay), as of the last tick. */
+    boolean isDay() {
+        return isDay;
+    }
+
     /** The house it sleeps in, or for the homeless the town hall (the mod: a tavern, else the town hall). */
     Hut homeOf(Colonist c) {
         return c.home != null ? c.home : colony.townHall();
