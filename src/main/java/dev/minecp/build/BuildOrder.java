@@ -231,6 +231,21 @@ public final class BuildOrder {
     /** Where the structure has a burial spot. */
     public final List<GraveSpot> graves = new ArrayList<>();
 
+    /**
+     * Places it at once with vanilla's structure placement, block entities and their contents included (the mod's
+     * instant placement of its supplies); foundation filler becomes dirt where the ground wasn't solid, and keeps the
+     * ground where it was.
+     */
+    void paste() {
+        java.util.Map<Block, BlockData> ground = new java.util.HashMap<>();
+        for (Step s : steps) if (s.fill && s.block.getType().isSolid()) ground.put(s.block, s.block.getBlockData());
+        var template = load(structure);
+        if (template == null) return;
+        template.place(origin, false, rotation, mirror ? Mirror.FRONT_BACK : Mirror.NONE,
+                0, 1f, new java.util.Random());
+        for (Step s : steps) if (s.fill) s.block.setBlockData(ground.getOrDefault(s.block, Material.DIRT.createBlockData()), false);
+    }
+
     /** Lays {@code m} as the foundation filler instead of dirt (the builder's fill block setting). */
     public void fillWith(Material m) {
         steps.replaceAll(s -> s.fill ? new Step(s.block, m.createBlockData(), true, false) : s);

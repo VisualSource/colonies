@@ -27,7 +27,7 @@ import java.util.List;
 /** The plugin's items: the Build Tool, hut items, and their recipes (the Build Tool is kept when crafting). */
 public final class Items implements Listener {
     private final Plugin plugin;
-    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey;
+    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey, supplyKey, starterKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
     Items(Plugin plugin) {
@@ -37,6 +37,8 @@ public final class Items implements Listener {
         gogglesKey = new NamespacedKey(plugin, "build_goggles");
         clipboardKey = new NamespacedKey(plugin, "clipboard");     // value: the colony owner's UUID, "" until bound
         scrollKey = new NamespacedKey(plugin, "resource_scroll");
+        supplyKey = new NamespacedKey(plugin, "supply");     // value: "camp" or "ship"
+        starterKey = new NamespacedKey(plugin, "starter");   // the converter's stand-ins in the supplies' barrels
     }
 
     /**
@@ -93,6 +95,53 @@ public final class Items implements Listener {
         field.setIngredient('S', RecipeChoice.exactChoice(new ItemStack(Material.STICK))); // plain sticks, never the Build Tool
         field.setIngredient('L', new RecipeChoice.MaterialChoice(Material.LEATHER));
         add(field);
+        // MineColonies' supply camp (chests) and supply ship (boats): a row of three under two corners. Plain items only
+        // (chests or trapped chests; any boat): hut items and racks are chests too, and a Supply Ship is a boat.
+        ShapedRecipe camp = new ShapedRecipe(key("supply_camp"), supply(false));
+        camp.shape("C C", "CCC");
+        camp.setIngredient('C', RecipeChoice.exactChoice(new ItemStack(Material.CHEST), new ItemStack(Material.TRAPPED_CHEST)));
+        add(camp);
+        ShapedRecipe ship = new ShapedRecipe(key("supply_ship"), supply(true));
+        ship.shape("B B", "BBB");
+        ship.setIngredient('B', RecipeChoice.exactChoice(Tag.ITEMS_BOATS.getValues().stream().map(ItemStack::new).toList()));
+        add(ship);
+    }
+
+    /**
+     * The mod's supply camp or ship deployer: right-click to place the camp on land or the ship on water, with a
+     * Town Hall, a Build Tool and supplies in it (Placement). A chest or a boat stands in for its model.
+     */
+    private ItemStack supply(boolean ship) {
+        ItemStack item = new ItemStack(ship ? Material.OAK_BOAT : Material.CHEST);
+        item.editMeta(m -> {
+            m.itemName(Component.text(ship ? "Supply Ship" : "Supply Camp", NamedTextColor.GOLD));
+            m.lore(List.of(Component.text(ship ? "Right-click by the water to place a ship with" : "Right-click the ground to place a camp with", NamedTextColor.GRAY),
+                    Component.text("a Town Hall, a Build Tool and supplies. One per player.", NamedTextColor.GRAY)));
+            m.setMaxStackSize(1); // as the mod's
+            m.getPersistentDataContainer().set(supplyKey, PersistentDataType.STRING, ship ? "ship" : "camp");
+        });
+        model(item, ship ? "supply_ship" : "supply_camp");
+        return item;
+    }
+
+    /** "camp" or "ship" for a supply item, else null. */
+    public String supplyKind(ItemStack item) {
+        return item == null ? null : item.getPersistentDataContainer().get(supplyKey, PersistentDataType.STRING);
+    }
+
+    /**
+     * The plugin's item for a converter stand-in in a supply camp or ship's barrel (its Town Hall and gold scepter),
+     * else null.
+     */
+    public ItemStack starter(ItemStack item) {
+        String kind = item == null ? null : item.getPersistentDataContainer().get(starterKey, PersistentDataType.STRING);
+        if (kind == null) return null;
+        ItemStack real = switch (kind) {
+            case "town_hall" -> hutItem(Hut.Type.TOWN_HALL);
+            case "build_tool" -> buildTool();
+            default -> null;
+        };
+        return real == null ? null : real.asQuantity(item.getAmount());
     }
 
     private NamespacedKey key(String name) {
@@ -118,7 +167,7 @@ public final class Items implements Listener {
     }
 
     /** The Build Tool: places huts (Placement) and every hut recipe needs it; made from a stick with /colony buildtool. Kept when crafting, as in the mod. */
-    ItemStack buildTool() {
+    public ItemStack buildTool() {
         ItemStack item = new ItemStack(Material.STICK);
         item.editMeta(m -> {
             m.itemName(Component.text("Build Tool", NamedTextColor.GOLD));
@@ -199,7 +248,7 @@ public final class Items implements Listener {
         return item != null && item.getPersistentDataContainer().has(buildToolKey);
     }
 
-    ItemStack hutItem(Hut.Type type) {
+    public ItemStack hutItem(Hut.Type type) {
         ItemStack item = new ItemStack(type.block);
         item.editMeta(m -> {
             m.itemName(Component.text(type.title, NamedTextColor.GOLD));

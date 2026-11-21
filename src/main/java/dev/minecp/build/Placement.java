@@ -54,9 +54,15 @@ public final class Placement implements Listener {
             StructureRotation.CLOCKWISE_180, StructureRotation.COUNTERCLOCKWISE_90};
     private static final BlockFace[] SIDES = {BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST};
 
+    // The mod's supply deployers (ISupplyItem, ItemSupplyCampDeployer, ItemSupplyChestDeployer): placed 10 blocks ahead,
+    // at most a third of the footprint may fail its checks, the ship needs 3 layers of water and room 7 above them.
+    private static final int SUPPLY_OFFSET = 10, WATER_LEVELS = 3, SCAN_HEIGHT = 7;
+    private static final double SUPPLY_TOLERANCE = 1.0 / 3;
+
     private static final class Session {
         final Catalog.Entry entry;
         final String style;
+        String supply; // "camp" or "ship" while placing a supply item, else null
         Block anchor; // where the hut block goes; for a build without a hut, its corner
         int turn;     // index into TURNS
         boolean mirror;
@@ -78,12 +84,15 @@ public final class Placement implements Listener {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent e) {
-        if (e.getHand() != EquipmentSlot.HAND || !plugin.items.isBuildTool(e.getItem())) return;
+        String supply = plugin.items.supplyKind(e.getItem());
+        if (supply != null && e.getHand() == EquipmentSlot.OFF_HAND) { e.setCancelled(true); return; } // never put down as a plain chest or boat
+        if (e.getHand() != EquipmentSlot.HAND || supply == null && !plugin.items.isBuildTool(e.getItem())) return;
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK && e.getAction() != Action.RIGHT_CLICK_AIR) return;
-        e.setCancelled(true);
+        e.setCancelled(true); // no chest or boat put down
         Player p = e.getPlayer();
         Session s = sessions.get(p.getUniqueId());
         if (s != null) controls(p, s);
+        else if (supply != null) supplies(p, supply, e.getClickedBlock());
         else if (e.getClickedBlock() != null) choose(p, e.getClickedBlock().getRelative(e.getBlockFace()));
         else p.sendMessage(Component.text("Right-click the ground where it should go.", NamedTextColor.YELLOW));
     }
@@ -131,6 +140,147 @@ public final class Placement implements Listener {
         }
         show(p, folder.isEmpty() ? "Build tool: " + style : Catalog.title(folder),
                 List.of(text(folder.isEmpty() ? "Pick a category. A hut needs its hut item; anything else is built by your builder." : "What goes here?")), buttons);
+    }
+
+    /** A supply item: which style's camp or ship (the mod uses the pack the player picked), then its placement. */
+    private void supplies(Player p, String kind, Block clicked) {
+        if (p.getWorld().getEnvironment() != org.bukkit.World.Environment.NORMAL) {
+            p.sendMessage(Component.text("Supplies only arrive in the overworld.", NamedTextColor.RED));
+            return;
+        }
+        if (usedSupplies(p)) {
+            p.sendMessage(Component.text("You have had your supplies already: each player gets one camp or ship.", NamedTextColor.RED));
+            return;
+        }
+        String path = "decorations/supplies/supply" + kind;
+        List<ActionButton> buttons = new ArrayList<>();
+        for (String style : dev.minecp.colony.Colony.styles())
+            if (BuildOrder.exists(style + "/" + path)) buttons.add(button(style, p, null, player -> startSupply(player, kind, path, style, clicked)));
+        if (buttons.isEmpty()) { p.sendMessage(Component.text("No style has a supply " + kind + ": is a style's data pack installed?", NamedTextColor.RED)); return; }
+        show(p, kind.equals("ship") ? "Supply Ship" : "Supply Camp", List.of(text("In which style?")), buttons);
+    }
+
+    /** Starts placing the camp or ship centred 10 blocks ahead: the camp's ground layer on the ground, the ship's keel 3 below the water's surface. */
+    private void startSupply(Player p, String kind, String path, String style, Block clicked) {
+        Block at = (clicked != null ? clicked : p.getLocation().getBlock()).getRelative(p.getFacing(), SUPPLY_OFFSET);
+        var w = at.getWorld();
+        int top = w.getHighestBlockYAt(at.getX(), at.getZ(), org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES); // water counts
+        Block anchor = w.getBlockAt(at.getX(), kind.equals("ship") ? top - (WATER_LEVELS - 1) : top, at.getZ());
+        var entry = new Catalog.Entry(path, kind.equals("ship") ? "Supply Ship" : "Supply Camp", null, false);
+        BuildOrder o = BuildOrder.create(entry.structure(style), anchor.getLocation(), TURNS[0], false, null);
+        if (o == null) return;
+        int[] fp = o.footprint();
+        anchor = anchor.getRelative((fp[0] - fp[1]) / 2, 0, (fp[2] - fp[3]) / 2); // the corner, so it is centred there
+        end(p);
+        Session s = new Session(entry, style, anchor);
+        s.supply = kind;
+        sessions.put(p.getUniqueId(), s);
+        if (draw(p, s)) p.sendMessage(Component.text("Placing the " + entry.name() + ". Right-click with it again to move, turn or confirm it.", NamedTextColor.GREEN));
+    }
+
+    private static final String SUPPLIES_USED = "supplies_used";
+
+    /** Whether the player has placed a camp or ship before (the mod counts uses of the item); creative may place more. */
+    private boolean usedSupplies(Player p) {
+        return p.getGameMode() != GameMode.CREATIVE
+                && p.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, SUPPLIES_USED));
+    }
+
+    /**
+     * The mod's checks (canCampBePlaced, canShipBePlaced), each allowing a third of the footprint to fail: the camp's
+     * ground layer stands on solid ground with nothing solid on it; the ship's hull is in water for its 3 lowest layers,
+     * with nothing solid in its way up to 7 more (the mod's loop takes layers 0 to 3 + 7, both included; ours also: those
+     * 3 layers are mostly water). Every style's supply blueprints have the mod's default levels (1 ground layer, 3 water
+     * layers), so they are fixed here rather than read from the blueprint's tag. Ours, stricter: no part inside a colony
+     * where the player may not place blocks (the mod counts those spots among the third), and no container in the way.
+     * @return why not, or null.
+     */
+    private String supplyProblem(Player p, Session s, BuildOrder o) {
+        var w = s.anchor.getWorld();
+        int[] fp = o.footprint();
+        for (int cx = fp[0] >> 4; cx <= (fp[1] - 1) >> 4; cx++) for (int cz = fp[2] >> 4; cz <= (fp[3] - 1) >> 4; cz++) {
+            Colony c = plugin.claims.colonyAt(w, cx, cz);
+            if (c != null && !c.permissions.has(p, dev.minecp.colony.Action.PLACE_BLOCKS)) return "That is inside " + c.name + ".";
+        }
+        Set<Block> planned = new HashSet<>();
+        int height = 0;
+        for (BuildOrder.Step st : o.steps) {
+            // ours: the paste replaces everything in its box, and a chest's items would be lost with it
+            if (st.block().getState(false) instanceof org.bukkit.block.Container) return "A chest or other container is in the way at "
+                    + st.block().getX() + " " + st.block().getY() + " " + st.block().getZ() + ".";
+            planned.add(st.block());
+            height = Math.max(height, st.block().getY() - s.anchor.getY() + 1);
+        }
+        boolean ship = "ship".equals(s.supply);
+        int y0 = s.anchor.getY(), inTheWay = 0, unsupported = 0, dry = 0;
+        for (int x = fp[0]; x < fp[1]; x++) for (int z = fp[2]; z < fp[3]; z++) {
+            if (!ship) {
+                Block ground = w.getBlockAt(x, y0, z);
+                if (planned.contains(ground) && !ground.getType().isSolid()) unsupported++;
+                if (ground.getRelative(BlockFace.UP).getType().isSolid()) inTheWay++;
+                continue;
+            }
+            for (int y = 0; y <= Math.min(WATER_LEVELS + SCAN_HEIGHT, height - 1); y++) {
+                Block b = w.getBlockAt(x, y0 + y, z);
+                if (y < WATER_LEVELS && !water(b)) dry++;
+                if (!planned.contains(b)) continue; // the structure leaves this spot as it is
+                if (y < WATER_LEVELS) { if (!water(b)) unsupported++; }
+                else if (b.getType().isSolid()) inTheWay++;
+            }
+        }
+        double allowed = (fp[1] - fp[0]) * (fp[3] - fp[2]) * SUPPLY_TOLERANCE;
+        // Ours: the mod only asks for water where the hull is (a few blocks in its lowest layers), so a ship could
+        // land on dry ground; here two thirds of everything under it must be water too.
+        if (ship && dry > allowed * WATER_LEVELS) unsupported = Integer.MAX_VALUE;
+        if (unsupported > allowed) return ship ? "The ship needs open water under it, " + WATER_LEVELS + " blocks deep. Move it down or out to sea."
+                : "The camp needs solid ground under it. Move it down or to flatter ground.";
+        if (inTheWay > allowed) return ship ? "Too much is in the ship's way above the water." : "Too much stands on the ground there. Move it up or clear the spot.";
+        return null;
+    }
+
+    private static boolean water(Block b) {
+        return b.getType() == org.bukkit.Material.WATER || b.getBlockData() instanceof org.bukkit.block.data.Waterlogged wl && wl.isWaterlogged();
+    }
+
+    /**
+     * The mod's SuppliesHandler: placed at once with everything in it, the supply item used up, once per player. The
+     * barrel's Town Hall and gold scepter (converted as tagged stand-ins) become our Town Hall and Build Tool.
+     */
+    private void placeSupplies(Player p, Session s) {
+        BuildOrder o = order(s);
+        String problem = o == null ? "No structure for the " + s.entry.name() + "." : usedSupplies(p) ? "You have had your supplies already." : supplyProblem(p, s, o);
+        int slot = -1;
+        var inv = p.getInventory();
+        for (int i = 0; i < inv.getSize() && slot < 0; i++) if (s.supply.equals(plugin.items.supplyKind(inv.getItem(i)))) slot = i;
+        if (problem == null && slot < 0) problem = "You no longer carry the " + s.entry.name() + "."; // creative too, as in the mod
+        if (problem != null) {
+            p.sendMessage(Component.text(problem, NamedTextColor.RED));
+            return; // placement stays open to fix it
+        }
+        end(p);
+        o.paste();
+        boolean townHall = false, buildTool = false;
+        for (BuildOrder.Step st : o.steps)
+            if (st.block().getState(false) instanceof org.bukkit.block.Container c)
+                for (int i = 0; i < c.getInventory().getSize(); i++) {
+                    ItemStack real = plugin.items.starter(c.getInventory().getItem(i));
+                    if (real == null) continue;
+                    c.getInventory().setItem(i, real);
+                    townHall |= plugin.items.hutType(real) == Hut.Type.TOWN_HALL;
+                    buildTool |= plugin.items.isBuildTool(real);
+                }
+        // Ours: the cavern camp and ship have no kit in their barrels, so whatever is missing goes to the player.
+        List<ItemStack> missing = new ArrayList<>();
+        if (!townHall) missing.add(plugin.items.hutItem(Hut.Type.TOWN_HALL));
+        if (!buildTool) missing.add(plugin.items.buildTool());
+        inv.setItem(slot, null); // used up, in creative too (the mod's)
+        p.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, SUPPLIES_USED), org.bukkit.persistence.PersistentDataType.BOOLEAN, true); // creative too
+        dev.minecp.Advancements.award(p, "minecolonies/root"); // the mod's root advancement is placing supplies
+        p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
+        missing.forEach(it -> inv.addItem(it).values().forEach(left -> p.getWorld().dropItem(p.getLocation(), left)));
+        p.sendMessage(Component.text("Your " + s.entry.name().toLowerCase() + " has arrived. " + (missing.isEmpty()
+                ? "Its barrel holds a Town Hall and a Build Tool" : "You have been given a Town Hall and a Build Tool")
+                + ": place the Town Hall to found your colony.", NamedTextColor.GREEN));
     }
 
     private int carried(Player p, Hut.Type type) {
@@ -224,6 +374,7 @@ public final class Placement implements Listener {
      * build without a hut goes to the builder as a work order, if it is wholly inside a colony and you may manage huts.
      */
     private void confirm(Player p, Session s) {
+        if (s.supply != null) { placeSupplies(p, s); return; }
         if (s.entry.hut() == null) { queue(p, s); return; }
         Hut.Type type = s.entry.hut();
         BuildOrder o = order(s);

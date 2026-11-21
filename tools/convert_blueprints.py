@@ -66,6 +66,10 @@ FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
 FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
 GRAVE = "minecolonies:blockminecoloniesnamedgrave"  # a graveyard's burial spot, left as structure void
 GRAVE_TAG = "minecp_grave"                           # tag of the marker entity there (BuildOrder.GRAVE_TAG), plus minecp_facing_<facing>
+# Mod items in containers (only the supply camp and ship's starting kit has any): a tagged vanilla item the plugin
+# swaps for its own on placement (Placement's STARTER key); any other mod item is left out.
+STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"),
+                 "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
@@ -147,6 +151,24 @@ def marker(pos, tags):
             "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"), "Tags": (nbt.LIST, (nbt.STRING, tags))})}
 
 
+def starter_items(items, data_version):
+    """A container's items with mod items swapped for tagged vanilla ones (STARTER_ITEMS) or left out."""
+    kept = []
+    for it in items[1][1]:
+        item_id = it.get("id", (nbt.STRING, ""))[1]
+        if item_id.startswith("minecraft:"):
+            kept.append(it)
+        elif item_id in STARTER_ITEMS:
+            # The stand-in's "tag" reaches custom_data only through vanilla's upgrade from before 1.20.5 (3837).
+            assert data_version < 3837, f"blueprint data version {data_version}: write the stand-in as components instead"
+            vanilla, kind = STARTER_ITEMS[item_id]
+            # The blueprints' item format (before 1.20.5): vanilla moves "tag" into the custom_data component on load,
+            # where Paper reads PublicBukkitValues as the item's persistent data.
+            kept.append({**it, "id": (nbt.STRING, vanilla), "tag": (nbt.COMPOUND, {"PublicBukkitValues": (nbt.COMPOUND, {
+                "minecp:starter": (nbt.STRING, kind)})})})
+    return (nbt.LIST, (items[1][0] if kept else nbt.COMPOUND, kept))
+
+
 def sit_spots(root):
     """A blueprint's seats: its hut's "sit" tag positions ("sit", "sit_in", "sit_out", "sitting"), relative to the blueprint's corner."""
     spots = []
@@ -163,6 +185,7 @@ def sit_spots(root):
 def convert(path, blocks, siblings=()):
     """siblings: the same blueprint in other style packs, to borrow seats from when this one has no tags."""
     root = nbt.load(path)
+    data_version = root.get("mcversion", (nbt.INT, 3955))[1]
     sx, sy, sz = (root[k][1] for k in ("size_x", "size_y", "size_z"))
     palette = nbt.plain((nbt.LIST, root["palette"][1]))
     tes = {}
@@ -201,7 +224,7 @@ def convert(path, blocks, siblings=()):
             out_palette.append(entry)
         block = {"pos": (nbt.LIST, (nbt.INT, list(pos))), "state": (nbt.INT, out_index[key])}
         if te_typed and state["Name"].startswith("minecraft:"):  # keep vanilla block entity data (signs, banners)
-            block["nbt"] = (nbt.COMPOUND, {k: v for k, v in te_typed.items() if k not in ("x", "y", "z")})
+            block["nbt"] = (nbt.COMPOUND, {k: starter_items(v, data_version) if k == "Items" else v for k, v in te_typed.items() if k not in ("x", "y", "z")})
         if state["Name"] == FIELD:
             # The scarecrow is a hay bale, which can't carry a data tag: mark it with a marker entity instead, which the
             # plugin reads to register the field.
@@ -226,7 +249,7 @@ def convert(path, blocks, siblings=()):
         if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
             out_entities.append(marker(pos, [SIT_TAG]))
     structure = {
-        "DataVersion": (nbt.INT, root.get("mcversion", (nbt.INT, 3955))[1]),  # vanilla upgrades old block names on load
+        "DataVersion": (nbt.INT, data_version),  # vanilla upgrades old block names on load
         "size": (nbt.LIST, (nbt.INT, [sx, sy, sz])),
         "palette": (nbt.LIST, (nbt.COMPOUND, out_palette)),
         "blocks": (nbt.LIST, (nbt.COMPOUND, out_blocks)),

@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  * in our words. Each has one impossible criterion that MineCP awards when the thing happens, to every online player
  * the colony sends its messages to (RECEIVE_MESSAGES), as the mod does. Loaded at startup, so no data pack is needed.
  */
-final class Advancements {
+public final class Advancements {
     private record Def(String parent, String icon, String title, String description, String frame, boolean hidden) {}
 
     private static final String ROOT = "minecolonies/root", PRODUCTION = "production/root";
@@ -31,7 +31,7 @@ final class Advancements {
     }
 
     static {
-        // The MineColonies tab. The mod's root is placing a supply camp, which we don't have: here it comes with the town hall.
+        // The MineColonies tab. The mod's root is placing a supply camp or ship; here also placing the town hall.
         add(ROOT, null, "bell", "MineCP", "Start a colony of your own", "task");
         add("minecolonies/place_townhall", ROOT, "bell", "A Place to Call Home", "Place a Town Hall to found a colony", "task");
         add("minecolonies/start_builder", "minecolonies/place_townhall", "yellow_wool", "Hard Hat Needed", "Ask for the Builder's Hut to be built", "task");
@@ -129,7 +129,7 @@ final class Advancements {
     }
 
     /** Awards these ("a|b" for several) to one player. */
-    static void award(Player p, String ids) {
+    public static void award(Player p, String ids) {
         for (String id : ids.split("\\|")) {
             Advancement a = Bukkit.getAdvancement(key(id));
             if (a != null && !p.getAdvancementProgress(a).isDone()) p.getAdvancementProgress(a).awardCriteria("done");
