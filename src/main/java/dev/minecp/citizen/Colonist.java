@@ -323,6 +323,23 @@ public final class Colonist {
         route = null;
     }
 
+    /** Ticks left standing still facing a player who clicked it; its colony skips its work and walks meanwhile. */
+    public int talkTicks;
+
+    /**
+     * A player clicked it: it stops and faces them for 3 seconds (the mod's mobInteract: work delayed 3 s, navigation
+     * stopped, looking at the player). Not halfway up a ladder, nor while it runs from danger.
+     */
+    public void talkTo(org.bukkit.entity.Player p) {
+        if (fleeTicks > 0 || climb != null || legs == null) return;
+        stopWalking();
+        Nms.halt(legs);
+        Location look = legs.getLocation();
+        look.setDirection(p.getLocation().toVector().subtract(look.toVector()));
+        legs.setRotation(look.getYaw(), 0);
+        talkTicks = 60;
+    }
+
     public boolean isMoving() {
         return climb != null || route != null;
     }

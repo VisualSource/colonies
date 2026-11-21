@@ -32,7 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * The mod's animal herders (AbstractEntityAIHerder and its five kinds): they keep the animals inside their hut's
  * building. Every 4 seconds a herder picks one thing to do: 1 in 10 picks up what lies about; then it may butcher an
- * adult (more likely the more there are, never below 4 adults); else it breeds two (one breeding item each, then a
+ * adult (more likely the more there are, only while more than 3 adults are left); else it breeds two (one breeding item each, then a
  * minute's pause); the shepherd shears, and the cowhand milks a cow and fills a bowl at a mooshroom once a day. Drops
  * go to the hut after 10 actions. An axe is needed for butchering; the breeding item comes from the hut chest.
  * Ours: no skills, so butchering does an unskilled citizen's damage; feeding (which needs skill to help) is left out.

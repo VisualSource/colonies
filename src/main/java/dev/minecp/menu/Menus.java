@@ -72,8 +72,9 @@ public final class Menus {
                 if (hungry > 0 || homeless > 0) body.add(text(Component.text(
                         (hungry > 0 ? hungry + " hungry" : "") + (hungry > 0 && homeless > 0 ? ", " : "")
                         + (homeless > 0 ? homeless + " homeless" : ""), NamedTextColor.YELLOW)));
-                if (!c.workOrders.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ",
-                        c.workOrders.stream().map(w -> w.hut().type.title + (w.remove() ? " (take down)" : " " + w.level())).toList()), NamedTextColor.GRAY)));
+                List<String> waiting = new ArrayList<>(c.workOrders.stream().map(w -> w.hut().type.title + (w.remove() ? " (take down)" : " " + w.level())).toList());
+                c.decorations.forEach(d -> waiting.add(d.name()));
+                if (!waiting.isEmpty()) body.add(text(Component.text("Waiting for the builder: " + String.join(", ", waiting), NamedTextColor.GRAY)));
             }
             case FIELD -> { field(p, c, h); return; }
             case WAREHOUSE -> {
@@ -141,12 +142,43 @@ public final class Menus {
             buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h, null)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
             if (c.permissions.has(p, Action.MANAGE_HUTS)) buttons.add(button("Style: " + c.style, p, c, h, player -> styles(player, c, h)));
+            if (c.building != null || !c.decorations.isEmpty())
+                buttons.add(button("Builds (" + (c.decorations.size() + (c.building != null ? 1 : 0)) + ")", p, c, h, player -> builds(player, c, h)));
         }
         if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
             buttons.add(button("Open storage", p, c, h, Action.OPEN_CONTAINER, player -> {
                 if (h.block.getState(false) instanceof Container ct) player.openInventory(ct.getInventory());
             }));
         Dialogs.show(p, h.type.title, body, List.of(), buttons, 1);
+    }
+
+    /**
+     * The builds without a hut ordered with the build tool (the mod's work order list): the one under way and those
+     * waiting, each with a Cancel button (MANAGE_HUTS). Huts' upgrades are cancelled from their own menus.
+     */
+    void builds(Player p, Colony c, Hut townHall) {
+        List<DialogBody> body = new ArrayList<>();
+        List<ActionButton> buttons = new ArrayList<>();
+        if (c.building != null) {
+            body.add(text(Component.text("Being built: " + c.building.name(), NamedTextColor.GOLD)));
+            buttons.add(button("Cancel " + c.building.name(), p, c, townHall, Action.MANAGE_HUTS, player -> {
+                c.cancelBuilding();
+                plugin.save(c);
+                builds(player, c, townHall);
+            }));
+        }
+        for (Colony.Decoration d : List.copyOf(c.decorations)) {
+            var at = d.origin();
+            body.add(text(Component.text(d.name() + " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ())));
+            buttons.add(button("Cancel " + d.name(), p, c, townHall, Action.MANAGE_HUTS, player -> {
+                c.decorations.remove(d);
+                plugin.save(c);
+                builds(player, c, townHall);
+            }));
+        }
+        if (body.isEmpty()) body.add(text(Component.text("No builds ordered.", NamedTextColor.GRAY)));
+        buttons.add(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
+        Dialogs.show(p, "Builds", body, List.of(), buttons, 1);
     }
 
     /** The colony's building style (the mod's town hall setting): every installed style, one button each. */

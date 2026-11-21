@@ -24,7 +24,8 @@ public enum Action {
     SHOOT_ARROW("Shoot arrows"),
     ATTACK_ENTITY("Attack animals and other entities"),
     ATTACK_CITIZEN("Attack citizens"),
-    HURT_CITIZEN("Hit citizens for more than 1 damage");
+    HURT_CITIZEN("Hit citizens for more than 1 damage"),
+    HURT_VISITOR("Hit visitors for more than 1 damage");
 
     public final String label;
 

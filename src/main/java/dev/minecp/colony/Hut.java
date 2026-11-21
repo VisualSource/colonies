@@ -238,7 +238,15 @@ public final class Hut {
         this.level = level;
     }
 
-    String structure(String style, int level) {
+    /**
+     * The version placed with the build tool (the mod's blueprint path), its path without the level, like
+     * "fundamentals/altbuilder"; null: the usual one. Saved.
+     */
+    public String blueprint;
+
+    /** Its building at {@code level}: the version it was placed as, else (or where a style lacks that version) the usual one. */
+    public String structure(String style, int level) {
+        if (blueprint != null && dev.minecp.build.BuildOrder.exists(style + "/" + blueprint + level)) return style + "/" + blueprint + level;
         return type.structure(style, level);
     }
 }

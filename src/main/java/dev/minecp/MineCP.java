@@ -211,6 +211,11 @@ public final class MineCP extends JavaPlugin implements Listener {
      * rotation null: from the block's facing). Check {@link #placeProblem} first.
      */
     public void placed(Player p, Hut.Type type, Block at, StructureRotation rotation, boolean mirror) {
+        placed(p, type, at, rotation, mirror, null);
+    }
+
+    /** {@code blueprint}: the version placed with the build tool (Hut.blueprint), null for the usual one. */
+    public void placed(Player p, Hut.Type type, Block at, StructureRotation rotation, boolean mirror, String blueprint) {
         Colony c;
         Hut hut;
         if (type == Hut.Type.TOWN_HALL) {
@@ -231,6 +236,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         ChestNames.name(at, type.title); // only chests take it: not the town hall's bell or a field's hay bale
         hut.rotation = rotation;
         hut.mirror = mirror;
+        hut.blueprint = blueprint;
         save(c);
     }
 
@@ -354,6 +360,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             if (e.getHand() != EquipmentSlot.HAND) return;
             Player p = e.getPlayer();
             if (!mayAccess(p, c)) return;
+            (w != null ? w : v.colonist).talkTo(p);
             if (w != null) menus.citizen(p, c, w);
             else menus.visitor(p, c, v);
             return;
@@ -398,7 +405,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         for (Colony c : colonies.values()) {
             Colonist w = c.colonistOf(e.getEntity());
             if (w != null) { c.health.hurt(w, e); return; }
-            if (c.visitors.of(e.getEntity()) != null) { e.setCancelled(true); return; } // ours: visitors can't be hurt
+            var v = c.visitors.of(e.getEntity());
+            if (v != null) { c.visitors.hurt(v, e); return; }
         }
     }
 

@@ -24,7 +24,7 @@ class PermissionsTest {
     @Test
     void defaultsAreTheMods() {
         assertEquals(EnumSet.of(Action.ACCESS_TOGGLEABLES), allowed(Rank.NEUTRAL), "neutral may only use doors and gates");
-        assertEquals(EnumSet.of(Action.HURT_CITIZEN), allowed(Rank.HOSTILE));
+        assertEquals(EnumSet.of(Action.HURT_CITIZEN, Action.HURT_VISITOR), allowed(Rank.HOSTILE));
         assertFalse(perms.has(Rank.FRIEND, Action.BREAK_BLOCKS));
         assertFalse(perms.has(Rank.FRIEND, Action.OPEN_CONTAINER));
         assertTrue(perms.has(Rank.FRIEND, Action.ACCESS_HUTS));

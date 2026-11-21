@@ -16,7 +16,7 @@ public enum Rank {
     Set<Action> defaults() {
         Set<Action> a = EnumSet.noneOf(Action.class);
         switch (this) {
-            case HOSTILE -> a.add(HURT_CITIZEN); // the mod lets hostile players hurt citizens properly
+            case HOSTILE -> a.addAll(EnumSet.of(HURT_CITIZEN, HURT_VISITOR)); // the mod lets hostile players hurt citizens and visitors properly
             case NEUTRAL -> a.add(ACCESS_TOGGLEABLES);
             case FRIEND, OFFICER, OWNER -> {
                 a.addAll(NEUTRAL.defaults());

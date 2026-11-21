@@ -45,6 +45,7 @@ public final class ColonyStore {
             putLocation(hs, "block", h.block.getLocation());
             if (h.rotation != null) hs.set("rotation", h.rotation.name());
             hs.set("mirror", h.mirror);
+            if (h.blueprint != null) hs.set("blueprint", h.blueprint);
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
@@ -52,6 +53,8 @@ public final class ColonyStore {
                 hs.set("worked-day", h.workedDay);
             }
         }
+        for (int i = 0; i < colony.decorations.size(); i++) putDecoration(s.createSection("decorations." + i), colony.decorations.get(i));
+        if (colony.building != null) putDecoration(s.createSection("building"), colony.building);
         for (int i = 0; i < colony.workOrders.size(); i++) {
             s.set("work-orders." + i + ".hut", colony.huts.indexOf(colony.workOrders.get(i).hut()));
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
@@ -90,6 +93,7 @@ public final class ColonyStore {
             Hut h = new Hut(Hut.Type.valueOf(hs.getString("type")), at.getBlock(), hs.getInt("level"));
             if (hs.contains("rotation")) h.rotation = StructureRotation.valueOf(hs.getString("rotation"));
             h.mirror = hs.getBoolean("mirror");
+            h.blueprint = hs.getString("blueprint");
             h.seed = Material.matchMaterial(hs.getString("seed", ""));
             List<Integer> extent = hs.getIntegerList("extent");
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
@@ -153,11 +157,22 @@ public final class ColonyStore {
             Hut h = colony.hutByIndex(orders.getInt(i + ".hut", -1));
             if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level"), orders.getBoolean(i + ".remove")));
         }
+        var decos = s.getConfigurationSection("decorations");
+        if (decos != null) for (String i : decos.getKeys(false)) {
+            var d = getDecoration(decos.getConfigurationSection(i));
+            if (d != null) colony.decorations.add(d);
+        }
+        if (s.isConfigurationSection("building")) colony.building = getDecoration(s.getConfigurationSection("building"));
 
         for (Hut h : colony.huts) colony.addJob(h);
         for (Job j : colony.jobs) {
             var js = s.getConfigurationSection("jobs." + colony.huts.indexOf(j.hut));
             if (js != null) j.load(js, colony);
+        }
+        // The builder carries on with the build it saved; without one (or its order), the build waits in the queue again.
+        if (colony.building != null && (colony.builder == null || colony.builder.order == null || colony.builder.work != null)) {
+            colony.decorations.addFirst(colony.building);
+            colony.building = null;
         }
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
@@ -181,5 +196,19 @@ public final class ColonyStore {
         var ls = s.getConfigurationSection(key);
         World world = ls == null ? null : Bukkit.getWorld(ls.getString("world", ""));
         return world == null ? null : new Location(world, ls.getDouble("x"), ls.getDouble("y"), ls.getDouble("z"));
+    }
+
+    private static void putDecoration(ConfigurationSection s, Colony.Decoration d) {
+        s.set("structure", d.structure());
+        s.set("name", d.name());
+        putLocation(s, "origin", d.origin());
+        s.set("rotation", d.rotation().name());
+        s.set("mirror", d.mirror());
+    }
+
+    private static Colony.Decoration getDecoration(ConfigurationSection s) {
+        var at = getLocation(s, "origin");
+        return at == null ? null : new Colony.Decoration(s.getString("structure"), s.getString("name", "build"), at,
+                org.bukkit.block.structure.StructureRotation.valueOf(s.getString("rotation", "NONE")), s.getBoolean("mirror"));
     }
 }

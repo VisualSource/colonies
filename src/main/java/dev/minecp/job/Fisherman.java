@@ -138,7 +138,7 @@ public final class Fisherman extends Job {
                 wear(Tool.ROD, w);
                 catches++;
                 cooldown = 20;
-                if (ThreadLocalRandom.current().nextDouble() < NEW_POND) pond = null;
+                if (ThreadLocalRandom.current().nextDouble() < NEW_POND) { pond = null; searchFailed = false; } // a fresh look for a new pond
                 if (catches >= MAX_CATCHES || pond == null) state = State.FIND;
             }
             case TO_HUT -> {

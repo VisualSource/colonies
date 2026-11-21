@@ -51,6 +51,10 @@ public final class Colony {
     public final List<Hut> huts = new ArrayList<>(); // huts.getFirst() is the town hall
     public final List<Colonist> colonists = new ArrayList<>();
     public final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
+    /** A build without a hut, queued with the build tool (the mod's decoration work order): which, where, turned how. */
+    public record Decoration(String structure, String name, Location origin, StructureRotation rotation, boolean mirror) {}
+    public final List<Decoration> decorations = new ArrayList<>(); // waiting for the builder, after the huts' work orders
+    public Decoration building; // the build without a hut the builder works on; saved
     public final List<Job> jobs = new ArrayList<>(); // one per worker hut
     public final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
     public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
@@ -87,7 +91,8 @@ public final class Colony {
         default void ate() {}
         default void taught(org.bukkit.Material result) {}
         default void buried() {}
-        default void resurrected() {}    }
+        default void resurrected() {}
+    }
 
     public Milestones milestones = new Milestones() {};
     public java.util.function.Consumer<Hut> onTakenDown = h -> {}; // a removal order finished: the plugin removes the hut
@@ -306,7 +311,10 @@ public final class Colony {
         if (job != null) {
             job.dropCarried();
             jobs.remove(job);
-            if (job == builder) builder = null;
+            if (job == builder) {
+                builder = null;
+                if (building != null) { decorations.addFirst(building); building = null; } // built again by the next builder
+            }
         }
         for (Colonist c : colonists) if (c.home == hut) c.home = null;
         if (hut.type == Hut.Type.TAVERN) visitors.tavernRemoved(hut);
@@ -326,7 +334,11 @@ public final class Colony {
                     addHut(Hut.Type.FIELD, f);
                     tell("A field came with the building: right-click its hay bale to choose a crop.");
                 }
-            if (done == null) { tell("Your builder finished the build."); return; }
+            if (done == null) {
+                tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + ".");
+                building = null;
+                return;
+            }
             if (done.remove()) {
                 tell("Your builder took down the " + done.hut().type.title + ".");
                 onTakenDown.accept(done.hut());
@@ -429,7 +441,10 @@ public final class Colony {
     }
 
     public void tick() {
-        if (builder != null && builder.order == null && !workOrders.isEmpty()) startNextWorkOrder();
+        if (builder != null && builder.order == null) {
+            if (!workOrders.isEmpty()) startNextWorkOrder();
+            else if (!decorations.isEmpty()) startNextDecoration();
+        }
         if (++colonyTick % COLONY_TICK == 0) {
             if (colonists.size() < STARTING_CITIZENS && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
                 moveIn = 60 * 20;
@@ -452,6 +467,7 @@ public final class Colony {
             routine.hunger(c, job);
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
+            if (c.talkTicks > 0) { c.talkTicks--; continue; } // a player clicked it: it stands still for a moment
             boolean hide = raids.underway() && !(job instanceof dev.minecp.job.Guard); // the mod: citizens shelter at home during a raid
             if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
@@ -499,6 +515,27 @@ public final class Colony {
     public Cook restaurant() {
         for (Job j : jobs) if (j instanceof Cook cook && cook.hut.level >= 1 && worker(cook) != null) return cook;
         return null;
+    }
+
+    /** Queues a build without a hut for the builder. @return why it can't, or null when queued. */
+    public String queueDecoration(Decoration d) {
+        if (builder == null) return "Place a Builder's Hut first: the builder builds it.";
+        decorations.add(d);
+        return null;
+    }
+
+    /** Stops the build without a hut the builder is on, if it is on one. */
+    public void cancelBuilding() {
+        if (builder != null && builder.order != null && builder.work == null) builder.cancel();
+        building = null;
+    }
+
+    private void startNextDecoration() {
+        Decoration d = decorations.removeFirst();
+        BuildOrder o = BuildOrder.create(d.structure(), d.origin(), d.rotation(), d.mirror(), null);
+        if (o == null) { tell("Structure " + d.structure() + " not found; the " + d.name().toLowerCase() + " was skipped."); return; }
+        builder.start(o, null);
+        building = d;
     }
 
     private void startNextWorkOrder() {

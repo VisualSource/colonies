@@ -43,11 +43,12 @@ public final class Dialogs {
         }, ONCE)).build();
     }
 
-    /** Shows a dialog of text, optional inputs and buttons, with a Close button. */
+    /** Shows a dialog of text, optional inputs and buttons, with a Close button (only that, with no buttons). */
     public static void show(Player p, String title, List<DialogBody> body, List<DialogInput> inputs, List<ActionButton> buttons, int columns) {
+        ActionButton close = ActionButton.builder(Component.text("Close")).build();
         p.showDialog(Dialog.create(f -> f.empty()
                 .base(DialogBase.builder(Component.text(title)).body(body).inputs(inputs).build())
-                .type(DialogType.multiAction(buttons).columns(columns)
-                        .exitAction(ActionButton.builder(Component.text("Close")).build()).build())));
+                .type(buttons.isEmpty() ? DialogType.notice(close) // a multi-action dialog must have a button
+                        : DialogType.multiAction(buttons).columns(columns).exitAction(close).build())));
     }
 }

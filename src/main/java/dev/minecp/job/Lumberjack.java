@@ -38,7 +38,7 @@ public final class Lumberjack extends Job {
     private static final int LEAVES_PER_SWING = 4;
     private static final BlockFace[] FACES = {BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
 
-    private enum State { FIND, TO_TREE, CHOP, TO_HUT, REFETCH }
+    private enum State { FIND, TO_TREE, CHOP, TO_HUT, REFETCH, SAPLINGS, REPLANT }
 
     private State state = State.FIND;
     private Block base;           // lowest log of the tree being cut
@@ -66,10 +66,15 @@ public final class Lumberjack extends Job {
         return wants;
     }
 
-    /** Its tools stay; the wood, saplings and apples go to the warehouse. */
+    /** Its tools and a stack of each sapling stay (the mod's keepX); the wood and apples go to the warehouse. */
     @Override
     int keep(org.bukkit.inventory.ItemStack item) {
-        return fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null) ? Integer.MAX_VALUE : 0;
+        if (fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null)) return Integer.MAX_VALUE;
+        return isSapling(item.getType()) ? 64 : 0;
+    }
+
+    private static boolean isSapling(Material m) {
+        return Tag.SAPLINGS.isTagged(m) || m == Material.MANGROVE_PROPAGULE;
     }
 
     @Override
@@ -151,9 +156,26 @@ public final class Lumberjack extends Job {
                     cooldown = chopTicks() / 2;
                     return;
                 }
-                replant();
                 w.setStatus("Lumberjack: working");
-                state = State.TO_HUT;
+                state = replant() ? State.TO_HUT : State.SAPLINGS; // none dropped: from the hut chest (the mod's checkAndTransferFromHut)
+            }
+            case SAPLINGS -> {
+                if (!atHut(w)) { goToHut(w); return; }
+                deliver(); // the wood first
+                Material sapling = saplingFor(logType);
+                int got = sapling == null ? 0 : takeSaplings(sapling, bareSpotBlocks().size());
+                if (got == 0) { // note says which sapling; the tree's spot stays bare
+                    note = "No " + (sapling == null ? "sapling" : name(sapling)) + " in the hut chest to replant the last tree.";
+                    state = State.FIND;
+                    return;
+                }
+                state = State.REPLANT;
+            }
+            case REPLANT -> {
+                if (w.location().distance(base.getLocation().toCenterLocation()) > 4) { w.goBeside(base); return; }
+                replant();
+                w.swing();
+                state = State.TO_HUT; // what it didn't plant goes back
             }
             case TO_HUT -> {
                 if (!atHut(w)) { goToHut(w); return; }
@@ -198,20 +220,36 @@ public final class Lumberjack extends Job {
         block.setType(Material.AIR, false);
     }
 
-    /** Plants saplings gathered from the leaves on every spot the trunk stood on soil (2x2 trees need 4). */
-    private void replant() {
+    /**
+     * Plants the saplings it carries on every spot the trunk stood on soil (2x2 trees need 4). @return false if a spot
+     * stayed bare for want of a sapling.
+     */
+    private boolean replant() {
         Material sapling = saplingFor(logType);
-        if (sapling == null) return;
-        for (Block log : logs) {
-            if (!log.isEmpty() || !Tag.DIRT.isTagged(log.getRelative(0, -1, 0).getType())) continue;
-            if (carried.getOrDefault(sapling, 0) <= 0) {
-                note = "No " + name(sapling) + " dropped to replant the last tree.";
-                return;
-            }
+        if (sapling == null) return true;
+        boolean all = true;
+        for (Block log : bareSpotBlocks()) {
+            if (carried.getOrDefault(sapling, 0) <= 0) { all = false; break; }
             carried.merge(sapling, -1, Integer::sum);
             log.setType(sapling);
         }
         carried.values().removeIf(n -> n <= 0);
+        return all;
+    }
+
+    /** Where the trunk stood on soil and nothing grows yet. */
+    private List<Block> bareSpotBlocks() {
+        return logs.stream().filter(b -> b.isEmpty() && Tag.DIRT.isTagged(b.getRelative(0, -1, 0).getType())).toList();
+    }
+
+    /** Takes up to {@code n} of {@code sapling} from the hut chest (it stands there). @return how many. */
+    private int takeSaplings(Material sapling, int n) {
+        var chest = chest();
+        if (chest == null || n <= 0) return 0;
+        int got = n - chest.removeItem(new org.bukkit.inventory.ItemStack(sapling, n)).values().stream()
+                .mapToInt(org.bukkit.inventory.ItemStack::getAmount).sum();
+        if (got > 0) carried.merge(sapling, got, Integer::sum);
+        return got;
     }
 
     private static Material saplingFor(Material log) {

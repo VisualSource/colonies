@@ -47,7 +47,7 @@ public final class Undertaker extends Job {
     private String body, bodyJob;   // dug up, waiting to be buried
     private BuildOrder.GraveSpot buryAt;
     private int effort;
-    private final Map<String, Block> resting = new LinkedHashMap<>(); // buried here: name, named grave
+    private final Map<Block, String> resting = new LinkedHashMap<>(); // buried here: named grave (its burial spot), name
     private List<BuildOrder.GraveSpot> spots = List.of();
     private int spotsLevel = -1;
 
@@ -58,7 +58,14 @@ public final class Undertaker extends Job {
 
     /** The named grave of a citizen buried here, or null. */
     public Block restingPlace(String name) {
-        return resting.get(name);
+        prune();
+        for (var e : resting.entrySet()) if (e.getValue().equals(name)) return e.getKey();
+        return null;
+    }
+
+    /** Graves a player broke are forgotten: the spot can take someone else. */
+    private void prune() {
+        resting.keySet().removeIf(b -> b.getType() != Material.STONE_BRICK_WALL);
     }
 
     @Override
@@ -82,7 +89,7 @@ public final class Undertaker extends Job {
         lines.add(Component.text("Graves to dig up: " + waiting + ". Buried here: " + resting.size() + " of "
                 + spots().size() + " spots.", NamedTextColor.GRAY));
         lines.add(Component.text(String.format("Chance to bring one back: %.1f%%", chance() * 100), NamedTextColor.GRAY));
-        if (!resting.isEmpty()) lines.add(Component.text("Resting here: " + String.join(", ", resting.keySet()), NamedTextColor.GRAY));
+        if (!resting.isEmpty()) lines.add(Component.text("Resting here: " + String.join(", ", resting.values()), NamedTextColor.GRAY));
         return lines;
     }
 
@@ -93,7 +100,7 @@ public final class Undertaker extends Job {
     /** The burial spots of the graveyard as built (the mod's named grave blocks in its blueprint). */
     private List<BuildOrder.GraveSpot> spots() {
         if (spotsLevel != hut.level) {
-            BuildOrder o = BuildOrder.create(hut.type.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
             spots = o == null ? List.of() : o.graves;
             spotsLevel = hut.level;
         }
@@ -200,7 +207,7 @@ public final class Undertaker extends Job {
                 if (!w.isBeside(buryAt.block())) { w.goBeside(buryAt.block()); return; }
                 if (!work(w, BURY_TICKS)) return;
                 bury(buryAt, body, bodyJob);
-                resting.put(body, buryAt.block());
+                resting.put(buryAt.block(), body);
                 colony.milestones.buried();
                 body = null;
                 effort = 0;
@@ -255,7 +262,8 @@ public final class Undertaker extends Job {
 
     /** A free burial spot, picked at random as the mod does. */
     private BuildOrder.GraveSpot freeSpot() {
-        List<BuildOrder.GraveSpot> free = spots().stream().filter(s -> s.block().isReplaceable() && !resting.containsValue(s.block())).toList();
+        prune();
+        List<BuildOrder.GraveSpot> free = spots().stream().filter(s -> s.block().isReplaceable() && !resting.containsKey(s.block())).toList();
         return free.isEmpty() ? null : free.get(ThreadLocalRandom.current().nextInt(free.size()));
     }
 
@@ -306,8 +314,8 @@ public final class Undertaker extends Job {
         int i = 0;
         for (var e : resting.entrySet()) {
             var rs = s.createSection("resting." + i++);
-            rs.set("name", e.getKey());
-            ColonyStore.putLocation(rs, "block", e.getValue().getLocation());
+            rs.set("name", e.getValue());
+            ColonyStore.putLocation(rs, "block", e.getKey().getLocation());
         }
     }
 
@@ -322,7 +330,7 @@ public final class Undertaker extends Job {
         var rs = s.getConfigurationSection("resting");
         if (rs != null) for (String k : rs.getKeys(false)) {
             Location at = ColonyStore.getLocation(rs.getConfigurationSection(k), "block");
-            if (at != null) resting.put(rs.getString(k + ".name"), at.getBlock());
+            if (at != null) resting.put(at.getBlock(), rs.getString(k + ".name"));
         }
     }
 }

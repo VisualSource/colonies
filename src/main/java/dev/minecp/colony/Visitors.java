@@ -3,9 +3,17 @@ package dev.minecp.colony;
 import dev.minecp.citizen.Colonist;
 
 import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,6 +33,10 @@ public final class Visitors {
     static final int STAY_TICKS = 60 * 50 * 50;
     private static final int FIRST_VISITOR = 10_000; // ticks before a new tavern's first visitor
     private static final int RUN_OFF_PERCENT = 3;    // the mod's nextInt(100) <= 2: they take the payment and leave
+    // The mod's EntityAIVisitor combat: it hits what hurt it for 10 every second from 2 blocks, for up to 30 seconds.
+    private static final double MAX_HEALTH = 20, HIT = 10, REACH = 2;
+    private static final int ATTACK_DELAY = 20, FIGHT_TICKS = 30 * 20;
+    private static final int NO_VISITOR_TICKS = 30_000, NO_VISITOR_RANDOM = 5000; // a tavern whose visitor died waits this long
     /**
      * What visitors ask, by rarity 1 to 9 (the mod's recruitment_items). Its own foods are left out: rarity 7 had
      * only those, so ours there are rabbit stew, pumpkin pie and golden carrots.
@@ -48,6 +60,9 @@ public final class Visitors {
         public final Material item;
         public final int count;
         int stay;
+        double health = MAX_HEALTH; // shortcut: not saved and never heals; save and heal it if visitors die of old wounds
+        LivingEntity target;        // what hurt it, which it fights
+        int fightTicks, attackIn;
 
         Visitor(Colonist colonist, Hut tavern, Material item, int count, int stay) {
             this.colonist = colonist;
@@ -106,9 +121,63 @@ public final class Visitors {
         for (Visitor v : List.copyOf(list)) {
             if (--v.stay <= 0) { leave(v); continue; }
             if (!v.colonist.tick()) continue;
+            if (v.target != null) { fight(v); continue; }
+            if (v.colonist.talkTicks > 0) { v.colonist.talkTicks--; continue; } // a player clicked it
             v.colonist.setStatus("Visitor");
             v.colonist.wander(v.tavern.block.getLocation().toCenterLocation());
         }
+    }
+
+    /**
+     * Hits on a visitor: the hit itself is cancelled and its own health takes it (the mod's VisitorCitizen.hurt). Not
+     * from citizens; a player's hit of more than 1 needs HURT_VISITOR. A mob's or player's hit of more than 1 makes it
+     * and the tavern's other visitors who aren't fighting yet fight back.
+     */
+    public void hurt(Visitor v, EntityDamageEvent e) {
+        e.setCancelled(true);
+        if (e.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) { v.colonist.hopAside(null); return; }
+        Entity source = e instanceof EntityDamageByEntityEvent by ? by.getDamager() : null;
+        if (source instanceof Projectile pr && pr.getShooter() instanceof Entity shooter) source = shooter;
+        if (source != null && (colony.colonistOf(source) != null || of(source) != null)) return;
+        if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_VISITOR)) return;
+        if (e.getDamage() <= 0) return;
+        v.health -= e.getDamage();
+        v.colonist.showHurt();
+        if (v.health <= 0) { die(v, e.getCause()); return; }
+        if (source instanceof LivingEntity attacker && e.getDamage() > 1.01)
+            for (Visitor o : list) if (o == v || o.tavern == v.tavern && o.target == null) { o.target = attacker; o.fightTicks = FIGHT_TICKS; }
+    }
+
+    /** Walks up to its target and hits it every second, until it is dead, gone or 30 seconds have passed. */
+    private void fight(Visitor v) {
+        LivingEntity t = v.target;
+        if (!t.isValid() || t.isDead() || !t.getWorld().equals(v.colonist.location().getWorld()) || --v.fightTicks <= 0) {
+            v.target = null;
+            return;
+        }
+        v.colonist.setStatus("Visitor: fighting");
+        if (v.attackIn > 0) v.attackIn--;
+        Location at = v.colonist.location();
+        if (at.distance(t.getLocation()) > REACH) {
+            if (!v.colonist.isMoving() || v.attackIn == 0) { v.colonist.walk(t.getLocation()); v.attackIn = ATTACK_DELAY; } // a new route each second
+            return;
+        }
+        v.colonist.stopWalking();
+        if (v.attackIn > 0 || !v.colonist.living().hasLineOfSight(t)) return;
+        v.attackIn = ATTACK_DELAY;
+        v.colonist.swing();
+        t.damage(HIT, v.colonist.living());
+    }
+
+    /** The mod's visitor death: gone, its managers told, and its tavern gets no visitors for a while. */
+    private void die(Visitor v, EntityDamageEvent.DamageCause cause) {
+        Location at = v.colonist.location();
+        at.getWorld().playSound(at, Sound.ENTITY_PLAYER_DEATH, SoundCategory.NEUTRAL, 1, 1);
+        at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
+        leave(v);
+        timers.put(v.tavern, NO_VISITOR_TICKS + ThreadLocalRandom.current().nextInt(NO_VISITOR_RANDOM));
+        colony.tell("Visitor " + v.colonist.name + " died (" + cause.name().toLowerCase().replace('_', ' ') + ") at "
+                + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ() + ".");
     }
 
     private void leave(Visitor v) {
