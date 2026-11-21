@@ -13,14 +13,14 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.TabExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 /** /colony: info, the Build Tool, test builds, movement stats, and (admins) hut items and racks. */
-final class Commands implements CommandExecutor {
+final class Commands implements TabExecutor {
     private final MineCP plugin;
 
     Commands(MineCP plugin) {
@@ -178,5 +178,34 @@ final class Commands implements CommandExecutor {
             default -> { return false; }
         }
         return true;
+    }
+
+    /** Suggestions as /colony is typed: only what the player may use (admins also get the hut items, rack and raid). */
+    @Override
+    public java.util.List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String @NotNull [] args) {
+        boolean admin = sender.hasPermission("minecp.admin");
+        java.util.List<String> options = new java.util.ArrayList<>();
+        switch (args.length) {
+            case 1 -> {
+                options.addAll(java.util.List.of("info", "buildtool", "members", "member", "build", "movement"));
+                if (admin) { options.addAll(Hut.Type.commands()); options.add("rack"); options.add("raid"); }
+            }
+            case 2 -> {
+                switch (args[0]) {
+                    case "member" -> options.addAll(java.util.List.of("add", "remove"));
+                    case "raid" -> { if (admin) options.addAll(java.util.List.of("now", "tonight")); }
+                    case "build" -> {
+                        options.add("cancel");
+                        if (admin && !args[1].contains("/")) Colony.styles().forEach(st -> options.add(st + "/")); // styles first: thousands of structures
+                        else if (admin) options.addAll(dev.minecp.build.Catalog.structures());
+                    }
+                    default -> {}
+                }
+            }
+            case 3 -> { if (args[0].equals("member")) sender.getServer().getOnlinePlayers().forEach(p -> options.add(p.getName())); }
+            case 4 -> { if (args[0].equals("member") && args[1].equals("add")) options.addAll(java.util.List.of("officer", "friend", "hostile")); }
+            default -> {}
+        }
+        return org.bukkit.util.StringUtil.copyPartialMatches(args[args.length - 1], options, new java.util.ArrayList<>());
     }
 }

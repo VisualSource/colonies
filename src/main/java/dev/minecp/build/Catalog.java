@@ -94,33 +94,50 @@ public final class Catalog {
         return new Entry(path, nice.isEmpty() ? name : Character.toUpperCase(nice.charAt(0)) + nice.substring(1), null, !level.isEmpty());
     }
 
+    /** Every structure of every installed style, as "style/path" (for /colony build's suggestions). */
+    public static List<String> structures() {
+        List<String> out = new ArrayList<>();
+        for (String style : dev.minecp.colony.Colony.styles()) for (String f : files(style)) out.add(style + "/" + f);
+        return out;
+    }
+
     /** A category folder's name for the menus: "craftsmanship/storage" -> "Storage". */
     public static String title(String folder) {
         String last = folder.substring(folder.lastIndexOf('/') + 1).replace('_', ' ');
         return last.isEmpty() ? last : Character.toUpperCase(last.charAt(0)) + last.substring(1);
     }
 
-    /** Every structure file of a style, as paths inside it without ".nbt": the data packs', and hand-fixed ones. */
+    /**
+     * Every structure file of a style, as paths inside it without ".nbt": the data packs' (folders or zips, as the game
+     * reads both), and hand-fixed ones.
+     */
     private static List<String> files(String style) {
         return FILES.computeIfAbsent(style, s -> {
             TreeSet<String> out = new TreeSet<>();
             // The save's own folder, which holds datapacks/ and generated/ (a world's folder is its dimension's in 26.3).
             Path world = Bukkit.getWorldContainer().toPath().resolve(Bukkit.getWorlds().getFirst().getName());
-            List<Path> roots = new ArrayList<>();
-            roots.add(world.resolve("generated/minecp/structure").resolve(s));
+            scan(world.resolve("generated/minecp/structure").resolve(s), out);
             try (Stream<Path> packs = Files.list(world.resolve("datapacks"))) {
-                packs.forEach(p -> roots.add(p.resolve("data/minecp/structure").resolve(s)));
+                for (Path pack : packs.toList()) {
+                    if (Files.isDirectory(pack)) scan(pack.resolve("data/minecp/structure").resolve(s), out);
+                    else if (pack.toString().endsWith(".zip"))
+                        try (var zip = java.nio.file.FileSystems.newFileSystem(pack)) {
+                            scan(zip.getPath("data/minecp/structure", s), out);
+                        } catch (IOException ignored) {} // not a readable zip: left out
+                }
             } catch (IOException ignored) {} // no data packs folder: nothing to list
-            for (Path root : roots) {
-                if (!Files.isDirectory(root)) continue;
-                try (Stream<Path> walk = Files.walk(root)) {
-                    walk.filter(p -> p.toString().endsWith(".nbt")).forEach(p -> {
-                        String rel = root.relativize(p).toString().replace('\\', '/');
-                        out.add(rel.substring(0, rel.length() - 4));
-                    });
-                } catch (IOException ignored) {} // unreadable: left out
-            }
             return List.copyOf(out);
         });
+    }
+
+    /** Adds the structures under {@code root} (paths inside it, without ".nbt"), if it exists. */
+    private static void scan(Path root, TreeSet<String> out) {
+        if (!Files.isDirectory(root)) return;
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.filter(p -> p.toString().endsWith(".nbt")).forEach(p -> {
+                String rel = root.relativize(p).toString().replace('\\', '/');
+                out.add(rel.substring(0, rel.length() - 4));
+            });
+        } catch (IOException ignored) {} // unreadable: left out
     }
 }

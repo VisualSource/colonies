@@ -99,7 +99,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
-        Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this));
+        Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this)); // a TabExecutor: Bukkit uses it for suggestions too
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
             try {
                 c.tick();
@@ -296,13 +296,17 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getBlock().getType() == Material.FARMLAND && e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) e.setCancelled(true);
     }
 
-    /** A rack drops as a Storage Rack, not a plain chest (its contents spill as usual). */
+    /**
+     * A rack drops as a Storage Rack, not a plain chest. Turning off its drops also stops its contents spilling, so
+     * they are taken out and dropped here (emptied first, so nothing drops twice).
+     */
     @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.HIGH)
     public void onBreakRack(BlockBreakEvent e) {
         if (!Rack.is(e.getBlock()) || colonyAt(e.getBlock()) != null || !e.isDropItems()) return;
         e.setDropItems(false);
-        if (e.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE)
-            e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation().toCenterLocation(), Rack.item());
+        Location at = e.getBlock().getLocation().toCenterLocation();
+        for (ItemStack it : Job.takeContents(e.getBlock())) e.getBlock().getWorld().dropItemNaturally(at, it);
+        if (e.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE) e.getBlock().getWorld().dropItemNaturally(at, Rack.item());
     }
 
     @EventHandler(ignoreCancelled = true)

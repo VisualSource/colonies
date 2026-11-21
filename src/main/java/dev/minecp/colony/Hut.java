@@ -197,6 +197,11 @@ public final class Hut {
             });
         }
 
+        /** The /colony subcommands that give a hut's item (admins). */
+        public static java.util.List<String> commands() {
+            return java.util.Arrays.stream(values()).map(t -> t.command).toList();
+        }
+
         public static Type byCommand(String command) {
             for (Type t : values()) if (t.command.equals(command)) return t;
             return null;

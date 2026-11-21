@@ -243,7 +243,10 @@ public final class BuildOrder {
         if (template == null) return;
         template.place(origin, false, rotation, mirror ? Mirror.FRONT_BACK : Mirror.NONE,
                 0, 1f, new java.util.Random());
-        for (Step s : steps) if (s.fill) s.block.setBlockData(ground.getOrDefault(s.block, Material.DIRT.createBlockData()), false);
+        for (Step s : steps) {
+            if (s.fill) s.block.setBlockData(ground.getOrDefault(s.block, Material.DIRT.createBlockData()), false);
+            if (s.rack) Rack.tag(s.block); // named for its inventory title and the optional pack's model, as the builder's are
+        }
     }
 
     /** Lays {@code m} as the foundation filler instead of dirt (the builder's fill block setting). */

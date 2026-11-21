@@ -150,7 +150,7 @@ public final class Advancements {
         return "{" + (d.parent == null ? "" : "\"parent\":\"" + (vanillaTab ? "" : "minecp:") + d.parent + "\",")
                 + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"
                 + "\"description\":{\"text\":\"" + d.description + "\"},\"frame\":\"" + d.frame + "\",\"hidden\":" + d.hidden
-                + ",\"show_toast\":" + (d.parent != null && !vanillaTab) + ",\"announce_to_chat\":" + (d.parent != null && !vanillaTab) + bg + "},"
+                + ",\"show_toast\":" + !vanillaTab + ",\"announce_to_chat\":" + !vanillaTab + bg + "},"  // roots too, as the mod's
                 + "\"criteria\":{\"done\":{\"trigger\":\"minecraft:impossible\"}}}";
     }
 

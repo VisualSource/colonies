@@ -43,9 +43,12 @@ public final class Rack {
 
     /** Marks a chest in the world as a rack. */
     public static void tag(Block b) {
-        if (!(b.getState() instanceof TileState ts) || ts.getPersistentDataContainer().has(BuildOrder.RACK_MARKER)) return;
-        ts.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
-        ts.update(true, false);
+        if (!(b.getState() instanceof TileState ts)) return;
+        if (!ts.getPersistentDataContainer().has(BuildOrder.RACK_MARKER)) {
+            ts.getPersistentDataContainer().set(BuildOrder.RACK_MARKER, PersistentDataType.BYTE, (byte) 1);
+            ts.update(true, false);
+        }
+        // Named even when already tagged: a pasted structure's chest (supplies) brings the tag but not the name.
         dev.minecp.ChestNames.name(b, NAME); // its inventory title, and the pack's model choice
     }
 }
