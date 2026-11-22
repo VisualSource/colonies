@@ -25,7 +25,7 @@ public final class Advancements {
     /** {@code criteria}: awarded separately, all needed (most have one, "done"). */
     private record Def(String parent, String icon, String title, String description, String frame, boolean hidden, List<String> criteria) {}
 
-    private static final String ROOT = "minecolonies/root", PRODUCTION = "production/root";
+    private static final String ROOT = "minecolonies/root", PRODUCTION = "production/root", MILITARY = "military/root";
     /** The mod's post_and_stash: placing a postbox and placing a stash, its criteria "postbox" and "stash". */
     static final String POST_AND_STASH = "production/post_and_stash";
     private static final Map<String, Def> ALL = new LinkedHashMap<>();
@@ -78,8 +78,15 @@ public final class Advancements {
         add("production/build_smeltery", "production/build_sawmill", "iron_ingot", "Molten Metal", "Finish a Smeltery", "task");
         add("production/build_smeltery_3", "production/build_smeltery", "iron_ingot", "Hotter Furnaces", "Upgrade a Smeltery to level 3", "task");
         add("production/build_smeltery_5", "production/build_smeltery_3", "gold_ingot", "Master Smelter", "Upgrade a Smeltery to level 5", "task");
+        add("production/deep_mine", "production/build_miner", "bedrock", "Rock Bottom", "Your miner's shaft reaches the bottom of the world", "task");
+        add("production/max_fields", "production/build_farmer", "hay_block", "Breadbasket", "Give a farmer five fields to work", "task");
         // Filed with the MineColonies ones in the mod, but its parent (loaded first) puts it in this tab.
         add("minecolonies/building_add_recipe_door", "production/build_sawmill", "oak_door", "Knock Knock", "Teach a crafter to make a wooden door", "task");
+        // The military tab. Its root is finishing a Guard Tower, as the mod's (its icon, the barracks hut, is a vanilla stand-in).
+        add(MILITARY, null, "iron_helmet", "Colony Defence", "Finish a Guard Tower", "task");
+        add("military/army_8", MILITARY, "stone_sword", "A Watch", "Have 8 guards", "task");
+        add("military/army_30", "military/army_8", "iron_sword", "A Garrison", "Have 30 guards", "task");
+        add("military/army_80", "military/army_30", "diamond_sword", "A Standing Army", "Have 80 guards", "challenge");
     }
 
     /** The advancement for a hut finished at a level, as the mod's complete_build_request triggers; null if none. */
@@ -88,7 +95,7 @@ public final class Advancements {
             case TOWN_HALL -> level == 1 ? "minecolonies/build_town_hall" : level == 5 ? "minecolonies/build_town_hall_5" : null;
             case BUILDER -> level == 1 ? "minecolonies/build_builder" : level == 2 ? "minecolonies/build_builder_2" : null;
             case HOUSE -> level == 1 ? "minecolonies/build_citizen" : null;
-            case GUARD_TOWER -> level == 1 ? "minecolonies/build_guard_tower" : null;
+            case GUARD_TOWER -> level == 1 ? "minecolonies/build_guard_tower|" + MILITARY : null; // the military tab's root too
             case LUMBERJACK -> level == 1 ? "production/build_lumberjack" : null;
             case FARMER -> level == 1 ? "production/build_farmer" : null;
             case MINER -> level == 1 ? "production/build_miner" : null;
@@ -151,7 +158,11 @@ public final class Advancements {
     }
 
     private static String json(Def d) {
-        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + (d.title.equals("Colonies") ? "light_gray_wool" : "oak_planks") + "\"" : "";
+        String bg = d.parent == null ? ",\"background\":\"minecraft:block/" + switch (d.title) {
+            case "Colonies" -> "light_gray_wool";
+            case "Colony Defence" -> "stone_bricks"; // the mod's
+            default -> "oak_planks"; // the mod's is Structurize's cactus planks
+        } + "\"" : "";
         boolean vanillaTab = d.parent != null && d.parent.startsWith("minecraft:"); // quiet there, as the mod's
         return "{" + (d.parent == null ? "" : "\"parent\":\"" + (vanillaTab ? "" : "minecp:") + d.parent + "\",")
                 + "\"display\":{\"icon\":{\"id\":\"minecraft:" + d.icon + "\"},\"title\":{\"text\":\"" + d.title + "\"},"
@@ -193,6 +204,21 @@ public final class Advancements {
             @Override
             public void population(int citizens) {
                 for (int t : new int[]{5, 10, 25, 50, 75}) if (citizens >= t) award(c, "minecolonies/colony_population_" + t);
+            }
+
+            @Override
+            public void guards(int guards) {
+                for (int t : new int[]{8, 30, 80}) if (guards >= t) award(c, "military/army_" + t);
+            }
+
+            @Override
+            public void deepMine() {
+                award(c, "production/deep_mine");
+            }
+
+            @Override
+            public void maxFields() {
+                award(c, "production/max_fields");
             }
 
             @Override

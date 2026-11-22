@@ -44,7 +44,8 @@ public final class Miner extends Job {
     private static final int REACH = 6;            // ours: the first layer under the shaft room is only 1 high: work from the room's hole
     private static final int FAR_REACH = 8;        // ours: if there is nowhere to stand nearer
     private static final int BLOCK_STOCK = 64, LADDER_STOCK = 16; // ours, of cobblestone and the fill block: the mod requests 32 cobblestone and 10 ladders at a time
-    private static final int DELIVER_AT = 256;     // ours: loot carried before a trip up
+    private static final int DELIVER_AT = 256;
+    private static final int SHAFT_BASE_DEPTH = 8;  // the mod's: a shaft this close to the world's bottom counts as reaching it     // ours: loot carried before a trip up
     private static final int HUT_RANGE = 12;       // ours: how far from the hut block the shaft's ladder may be
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
@@ -231,6 +232,7 @@ public final class Miner extends Job {
         w.setStatus("Miner: working");
         if (order != null) { workOrder(w); return; }
         int last = lastLadder();
+        if (last < w.location().getWorld().getMinHeight() + SHAFT_BASE_DEPTH) colony.milestones.deepMine();
         if (levelTarget == Integer.MIN_VALUE) levelTarget = last - 1 - 4; // the mod: the first level 4 below where the shaft starts
         if (last >= depthLimit()) { shaftStep(w, last); return; }
         if (levels.isEmpty()) { startLevel(last + 2); return; } // shaft already at the limit: still needs a level to tunnel from

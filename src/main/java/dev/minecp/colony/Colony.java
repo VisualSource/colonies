@@ -100,6 +100,9 @@ public final class Colony {
         default void queued(Hut.Type type, int level) {}
         default void built(Hut.Type type, int level) {}
         default void population(int citizens) {}
+        default void guards(int guards) {}
+        default void deepMine() {}
+        default void maxFields() {}
         default void ate() {}
         default void taught(org.bukkit.Material result) {}
         default void buried() {}
@@ -545,6 +548,8 @@ public final class Colony {
             growUp();
             visitors.colonyTick(COLONY_TICK);
             research.colonyTick();
+            // ours: counted each colony tick (the mod counts when a guard is hired)
+            milestones.guards((int) jobs.stream().filter(j -> j instanceof dev.minecp.job.Guard && j.worker != null).count());
         }
         long time = townHall().block.getWorld().getTime(); // 0..23999
         routine.clock(time);

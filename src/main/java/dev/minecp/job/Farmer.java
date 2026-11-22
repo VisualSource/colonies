@@ -178,6 +178,7 @@ public final class Farmer extends Job {
             delivering = false;
         }
         List<Hut> fields = colony.fieldsOf(this);
+        if (fields.size() == Hut.MAX_LEVEL) colony.milestones.maxFields(); // the mod: as many fields as the hut's top level
         if (fields.isEmpty()) {
             idle(w, "No field to work: place a Field near the hut (one per hut level).", 100, hut.block);
             return;
