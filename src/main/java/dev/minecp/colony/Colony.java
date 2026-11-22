@@ -79,7 +79,7 @@ public final class Colony {
         return java.util.Arrays.stream(STYLES).filter(s -> BuildOrder.exists(Hut.Type.TOWN_HALL.structure(s, 1))).toList();
     }
     // Children (the mod's EntityAICitizenChild): time towards growing up builds in a shared pool, 500 a colony tick
-    // while there are children; each child takes 2000 from it at a time. From 4000 a child grows up with a 1 in 71 chance
+    // while there are children, emptied when there are none or it reaches 70000; each child takes 2000 from it at a time. From 4000 a child grows up with a 1 in 71 chance
     // each colony tick, and surely past 70000 (research makes both faster).
     private static final int CHILD_SHARE = 2000, CHILD_MIN = 4000, CHILD_MAX = 70_000, GROW_CHANCE = 70;
     int childPool; // saved
@@ -239,7 +239,8 @@ public final class Colony {
     /** Children take their share of growing-up time, and some grow up. */
     private void growUp() {
         var rnd = ThreadLocalRandom.current();
-        if (colonists.stream().anyMatch(c -> c.child)) childPool += COLONY_TICK; // shortcut: the mod's pool also empties at 70000; ours doesn't
+        if (colonists.stream().anyMatch(c -> c.child) && childPool < CHILD_MAX) childPool += COLONY_TICK; // the mod's updateChildTime
+        else childPool = 0;
         double growth = 1 + research.effect(Effects.GROWTH); // the mod divides both the odds and the time limit by it
         for (Colonist c : colonists) {
             if (!c.child) continue;
@@ -498,6 +499,10 @@ public final class Colony {
         if (upgradeOf(hut) != null) return "That upgrade is already queued.";
         if (hut.type != Hut.Type.TOWN_HALL && next > 1 && next > townHall().level)
             return "Upgrade the Town Hall to level " + next + " first.";
+        // The mod's builder takes only work up to its hut's level, unless its hut is at the top level or it is its own hut.
+        // Ours: refused here with one builder, where the mod queues it for a builder that can take it.
+        if (hut != builder.hut && builder.hut.level < Hut.MAX_LEVEL && next > builder.hut.level)
+            return "The builder builds only up to its own hut's level: upgrade the Builder's Hut to level " + next + " first.";
         if (!BuildOrder.exists(hut.structure(style, next))) return "Structure " + hut.structure(style, next) + " not found.";
         int[] box = hut.type.isBuilding() ? BuildOrder.footprint(hut.structure(style, next), hut.block, hut.rotation, hut.mirror) : null;
         if (box != null) for (long k : Claims.chunks(box)) { // unclaimed land is fine: the building claims it, as in the mod

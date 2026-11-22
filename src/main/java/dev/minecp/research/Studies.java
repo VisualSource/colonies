@@ -164,6 +164,7 @@ public final class Studies {
             case Effects.WHIRLWIND -> "Knights sometimes spin, striking and knocking back every enemy around them";
             case Effects.SLEEP_LESS -> "Knights nap less on duty (Colonies' knights never nap)";
             case Effects.ARMOR_DURABILITY -> "Knights' armor wears less (Colonies' knights' armor doesn't wear yet)";
+            case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";

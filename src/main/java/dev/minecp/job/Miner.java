@@ -45,7 +45,18 @@ public final class Miner extends Job {
     private static final int FAR_REACH = 8;        // ours: if there is nowhere to stand nearer
     private static final int BLOCK_STOCK = 64, LADDER_STOCK = 16; // ours, of cobblestone and the fill block: the mod requests 32 cobblestone and 10 ladders at a time
     private static final int DELIVER_AT = 256;
-    private static final int SHAFT_BASE_DEPTH = 8;  // the mod's: a shaft this close to the world's bottom counts as reaching it     // ours: loot carried before a trip up
+    private static final int SHAFT_BASE_DEPTH = 8;
+    private static final double LUCKY_CHANCE = 0.01; // the mod's luckyBlockChance default: 1% of the stone it mines
+    // The mod's ore chance blocks (forge:stone, base_stone_overworld and base_stone_nether), as vanilla blocks.
+    private static final java.util.Set<Material> LUCKY_BLOCKS = java.util.EnumSet.of(Material.STONE, Material.GRANITE, Material.DIORITE,
+            Material.ANDESITE, Material.POLISHED_GRANITE, Material.POLISHED_DIORITE, Material.POLISHED_ANDESITE, Material.DEEPSLATE,
+            Material.POLISHED_DEEPSLATE, Material.TUFF, Material.INFESTED_STONE, Material.INFESTED_DEEPSLATE, Material.NETHERRACK,
+            Material.BASALT, Material.BLACKSTONE);
+    // Its miner/lucky_ore<hut level> loot tables: each ore and its weight, more of them at each level.
+    private static final Material[] LUCKY_ORES = {Material.COAL_ORE, Material.COPPER_ORE, Material.IRON_ORE, Material.GOLD_ORE,
+            Material.REDSTONE_ORE, Material.LAPIS_ORE, Material.DIAMOND_ORE, Material.EMERALD_ORE};
+    private static final int[] LUCKY_WEIGHTS = {64, 48, 32, 16, 8, 4, 2, 1};
+    private static final int[] LUCKY_KINDS = {0, 2, 4, 6, 8, 8}; // ores in the table by hut level  // the mod's: a shaft this close to the world's bottom counts as reaching it     // ours: loot carried before a trip up
     private static final int HUT_RANGE = 12;       // ours: how far from the hut block the shaft's ladder may be
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
@@ -453,7 +464,9 @@ public final class Miner extends Job {
         neededTool = null;
         // A chest in the way spills what it holds, as when a player breaks it (its items can't go in the miner's carried counts).
         for (ItemStack i : takeContents(b)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
+        Material lucky = luckyOre(b.getType());
         for (ItemStack drop : breakWith(tool, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
+        if (lucky != null) carried.merge(lucky, 1, Integer::sum);
         var data = b.getBlockData();
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);
         b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().toCenterLocation(), 10, 0.3, 0.3, 0.3, data);
@@ -559,6 +572,18 @@ public final class Miner extends Job {
         }
         carried.values().removeIf(n -> n <= 0);
         return all;
+    }
+
+    /** The mod's lucky ore: mining stone may also turn up an ore block, 1% of the time, more with research. @return it, or null. */
+    private Material luckyOre(Material mined) {
+        var rnd = ThreadLocalRandom.current();
+        if (!LUCKY_BLOCKS.contains(mined) || rnd.nextDouble() >= LUCKY_CHANCE * (1 + colony.research.effect(Effects.MORE_ORES))) return null;
+        int kinds = LUCKY_KINDS[Math.min(hut.level, Hut.MAX_LEVEL)], total = 0;
+        for (int i = 0; i < kinds; i++) total += LUCKY_WEIGHTS[i];
+        if (total == 0) return null;
+        int roll = rnd.nextInt(total);
+        for (int i = 0; i < kinds; i++) if ((roll -= LUCKY_WEIGHTS[i]) < 0) return LUCKY_ORES[i];
+        return null;
     }
 
     private static boolean isOre(Material m) {

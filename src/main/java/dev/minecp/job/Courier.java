@@ -31,6 +31,19 @@ public final class Courier extends Job {
         super(hut, colony);
     }
 
+    private static final int COURIERS_PER_LEVEL = 2; // the mod's CourierAssignmentModule: a warehouse takes 2 couriers per level
+
+    /** Past the warehouse's couriers (the oldest Courier's Huts with a courier come first): it waits for an upgrade. */
+    private boolean overLimit(Warehouse wh) {
+        if (wh == null) return false;
+        int before = 0;
+        for (Job j : colony.jobs) {
+            if (j == this) break;
+            if (j instanceof Courier && colony.worker(j) != null) before++;
+        }
+        return before >= wh.hut.level * COURIERS_PER_LEVEL;
+    }
+
     /** Stacks it can carry per trip, as in the mod: 1, 2, 4, 8 for hut levels 1-4, any amount at level 5. */
     int maxStacks() {
         return hut.level >= Hut.MAX_LEVEL ? Integer.MAX_VALUE : 1 << Math.max(0, hut.level - 1);
@@ -77,6 +90,10 @@ public final class Courier extends Job {
             return;
         }
 
+        if (serving == null && overLimit(wh)) {
+            idle(w, "The level " + wh.hut.level + " Warehouse takes " + wh.hut.level * COURIERS_PER_LEVEL + " couriers: upgrade it for more.", 100, hut.block);
+            return;
+        }
         if (serving == null && !pickTask(wh)) {
             idle(w, wh == null ? "No Warehouse: until one is built (level 1 or higher), couriers only carry what crafters make." : null,
                     60, wh == null ? hut.block : wh.hut.block);

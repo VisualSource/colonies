@@ -315,7 +315,7 @@ public final class Guard extends Job {
         attackIn = ATTACK_DELAY;
         w.swing();
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.NEUTRAL, 1, 1);
-        double hit = damage();
+        double hit = damage(w);
         if (ThreadLocalRandom.current().nextDouble() > 1 / (1 + colony.research.effect(Effects.GUARD_CRIT))) { // research: a critical hit
             hit *= CRIT;
             there.getWorld().spawnParticle(Particle.CRIT, there.clone().add(0, target.getHeight() / 2, 0), 12, 0.3, 0.3, 0.3, 0.2);
@@ -326,10 +326,14 @@ public final class Guard extends Job {
         if (tools.containsKey(Tool.SWORD)) wear(Tool.SWORD, w);
     }
 
-    /** The sword's attack damage (as the mod's SwordItem.getDamage) plus the mod's base 3, and research's; with no sword, the base alone. */
-    private double damage() {
+    /**
+     * The sword's attack damage (as the mod's SwordItem.getDamage) plus the mod's base 3, and research's; with no sword,
+     * the base alone. Doubled at 20% health or less, as the mod's getAttackDamage.
+     */
+    private double damage(Colonist w) {
         ItemStack sword = tools.get(Tool.SWORD);
-        return BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE)) + colony.research.effect(Effects.MELEE_DAMAGE);
+        double d = BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE)) + colony.research.effect(Effects.MELEE_DAMAGE);
+        return w.health <= colony.health.max(w) * LOW_HEALTH ? d * 2 : d;
     }
 
     /**

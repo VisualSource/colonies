@@ -55,6 +55,7 @@ public final class Raids {
     private static final int BIG_HORDE = 20;          // one spawn point per 20 raiders
     private static final int UPDATE = 500;            // the mod's raid events update on the colony tick
     private static final int DESPAWN_TICKS = 36_000;  // TICKS_TO_DESPAWN: 30 minutes
+    private static final int SPAWN_SHIELD = 40;       // the mod's invulTime: ticks a new raider can't be hurt
     private static final int NIGHTS = 3;              // a horde gives up after 3 more nightfalls
     private static final int SIGHT = 16;              // the raiders' target search, ±16 across (ours: ±3 up and down)
     public static final String TAG = "minecp_raider";
@@ -358,6 +359,7 @@ public final class Raids {
     private static Mob raider(Spec s, Location at, int level, double d) {
         return at.getWorld().spawn(at, s.mob(), m -> {
             m.addScoreboardTag(TAG);
+            m.setInvulnerable(true); // the mod's 2 s after spawning, against suffocating and crowding (tick)
             m.setPersistent(false); // shortcut: not saved with the world, so a restart or unloaded chunk ends them; the mod respawns them
             m.setPersistenceRequired(true); // no natural despawning far from players (the mod: 30 minutes)
             m.setCanPickupItems(false);
@@ -418,6 +420,7 @@ public final class Raids {
     void tick() {
         if (hordes.isEmpty()) return;
         ticks++;
+        for (Horde h : hordes) for (Mob m : h.raiders) if (m.isInvulnerable() && m.getTicksLived() >= SPAWN_SHIELD) m.setInvulnerable(false);
         if (ticks % UPDATE == 0) for (Horde h : hordes) {
             if (h.camp > 0) h.camp--;
             if (h.raiders.size() < Math.round(0.15 * h.initial)) h.raiders.forEach(m -> m.setGlowing(true));
