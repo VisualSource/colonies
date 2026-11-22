@@ -194,7 +194,7 @@ public final class Undertaker extends Job {
             }
             case DIG -> {
                 wear(Tool.SHOVEL, w);
-                w.swing();
+                act(w);
                 Grave g = grave;
                 removeGrave(g);
                 body = g.name;
@@ -237,7 +237,7 @@ public final class Undertaker extends Job {
     private boolean work(Colonist w, int ticks) {
         if (effort >= ticks) return true;
         w.hold(tools.get(Tool.SHOVEL));
-        w.swing();
+        act(w);
         effort += SWING_TICKS;
         cooldown = SWING_TICKS;
         return false;

@@ -18,15 +18,17 @@ import org.bukkit.block.data.type.Ladder;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
-import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.damage.DamageType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BlockVector;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -39,16 +41,18 @@ public final class Miner extends Job {
     private static final int SHAFT_RADIUS = 3;     // the mod's: 7x7 shaft, the ladder on its edge
     private static final int SAFE_RANGE = 5;       // the mod's SAFE_CHECK_RANGE: the floor under each new shaft layer is made solid 11x11
     private static final int NODE_DISTANCE = 7;    // the mod's
+    private static final int MIN_NODES_FOR_RANDOM = 10, RANDOM_TYPES = 4; // the mod's MinerLevel: random picks past 10 dug nodes, 3 in 4
+    private static final int RANDOM_TRIES = 16;    // ours: picks of already dug nodes before taking the oldest open one
     private static final int LEVEL_SPACING = 6;    // ours: the mod's spacing comes from its shaft and level pieces (not checked)
     private static final int[] MINING_LEVELS = {48, 16, -16, -100}; // the mod's: each hut level reaches the next (copper, iron, gold, diamond)
     private static final int REACH = 6;            // ours: the first layer under the shaft room is only 1 high: work from the room's hole
     private static final int FAR_REACH = 8;        // ours: if there is nowhere to stand nearer
     private static final int BLOCK_STOCK = 64, LADDER_STOCK = 16; // ours, of cobblestone and the fill block: the mod requests 32 cobblestone and 10 ladders at a time
-    private static final int DELIVER_AT = 256;
-    private static final int SHAFT_BASE_DEPTH = 8;
+    private static final int DELIVER_AT = 256;     // ours: loot carried before a trip up
+    private static final int SHAFT_BASE_DEPTH = 8;  // the mod's: a shaft this close to the world's bottom counts as reaching it
     private static final double LUCKY_CHANCE = 0.01; // the mod's luckyBlockChance default: 1% of the stone it mines
     // The mod's ore chance blocks (forge:stone, base_stone_overworld and base_stone_nether), as vanilla blocks.
-    private static final java.util.Set<Material> LUCKY_BLOCKS = java.util.EnumSet.of(Material.STONE, Material.GRANITE, Material.DIORITE,
+    private static final Set<Material> LUCKY_BLOCKS = EnumSet.of(Material.STONE, Material.GRANITE, Material.DIORITE,
             Material.ANDESITE, Material.POLISHED_GRANITE, Material.POLISHED_DIORITE, Material.POLISHED_ANDESITE, Material.DEEPSLATE,
             Material.POLISHED_DEEPSLATE, Material.TUFF, Material.INFESTED_STONE, Material.INFESTED_DEEPSLATE, Material.NETHERRACK,
             Material.BASALT, Material.BLACKSTONE);
@@ -56,7 +60,7 @@ public final class Miner extends Job {
     private static final Material[] LUCKY_ORES = {Material.COAL_ORE, Material.COPPER_ORE, Material.IRON_ORE, Material.GOLD_ORE,
             Material.REDSTONE_ORE, Material.LAPIS_ORE, Material.DIAMOND_ORE, Material.EMERALD_ORE};
     private static final int[] LUCKY_WEIGHTS = {64, 48, 32, 16, 8, 4, 2, 1};
-    private static final int[] LUCKY_KINDS = {0, 2, 4, 6, 8, 8}; // ores in the table by hut level  // the mod's: a shaft this close to the world's bottom counts as reaching it     // ours: loot carried before a trip up
+    private static final int[] LUCKY_KINDS = {0, 2, 4, 6, 8, 8}; // ores in the table by hut level
     private static final int HUT_RANGE = 12;       // ours: how far from the hut block the shaft's ladder may be
     private static final String SHAFTS = "/infrastructure/mineshafts/";
 
@@ -106,6 +110,7 @@ public final class Miner extends Job {
     private BlockFace facing;    // from the wall the ladder hangs on toward the shaft
     BuildOrder order;            // a level or node being dug and built
     private Node orderNode;      // null while that is a level
+    private Node lastNode;       // the node dug last, for the random pick (not saved: the oldest open node comes first again)
     private int orderDepth;
     private Tool neededTool;
     private boolean delivering;
@@ -116,8 +121,8 @@ public final class Miner extends Job {
 
     /** The mod's Hot Boots: lava, magma, fire and burning (its four fire damage types, not campfires) don't hurt a miner. */
     @Override
-    public double reaching(double damage, DamageCause cause, Entity source, Colonist w) {
-        boolean fire = cause == DamageCause.LAVA || cause == DamageCause.HOT_FLOOR || cause == DamageCause.FIRE || cause == DamageCause.FIRE_TICK;
+    public double reaching(double damage, DamageType type, Entity source, Colonist w) {
+        boolean fire = type == DamageType.LAVA || type == DamageType.HOT_FLOOR || type == DamageType.IN_FIRE || type == DamageType.ON_FIRE;
         return fire && colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0 ? 0 : damage;
     }
 
@@ -308,24 +313,47 @@ public final class Miner extends Job {
         orderDepth = depth;
     }
 
-    /** Digs the next open node of the deepest level, nearest the shaft first. */
+    /**
+     * The mod's getRandomNode: once more than 10 nodes of the level are dug, 3 times in 4 a random neighbour of the node
+     * dug last; a pick already dug is picked again (the mod's next call). @return null for the oldest open node instead.
+     */
+    private Node randomNode(Level level) {
+        long dug = level.nodes.values().stream().filter(n -> n.done && n.style.file != null).count();
+        if (lastNode == null || level.nodes.get(key(lastNode.x, lastNode.z)) != lastNode || dug <= MIN_NODES_FOR_RANDOM) return null;
+        var rnd = ThreadLocalRandom.current();
+        for (int tries = 0; tries < RANDOM_TRIES; tries++) {
+            if (rnd.nextInt(RANDOM_TYPES) == 0) return null;
+            Node n = neighbour(level, lastNode, 0);
+            if (n == null) return null;
+            if (!n.done && n.style.file != null) return n;
+        }
+        return null;
+    }
+
+    /**
+     * The mod's getRandomNextNode: north, south or east of {@code n} (its roll never picks west), or, where there is none
+     * or it is the shaft, the same from the node it branched from, at most 4 steps back.
+     */
+    private static Node neighbour(Level level, Node n, int step) {
+        if (n == null || step > 3) return null;
+        int roll = ThreadLocalRandom.current().nextInt(3);
+        Node next = level.nodes.get(roll == 0 ? key(n.x, n.z - NODE_DISTANCE) : roll == 1 ? key(n.x, n.z + NODE_DISTANCE) : key(n.x + NODE_DISTANCE, n.z));
+        if (next == null || next.style == Style.SHAFT) return neighbour(level, level.nodes.get(key(n.px, n.pz)), step + 1);
+        return next;
+    }
+
+    /** Digs the next open node of the deepest level: the oldest open one, or a random one (randomNode). */
     private void nodeStep(Colonist w) {
         Level level = levels.getLast();
         Block c = center(level.depth);
-        Node next = null;
-        for (Node n : level.nodes.values()) {
-            if (n.done || n.style.file == null) continue;
-            if (next == null || dist(n, c) < dist(next, c)) next = n;
-        }
+        Node next = randomNode(level);
+        if (next == null) for (Node n : level.nodes.values()) // the oldest open node (the mod's openNodes queue)
+            if (!n.done && n.style.file != null) { next = n; break; }
         if (next == null) { idle(w, "No more tunnels to dig on this level (water or lava in the way).", 100, null); return; }
         order = centered(next.style.file, c.getWorld().getBlockAt(next.x, level.depth, next.z), 3, rotation(next));
         orderNode = next;
         orderDepth = level.depth;
         if (order == null) { next.done = true; orderNode = null; }
-    }
-
-    private static double dist(Node n, Block c) {
-        return Math.hypot(n.x - c.getX(), n.z - c.getZ());
     }
 
     /** The way from a node's parent to it, as a rotation: east (+x) is the structures' way in. */
@@ -394,6 +422,7 @@ public final class Miner extends Job {
                 level.add(new Node(nx, nz, orderNode.x, orderNode.z, s, false));
             }
             orderNode.done = true;
+            lastNode = orderNode;
             if (level != null) updateSign(level);
         }
         order = null;
@@ -471,7 +500,7 @@ public final class Miner extends Job {
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);
         b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().toCenterLocation(), 10, 0.3, 0.3, 0.3, data);
         b.setType(Material.AIR, false);
-        w.swing();
+        act(w);
         cooldown = faster(Math.max(4, 14 - 2 * hut.level), "blockbreakspeedmultiplier");
     }
 
@@ -482,7 +511,7 @@ public final class Miner extends Job {
         carried.values().removeIf(n -> n <= 0);
         var sounds = data.getSoundGroup();
         b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());
-        w.swing();
+        act(w);
         cooldown = faster(8, Effects.PLACE_SPEED);
     }
 

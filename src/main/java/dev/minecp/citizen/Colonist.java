@@ -164,6 +164,10 @@ public final class Colonist {
         Location from = body.getLocation();
         body.teleport(to);
         last = to;
+        if (from.getWorld() == to.getWorld()) { // a teleport isn't walking (ours: more than 2 blocks in a tick)
+            double step = Math.hypot(to.getX() - from.getX(), to.getZ() - from.getZ());
+            if (step < 2 && (walkedForHunger += step) >= WALK_ACTION) { walkedForHunger -= WALK_ACTION; workedLittle(); }
+        }
         footsteps(from, to);
         doors(to);
         if (climb != null) climbTick(to);
@@ -628,6 +632,29 @@ public final class Colonist {
 
     public void swing() {
         body.swingMainHand();
+    }
+
+    // Hunger from work, as the mod's cachedActionSaturationDecrease: added to the next hunger drop, at most half of it.
+    private static final double ACTION = 0.2, SMALL_ACTION = 0.02; // BIG_SATURATION_FACTOR, SATURATION_DECREASE_FACTOR
+    // ACTIONS_EACH_BLOCKS_WALKED: a small action every 25 of vanilla's walk distance, which grows 0.6 a block: about 42 blocks
+    private static final double WALK_ACTION = 25 / 0.6;
+    private double workHunger, walkedForHunger;
+
+    /** A work action: a block dug or placed, a craft, a catch (the mod's decreaseSaturationForAction). */
+    public void worked() {
+        workHunger += ACTION;
+    }
+
+    /** A small one: a crush, about 42 blocks walked (the mod's decreaseSaturationForContinuousAction). */
+    public void workedLittle() {
+        workHunger += SMALL_ACTION;
+    }
+
+    /** The work done since last asked, and starts counting again. */
+    public double takeEffort() {
+        double e = workHunger;
+        workHunger = 0;
+        return e;
     }
 
     public void wander(Location center) {

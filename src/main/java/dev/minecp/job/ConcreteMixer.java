@@ -119,7 +119,7 @@ public final class ConcreteMixer extends Crafter {
             for (ItemStack drop : breakWith(Tool.PICKAXE, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
             b.getWorld().playSound(b.getLocation(), Sound.BLOCK_STONE_BREAK, SoundCategory.BLOCKS, 1, 1);
             b.setType(Material.AIR); // the water flows back in
-            w.swing();
+            act(w);
             cooldown = faster(ACTION_TICKS, Effects.BREAK_SPEED);
             return true;
         }
@@ -136,7 +136,7 @@ public final class ConcreteMixer extends Crafter {
             }
             if (!w.isBeside(free)) { w.setStatus(hut.type.worker + ": setting concrete"); w.goBeside(free); return true; }
             w.hold(new ItemStack(powder));
-            w.swing();
+            act(w);
             free.setType(want); // vanilla's powder hardens at once in water
             free.getWorld().playSound(free.getLocation(), Sound.BLOCK_SAND_PLACE, SoundCategory.BLOCKS, 1, 1);
             carried.merge(powder, -1, Integer::sum);

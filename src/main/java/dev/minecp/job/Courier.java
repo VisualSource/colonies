@@ -78,7 +78,7 @@ public final class Courier extends Job {
                     : into == null ? new ArrayList<>(load) : new ArrayList<>(into.addItem(load.toArray(ItemStack[]::new)).values());
             load.clear();
             load.addAll(left);
-            w.swing();
+            act(w);
             if (!load.isEmpty()) { // didn't fit
                 if (toJob != null && wh != null) { toWarehouse = true; return; } // take it back to the warehouse
                 // No warehouse to take it back to, or the warehouse is full: wait for room and try again.
@@ -106,14 +106,14 @@ public final class Courier extends Job {
             if (!w.isBeside(source)) { w.goBeside(source); return; }
             load.addAll(crafted != null ? crafted.crafter.handOver(crafted, maxStacks()) : wh.take(want.test(), want.amount(), maxStacks()));
             if (load.isEmpty()) drop(); // gone meanwhile
-            w.swing();
+            act(w);
             cooldown = 10;
         } else { // collect surplus from the hut
             if (!w.isBeside(serving.hut.block)) { w.goBeside(serving.hut.block); return; }
             load.addAll(surplus(serving, maxStacks()));
             if (load.isEmpty()) serving = null;
             toWarehouse = true;
-            w.swing();
+            act(w);
             cooldown = 10;
         }
     }

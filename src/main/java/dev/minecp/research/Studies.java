@@ -162,8 +162,8 @@ public final class Studies {
             case Effects.FLEEING_DAMAGE -> "Knights below 20% health take " + pct + " less damage";
             case Effects.FLEEING_SPEED -> v > 0 ? "Retreating knights run with Speed " + ((int) v + 1) : "Prepares retreating knights to run faster";
             case Effects.WHIRLWIND -> "Knights sometimes spin, striking and knocking back every enemy around them";
-            case Effects.SLEEP_LESS -> "Knights nap less on duty (Colonies' knights never nap)";
-            case Effects.ARMOR_DURABILITY -> "Knights' armor wears less (Colonies' knights' armor doesn't wear yet)";
+            case Effects.SLEEP_LESS -> "Knights nap on duty " + Math.round(100 - 100 / (1 + v)) + "% less often";
+            case Effects.ARMOR_DURABILITY -> "Knights' armor lasts " + pct + " longer";
             case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";

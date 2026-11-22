@@ -337,6 +337,7 @@ public class Crafter extends Job {
         if (++hits < HITS) return;
         hits = 0;
         craft(chest, ready);
+        w.worked(); // one action per craft, as the mod's
     }
 
     /**

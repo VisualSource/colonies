@@ -79,7 +79,7 @@ final class Furnaces {
             if (in != null) inv.setSmelting(take(chest, in));
             if (fuelItem != null) inv.setFuel(take(chest, fuelItem));
             job.note = null;
-            w.swing();
+            job.act(w);
             job.cooldown = 20;
             return true;
         }

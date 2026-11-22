@@ -274,7 +274,7 @@ public final class Farmer extends Job {
                 crop.getWorld().playSound(crop.getLocation(), Sound.ITEM_CROP_PLANT, SoundCategory.BLOCKS, 1, 1);
             }
         }
-        w.swing();
+        act(w);
         cooldown = actionTicks();
     }
 

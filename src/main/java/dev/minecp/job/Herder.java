@@ -233,7 +233,7 @@ public final class Herder extends Job {
             }
             case BUTCHER -> {
                 w.hold(tools.get(Tool.AXE));
-                w.swing();
+                act(w);
                 cooldown = BUTCHER_TICKS;
                 if (kind.rarelyHits && rnd.nextInt(21) > 1) return;
                 wear(Tool.AXE, w);
@@ -255,7 +255,7 @@ public final class Herder extends Job {
                 if (carried.getOrDefault(kind.food, 0) < 1) { act = Act.NONE; return; }
                 ((Animals) target).setLoveModeTicks(600);
                 take(kind.food);
-                w.swing();
+                act(w);
                 actions++;
                 cooldown = BREED_TICKS;
                 if (partner != null) { target = partner; partner = null; tries = 0; return; }
@@ -266,7 +266,7 @@ public final class Herder extends Job {
                 Sheep s = (Sheep) target;
                 if (s.isSheared() || !hasTool(Tool.SHEARS, null)) { act = Act.NONE; return; }
                 w.hold(tools.get(Tool.SHEARS));
-                w.swing();
+                act(w);
                 wear(Tool.SHEARS, w);
                 s.setSheared(true);
                 s.getWorld().playSound(s.getLocation(), Sound.ENTITY_SHEEP_SHEAR, SoundCategory.PLAYERS, 1, 1);
@@ -284,7 +284,7 @@ public final class Herder extends Job {
                 take(from);
                 load.add(new ItemStack(stew ? Material.MUSHROOM_STEW : Material.MILK_BUCKET));
                 target.getWorld().playSound(target.getLocation(), stew ? Sound.ENTITY_MOOSHROOM_MILK : Sound.ENTITY_COW_MILK, SoundCategory.PLAYERS, 1, 1);
-                w.swing();
+                act(w);
                 if (stew) stewed++; else milked++;
                 act = Act.NONE;
                 actions = ACTIONS_FOR_DUMP; // the mod takes it to the hut straight away

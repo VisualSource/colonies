@@ -320,7 +320,7 @@ public final class Builder extends Job {
         if (!fits(chest, drops)) return false;
         place(w, step, chest);
         if (partner != null) place(w, partner, chest);
-        w.swing();
+        act(w);
         cooldown = faster(PLACE_TICKS, Effects.PLACE_SPEED); // ours: one step places, breaking what was there
         return true;
     }

@@ -110,9 +110,10 @@ public final class Crusher extends Crafter {
         w.setStatus(hut.type.worker + ": crushing");
         w.hold(new ItemStack(input));
         w.swing();
+        w.workedLittle(); // the mod's crusher: a small action each crush
         hut.block.getWorld().playSound(hut.block.getLocation(), Sound.BLOCK_GRINDSTONE_USE, SoundCategory.BLOCKS, 0.5f, 1);
         craft(chest, r);
-        crushedToday++;
+        if (++crushedToday == hut.number(Settings.DAILY_LIMIT)) w.worked(); // the mod's full action once the day's batch is done
         cooldown = CRUSH_TICKS;
         return true;
     }

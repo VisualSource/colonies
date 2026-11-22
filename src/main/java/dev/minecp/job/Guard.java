@@ -17,7 +17,7 @@ import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
-import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.damage.DamageType;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
@@ -33,7 +33,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * A knight at a Guard Tower (the mod's JobKnight, EntityAIMelee, MeleeCombatAI and AbstractEntityAIGuard): it patrols
  * between the colony's built huts, attacks the hostile mobs it sees with a sword, and wears the armor its tower level
- * allows. It doesn't sleep at night or shelter from rain, and it doesn't run when hurt (unless research lets it
+ * allows. It doesn't sleep at night or shelter from rain, but naps on duty now and then; it doesn't run when hurt (unless research lets it
  * retreat to its tower). Research adds damage, critical hits, armor, parrying, a shield, taunting and a whirlwind.
  */
 public final class Guard extends Job {
@@ -62,6 +62,14 @@ public final class Guard extends Job {
     private static final int REST_CHECK = 40;          // GUARD_REGEN_INTERVAL
     private static final int REST_HEAL = 50;           // vanilla Regeneration I, which the mod gives it: 1 health every 50 ticks
     private static final double SPEED_PER_LEVEL = 0.2; // vanilla Speed: +20% a level
+    // Naps on duty (the mod's AbstractEntityAIGuard.shouldSleep, sleep and wakeUpGuard):
+    private static final int NAP_CHECK = 200;          // SHOULD_SLEEP_INTERVAL: a chance to nap every 10 s with no target
+    private static final int NAP_ODDS = 20;            // 1 in (adaptability / 2 + 20): no skills, 1 in 20
+    private static final int NAP_MIN = 2500, NAP_SPREAD = 500; // it naps 2500 to 3000 ticks
+    private static final int NAP_HEAL_TICKS = 30;      // PARTICLE_INTERVAL
+    private static final double NAP_HEAL = 0.5;        // the mod's: health each time its sleep particles show
+    private static final int WAKE_GIVE_UP = 30 * 20;   // the mod's: 30 tries a second apart before giving up waking another
+    private static final double WAKE_REACH = 2.25;     // the mod's: squared distance close enough to wake it
 
     private final Map<EquipmentSlot, ItemStack> armor = new EnumMap<>(EquipmentSlot.class); // worn; saved
     private ItemStack shield; // carried once researched; saved
@@ -70,6 +78,9 @@ public final class Guard extends Job {
     private int attackIn, searchIn, waitAt, restTicks;
     private long lastWhirlwind;
     private boolean fleeing, resting; // retreating to the tower, then resting there (not saved: it simply carries on)
+    private int napTicks, napCheckIn = NAP_CHECK;    // napping while napTicks > 0 (not saved)
+    private Colonist toWake;                          // a napping knight it is on its way to wake
+    private int wakeFor;
     private Location chasing; // where its route to the target leads
 
     public Guard(Hut hut, Colony colony) {
@@ -88,7 +99,7 @@ public final class Guard extends Job {
      * (ours: "from its target" stands in for vanilla's facing check); then its armor.
      */
     @Override
-    public double reaching(double damage, DamageCause cause, Entity source, Colonist w) {
+    public double reaching(double damage, DamageType type, Entity source, Colonist w) {
         double parry = colony.research.effect(Effects.BLOCK_ATTACKS);
         if (parry > 0 && ThreadLocalRandom.current().nextDouble() < parry) return 0;
         if (lowHealth(w)) damage *= 1 - colony.research.effect(Effects.FLEEING_DAMAGE);
@@ -100,7 +111,21 @@ public final class Guard extends Job {
             }
             return w.health > damage * SHIELD_HIT ? Math.max(SHIELD_HIT, afterArmor(damage * SHIELD_HIT)) : 0;
         }
-        return afterArmor(damage);
+        double through = afterArmor(damage);
+        if (!fireOrLightning(type)) wearArmor(damage, w);
+        return through;
+    }
+
+    /**
+     * The mod's updateArmorDamage after a hit: each piece wears by a quarter of the hit, at least 1, and breaks when worn
+     * out; research skips it with chance 1 - 1 / (1 + strength). Not for fire or lightning, as the mod.
+     */
+    private void wearArmor(double hit, Colonist w) {
+        double durability = colony.research.effect(Effects.ARMOR_DURABILITY);
+        if (durability > 0 && ThreadLocalRandom.current().nextDouble() > 1 / (1 + durability)) return;
+        int wear = Math.max(1, (int) (hit / 4));
+        armor.replaceAll((slot, piece) -> piece.damage(wear, w.living())); // Unbreaking included
+        armor.values().removeIf(ItemStack::isEmpty);
     }
 
     /** What reaches it through its armor (vanilla's armor formula with each piece's points and toughness; research adds points). */
@@ -133,7 +158,7 @@ public final class Guard extends Job {
 
     @Override
     public boolean sleepsAtNight() {
-        return false; // on duty (the mod's guards take short naps instead)
+        return false; // on duty (it naps now and then instead, as the mod's guards)
     }
 
     @Override
@@ -270,11 +295,21 @@ public final class Guard extends Job {
         }
         if (attackIn > 0) attackIn--;
         if (!valid(target)) target = null;
-        if (!fleeing && !resting && shouldRetreat(w)) { fleeing = true; target = null; }
+        if (!fleeing && !resting && shouldRetreat(w)) { wakeUp(w); fleeing = true; target = null; }
         if (fleeing) { retreat(w); return; }
         if (resting && rest(w)) return;
-        if (target == null && --searchIn <= 0) { searchIn = SEARCH_TICKS; target = nearestEnemy(w); }
+        if (napTicks > 0 && nap(w)) return;
+        if (target == null && --searchIn <= 0) {
+            searchIn = SEARCH_TICKS;
+            target = nearestEnemy(w);
+            if (target == null && toWake == null) toWake = napper(w);
+        }
         if (target != null) { fight(w); return; }
+        if (toWake != null && wake(w)) return;
+        if (--napCheckIn <= 0) {
+            napCheckIn = NAP_CHECK;
+            if (w.hurtTicks == 0 && startNap(w)) return; // walking or not, as the mod's: sitting down stops it
+        }
         if (w.isMoving() || --cooldown > 0) return;
 
         if (gearWaiting()) {
@@ -363,6 +398,57 @@ public final class Guard extends Job {
             l.damage(share, w.living());
         }
         at.getWorld().spawnParticle(Particle.SWEEP_ATTACK, at.clone().add(0, 1, 0), 2, 0.5, 0, 0.5, 0);
+    }
+
+    // ---- naps ---------------------------------------------------------------------------------------------------
+
+    /** 1 in 20, and less with the Coffee research (1 / (1 + strength) of that): it sits down where it is. */
+    private boolean startNap(Colonist w) {
+        var rnd = ThreadLocalRandom.current();
+        if (rnd.nextInt(NAP_ODDS) != 1 || rnd.nextDouble() >= 1 / (1 + colony.research.effect(Effects.SLEEP_LESS))) return false;
+        napTicks = NAP_MIN + rnd.nextInt(NAP_SPREAD);
+        w.sitOn(w.location().getBlock());
+        w.setStatus("Knight: napping");
+        return true;
+    }
+
+    /** Napping: it heals a little; a mob that hurts it, or the time running out, wakes it. @return true while it naps. */
+    private boolean nap(Colonist w) {
+        // a meal or a raid walked it off its seat meanwhile: that ends it too
+        if (target != null || w.hurtTicks > 0 || w.seat() == null || --napTicks <= 0) { wakeUp(w); return false; }
+        if (napTicks % NAP_HEAL_TICKS == 0) w.health = Math.min(colony.health.max(w), w.health + NAP_HEAL);
+        return true;
+    }
+
+    private void wakeUp(Colonist w) {
+        napTicks = 0;
+        w.standUp();
+    }
+
+    /** A napping knight it can see, which it goes to wake (the mod's skipSearch), or null. */
+    private Colonist napper(Colonist w) {
+        int r = vision();
+        for (Entity e : w.location().getNearbyEntities(r, Y_VISION, r)) {
+            Colonist other = colony.colonistOf(e);
+            if (other != null && other != w && colony.jobOf(other) instanceof Guard g && g.napTicks > 0 && w.living() != null
+                    && w.living().hasLineOfSight(e)) return other;
+        }
+        return null;
+    }
+
+    /** Walks to the napping knight and wakes it (ours: with a shake; the mod's poke takes 1 health). @return true while at it. */
+    private boolean wake(Colonist w) {
+        if (!(colony.jobOf(toWake) instanceof Guard g) || g.napTicks == 0 || ++wakeFor > WAKE_GIVE_UP) { toWake = null; wakeFor = 0; return false; }
+        w.setStatus("Knight: waking a guard");
+        if (w.location().distanceSquared(toWake.location()) > WAKE_REACH) {
+            if (!w.isMoving()) w.walk(toWake.location());
+            return true;
+        }
+        w.swing();
+        g.wakeUp(toWake);
+        toWake = null;
+        wakeFor = 0;
+        return true;
     }
 
     // ---- retreating (research) ----------------------------------------------------------------------------------

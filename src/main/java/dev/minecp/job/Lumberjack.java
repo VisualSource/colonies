@@ -138,7 +138,7 @@ public final class Lumberjack extends Job {
                     while (next < logs.size() && !Tag.LOGS.isTagged(logs.get(next).getType())) next++; // gone already
                     if (next < logs.size()) {
                         chop(logs.get(next++), Tool.AXE, w);
-                        w.swing();
+                        act(w);
                         cooldown = chopTicks();
                         return;
                     }
@@ -153,7 +153,7 @@ public final class Lumberjack extends Job {
                     cleared++;
                 }
                 if (cleared > 0) {
-                    w.swing();
+                    act(w);
                     cooldown = chopTicks() / 2;
                     return;
                 }
@@ -176,7 +176,7 @@ public final class Lumberjack extends Job {
             case REPLANT -> {
                 if (w.location().distance(base.getLocation().toCenterLocation()) > 4) { w.goBeside(base); return; }
                 replant();
-                w.swing();
+                act(w);
                 state = State.TO_HUT; // what it didn't plant goes back
             }
             case TO_HUT -> {

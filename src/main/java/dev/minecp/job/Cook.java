@@ -97,7 +97,7 @@ public final class Cook extends Job {
                 waiting.poll();
                 next.serve(new ArrayList<>(serving));
                 serving.clear();
-                w.swing();
+                act(w);
                 cooldown = 10;
                 return;
             }

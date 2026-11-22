@@ -117,7 +117,7 @@ public final class Fisherman extends Job {
                 if (!hasTool(Tool.ROD, null)) { state = State.FIND; return; } // it broke
                 if (!w.isBeside(pond.stand)) { state = State.TO_POND; return; } // back from bed, a meal or the rain
                 w.hold(tools.get(Tool.ROD));
-                w.swing();
+                w.swing(); // casting isn't counted towards hunger: the catch is
                 if (failed()) { cooldown = FAIL_TIMEOUT; return; }
                 var rnd = ThreadLocalRandom.current();
                 Location at = pond.water.getLocation().toCenterLocation();
@@ -132,7 +132,7 @@ public final class Fisherman extends Job {
                 Location at = pond.water.getLocation().toCenterLocation().add(0, 0.5, 0);
                 at.getWorld().spawnParticle(Particle.SPLASH, at, 10, 0.2, 0, 0.2, 0);
                 at.getWorld().playSound(at, Sound.ENTITY_FISHING_BOBBER_SPLASH, SoundCategory.NEUTRAL, 0.25f, 1);
-                w.swing();
+                act(w);
                 state = State.CAST;
                 if (failed()) { cooldown = FAIL_TIMEOUT; return; } // it got away
                 load.addAll(catchFrom(pond.water));

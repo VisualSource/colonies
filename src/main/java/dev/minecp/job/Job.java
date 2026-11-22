@@ -12,7 +12,8 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
-import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.damage.DamageType;
+import org.bukkit.tag.DamageTypeTags;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -163,12 +164,17 @@ public abstract class Job {
     }
 
     /**
-     * @return the damage of a hit (already capped at 20% of max health) that reaches its worker {@code w}, from
-     * {@code source} (the shooter of a projectile; null: no entity): 0 for none (a miner with Hot Boots in fire); the
-     * knight's research, shield and armor take some.
+     * @return the damage of a hit of this {@code type} (already capped at 20% of max health) that reaches its worker
+     * {@code w}, from {@code source} (the shooter of a projectile; null: no entity): 0 for none (a miner with Hot Boots
+     * in fire); the knight's research, shield and armor take some.
      */
-    public double reaching(double damage, EntityDamageEvent.DamageCause cause, Entity source, Colonist w) {
+    public double reaching(double damage, DamageType type, Entity source, Colonist w) {
         return damage;
+    }
+
+    /** Fire (lava, magma, campfires, fireballs too) or lightning, by vanilla's damage type tags, as the mod's damage checks. */
+    public static boolean fireOrLightning(DamageType type) {
+        return DamageTypeTags.IS_FIRE.isTagged(type) || DamageTypeTags.IS_LIGHTNING.isTagged(type);
     }
 
     /** Its worker was hurt by {@code source} (null: no entity): true if it stands and fights instead of running away. */
@@ -325,6 +331,12 @@ public abstract class Job {
     static Collection<ItemStack> drops(Block b, ItemStack tool) {
         if (dev.minecp.logistics.Rack.is(b)) return List.of(dev.minecp.logistics.Rack.item());
         return tool == null ? b.getDrops() : b.getDrops(tool);
+    }
+
+    /** One work action: the worker swings, and it counts towards its hunger (the mod's incrementActionsDoneAndDecSaturation). */
+    void act(Colonist w) {
+        w.swing();
+        w.worked();
     }
 
     /** Uses the held tool of this kind once: it shows in the worker's hand, wears down, and is gone when it breaks. */

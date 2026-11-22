@@ -120,7 +120,8 @@ final class Routine {
 
     /**
      * Saturation drops once a minute in daytime, at the mod's rate: more for citizens of better houses, times the
-     * job's factor, plus up to half again for the work they do. Hungry citizens go to eat; starving ones are slow.
+     * job's factor, plus up to half again for the work done that minute (actions and walking), half for children.
+     * Hungry citizens go to eat; starving ones are slow.
      */
     void hunger(Colonist c, Job job) {
         if (++c.hungerTicks >= HUNGER_TICKS) {
@@ -129,7 +130,9 @@ final class Routine {
                 double drop = switch (c.home == null ? 0 : c.home.level) {
                     case 1 -> 0.6; case 2 -> 0.725; case 3 -> 1.0; case 4 -> 1.2; case 5 -> 1.5; default -> 0.3;
                 };
-                if (job != null) drop *= job.hungerFactor() * 1.5; // shortcut: assumes a busy worker; the mod counts actual actions
+                if (job != null) drop *= job.hungerFactor();
+                drop += Math.min(drop / 2, c.takeEffort()); // its work since the last drop, at most half again (the mod's)
+                if (c.child) drop /= 2;                     // the mod's children eat half as much
                 c.saturation = Math.max(0, c.saturation - drop);
             }
         }

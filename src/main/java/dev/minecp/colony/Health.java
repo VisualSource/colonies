@@ -63,16 +63,15 @@ public final class Health {
         // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
         if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_CITIZEN)) return;
         Job job = colony.jobOf(c);
+        var type = e.getDamageSource().getDamageType();
         double capped = Math.min(e.getDamage(), max(c) * MAX_HIT); // the mod caps the hit first; the job's research, shield and armor act on that
         double damage = cause == DamageCause.VOID || cause == DamageCause.KILL ? c.health
-                : job != null ? job.reaching(capped, cause, source, c) : capped;
+                : job != null ? job.reaching(capped, type, source, c) : capped;
         if (damage <= 0) return;
         c.health -= damage;
         c.showHurt();
         if (direct != null) c.hitBy(direct);
-        var type = e.getDamageSource().getDamageType(); // the mod's damage modifier skips fire (lava, magma, campfires too) and lightning
-        if (!org.bukkit.tag.DamageTypeTags.IS_FIRE.isTagged(type) && !org.bukkit.tag.DamageTypeTags.IS_LIGHTNING.isTagged(type))
-            colony.happiness.hurt(c); // the mod's damage modifier skips fire and lightning
+        if (!Job.fireOrLightning(type)) colony.happiness.hurt(c); // the mod's damage modifier skips fire (lava, magma, campfires too) and lightning
         if (c.health <= 0) { die(c, cause, source); return; }
         c.wake(); // vanilla wakes any sleeper that is hurt; it flees first, then goes back to bed
         if (job != null && job.fightsBack(source)) { // a knight doesn't run
