@@ -200,12 +200,14 @@ public final class BuildOrder {
         order.subHuts.putAll(subHuts);
         for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows and named graves
             var tags = e.getScoreboardTags();
-            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG)) continue;
+            String plant = tags.stream().filter(t -> t.startsWith(PLANT_TAG)).findFirst().orElse(null);
+            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && plant == null) continue;
             var l = e.getLocation(); // relative to the structure's corner
             BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
             Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
             if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
             if (tags.contains(SIT_TAG)) { order.seats.add(block); continue; }
+            if (plant != null) { order.plants.put(block, plant.substring(PLANT_TAG.length())); continue; }
             var sign = (Directional) Material.OAK_WALL_SIGN.createBlockData(); // turns the grave's facing with the building
             for (String t : tags) if (t.startsWith("minecp_facing_"))
                 try { sign.setFacing(org.bukkit.block.BlockFace.valueOf(t.substring(14).toUpperCase())); } catch (IllegalArgumentException ignored) {}
@@ -267,6 +269,11 @@ public final class BuildOrder {
     static final String SIT_TAG = "minecp_sit";
     /** Where the structure has a seat. */
     public final List<Block> seats = new ArrayList<>();
+
+    /** Prefix of the marker entities on a plantation's plots, + the mod's work tag ("sugar", "cactus", "bamboo"). */
+    static final String PLANT_TAG = "minecp_plant_";
+    /** A plantation's plots: the ground block under each plant, and its work tag, in the blueprint's order. */
+    public final Map<Block, String> plants = new java.util.LinkedHashMap<>();
 
     /** The box (minX, maxX+1, minZ, maxZ+1) a hut's building covers, placed on its hut block; null if it has none. */
     public static int[] footprint(String structure, Block hut, StructureRotation rotation, boolean mirror) {

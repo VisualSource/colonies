@@ -615,6 +615,7 @@ public final class Colony {
             growUp();
             visitors.colonyTick(COLONY_TICK);
             research.colonyTick();
+            raids.hireSpies();
             // ours: counted each colony tick (the mod counts when a guard is hired)
             milestones.guards((int) jobs.stream().filter(j -> j instanceof dev.minecp.job.Guard && j.worker != null).count());
         }

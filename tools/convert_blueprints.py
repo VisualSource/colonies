@@ -71,6 +71,8 @@ GRAVE_TAG = "minecp_grave"                           # tag of the marker entity 
 STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"),
                  "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
+PLANT_TAGS = ("sugar", "cactus", "bamboo")  # a plantation's own plots (the ground under each plant), the mod's work tags
+PLANT_TAG = "minecp_plant_"  # + the tag: marker on each plot (BuildOrder.PLANT_TAG)
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
@@ -169,17 +171,24 @@ def starter_items(items, data_version):
     return (nbt.LIST, (items[1][0] if kept else nbt.COMPOUND, kept))
 
 
-def sit_spots(root):
-    """A blueprint's seats: its hut's "sit" tag positions ("sit", "sit_in", "sit_out", "sitting"), relative to the blueprint's corner."""
+def tag_spots(root, wanted):
+    """Positions of a blueprint's tags whose name passes wanted(name), relative to its corner, with that name."""
     spots = []
     for t_typed in root.get("tile_entities", (None, (None, [])))[1][1]:
         provider = nbt.plain((nbt.COMPOUND, t_typed)).get("blueprintDataProvider") or {}
         hx, hy, hz = (t_typed[k][1] for k in ("x", "y", "z"))
         for entry in provider.get("posTagMap", []):
-            if any(n.get("tagName", "").startswith("sit") for n in entry.get("tagNameList", [])):
-                p = entry["tagPos"]
-                spots.append((hx + p["x"], hy + p["y"], hz + p["z"]))
+            for n in entry.get("tagNameList", []):
+                if wanted(n.get("tagName", "")):
+                    p = entry["tagPos"]
+                    spots.append(((hx + p["x"], hy + p["y"], hz + p["z"]), n["tagName"]))
+                    break
     return spots
+
+
+def sit_spots(root):
+    """A blueprint's seats: its hut's "sit" tag positions ("sit", "sit_in", "sit_out", "sitting"), relative to the blueprint's corner."""
+    return [pos for pos, _ in tag_spots(root, lambda n: n.startswith("sit"))]
 
 
 def primary_offset(root):
@@ -264,6 +273,9 @@ def convert(path, blocks, siblings=()):
     for pos in seats:
         if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
             out_entities.append(marker(pos, [SIT_TAG]))
+    for pos, name in tag_spots(root, lambda n: n in PLANT_TAGS):
+        if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
+            out_entities.append(marker(pos, [PLANT_TAG + name]))
     structure = {
         "DataVersion": (nbt.INT, data_version),  # vanilla upgrades old block names on load
         "size": (nbt.LIST, (nbt.INT, [sx, sy, sz])),

@@ -95,6 +95,13 @@ public final class Menus {
                 long couriers = c.jobs.stream().filter(j -> j instanceof Courier && c.worker(j) != null).count();
                 body.add(text(Component.text("Couriers: " + couriers + (couriers == 0 ? " (build a Courier's Hut)" : ""))));
             }
+            case BARRACKS -> {
+                var towers = c.towers(h);
+                body.add(text(Component.text(h.level == 0 ? "Its towers come with each level once it is built."
+                        : "Towers: " + towers.size() + " (" + String.join(", ", towers.stream().map(t -> "level " + t.level).toList())
+                        + "). Each houses a guard per level; build and upgrade them from their own hut blocks, up to the barracks' level.", NamedTextColor.GRAY)));
+                body.add(text(Component.text("During a raid, 5 gold ingots in its chest pay spies, who mark every raider.", NamedTextColor.GRAY)));
+            }
             case HOUSE, TAVERN -> {
                 var residents = c.residents(h);
                 body.add(text(Component.text("Residents: " + residents.size() + " of " + h.type.rooms(h.level), NamedTextColor.GOLD)));

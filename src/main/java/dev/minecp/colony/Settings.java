@@ -59,7 +59,8 @@ public final class Settings {
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
-            MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize";
+            MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize",
+            GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
@@ -89,6 +90,8 @@ public final class Settings {
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"));
+            // ours: the mod's players assign its fields in a list; here each of its own kinds is a switch
+            case PLANTATION -> List.of(bool(GROW_SUGAR, "Grow sugar cane"), bool(GROW_CACTUS, "Grow cactus"), bool(GROW_BAMBOO, "Grow bamboo (needs research)"));
             case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));
             // not its "min warehouse stock" (16): MineCP's warehouse keeps nothing back from requests
             case COMPOSTER -> List.of(bool(MAKE_DIRT, "Make dirt instead of compost", false));

@@ -60,13 +60,34 @@ public final class PostBox extends Job {
     @Override
     public void tick(Colonist w) {}
 
-    /** What an order or stock of {@code held} is for: the item itself for {@link #BY_DATA}, else just its type. */
+    /**
+     * What an order or stock of {@code held} is for: the item itself for {@link #BY_DATA}; one of MineCP's own items
+     * (a mesh, compost, a rack, a hut) as a new one of its kind; else just its type.
+     */
     public static ItemStack orderable(ItemStack held) {
-        return BY_DATA.contains(held.getType()) ? held.asOne() : new ItemStack(held.getType());
+        if (BY_DATA.contains(held.getType())) return held.asOne();
+        if (ours(held).isEmpty()) return new ItemStack(held.getType());
+        ItemStack fresh = held.asOne();
+        fresh.editMeta(org.bukkit.inventory.meta.Damageable.class, d -> d.setDamage(0)); // a worn mesh orders a new one
+        return fresh;
     }
 
+    /**
+     * Whether {@code i} fills an order for {@code wanted}: the same enchantment or potion for {@link #BY_DATA}; else the
+     * same type and the same kind of MineCP item, or a plain one for a plain order (paper isn't a mesh, nor a mesh paper).
+     */
     static boolean same(ItemStack wanted, ItemStack i) {
-        return i != null && (BY_DATA.contains(wanted.getType()) ? wanted.isSimilar(i) : i.getType() == wanted.getType());
+        if (i == null) return false;
+        if (BY_DATA.contains(wanted.getType())) return wanted.isSimilar(i);
+        return i.getType() == wanted.getType() && ours(i).equals(ours(wanted));
+    }
+
+    /** MineCP's tags on an item, with their text values ("minecp:mesh=IRON"), sorted; empty for a plain item. */
+    private static String ours(ItemStack item) {
+        var pdc = item.getPersistentDataContainer();
+        return pdc.getKeys().stream().filter(k -> k.getNamespace().equals(dev.minecp.MineCP.NAMESPACE))
+                .map(k -> k + "=" + (pdc.has(k, org.bukkit.persistence.PersistentDataType.STRING) ? pdc.get(k, org.bukkit.persistence.PersistentDataType.STRING) : ""))
+                .sorted().reduce("", (a, b) -> a + b + ";");
     }
 
     /** Orders {@code amount} of {@code item} (from {@link #orderable}); {@code partial}: deliveries may bring what the warehouse has. */
@@ -125,6 +146,8 @@ public final class PostBox extends Job {
 
     /** Its name in requests and menus, which also tells requests apart: "enchanted book (sharpness 5)". */
     public static String label(ItemStack item) {
+        if (!ours(item).isEmpty() && item.getItemMeta().hasItemName()) // MineCP's own item: its name ("Iron Sifter Mesh")
+            return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().itemName());
         String name = name(item.getType());
         if (item.getItemMeta() instanceof EnchantmentStorageMeta m && m.hasStoredEnchants())
             return name + " (" + String.join(", ", m.getStoredEnchants().entrySet().stream()

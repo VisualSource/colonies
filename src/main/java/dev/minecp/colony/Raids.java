@@ -159,6 +159,28 @@ public final class Raids {
         return !hordes.isEmpty();
     }
 
+    /** Spies are out (a barracks paid for them this raid): every raider glows (the mod's areSpiesEnabled). Not saved, as the raid. */
+    boolean spies;
+    private static final int SPIES_GOLD = 5; // BuildingBarracks.SPIES_GOLD_COST
+
+    /**
+     * Each colony tick (the mod's BuildingBarracks.onColonyTick): during a raid, the first barracks whose chest holds 5
+     * gold ingots pays them for spies; after it, they are called off.
+     */
+    void hireSpies() {
+        if (!underway()) { spies = false; return; }
+        if (spies) return;
+        ItemStack gold = new ItemStack(Material.GOLD_INGOT);
+        for (Hut b : colony.huts) {
+            if (b.type != Hut.Type.BARRACKS || !(b.block.getState(false) instanceof org.bukkit.block.Container c)
+                    || !c.getInventory().containsAtLeast(gold, SPIES_GOLD)) continue;
+            c.getInventory().removeItem(gold.asQuantity(SPIES_GOLD));
+            spies = true;
+            colony.tell("Spies paid from the Barracks mark every raider."); // ours: the mod says nothing
+            return;
+        }
+    }
+
     // ---- when -----------------------------------------------------------------------------------------------------
 
     /**
@@ -423,7 +445,7 @@ public final class Raids {
         for (Horde h : hordes) for (Mob m : h.raiders) if (m.isInvulnerable() && m.getTicksLived() >= SPAWN_SHIELD) m.setInvulnerable(false);
         if (ticks % UPDATE == 0) for (Horde h : hordes) {
             if (h.camp > 0) h.camp--;
-            if (h.raiders.size() < Math.round(0.15 * h.initial)) h.raiders.forEach(m -> m.setGlowing(true));
+            if (spies || h.raiders.size() < Math.round(0.15 * h.initial)) h.raiders.forEach(m -> m.setGlowing(true));
         }
         if (ticks % 20 != 0) return;
         boolean timedOut = Bukkit.getCurrentTick() - startedAt > DESPAWN_TICKS;
