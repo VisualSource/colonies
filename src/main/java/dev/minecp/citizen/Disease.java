@@ -33,6 +33,13 @@ public enum Disease {
         return INFLUENZA;
     }
 
+    /** One of each cure item in {@code inv}. */
+    public boolean curedBy(org.bukkit.inventory.Inventory inv) {
+        if (inv == null) return false;
+        for (Material m : cures) if (!inv.contains(m)) return false;
+        return true;
+    }
+
     /** "a carrot and a potato". */
     public String cureLabel() {
         List<String> names = cures.stream().map(m -> "a " + m.name().toLowerCase().replace('_', ' ')).toList();

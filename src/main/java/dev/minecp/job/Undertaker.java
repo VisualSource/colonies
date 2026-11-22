@@ -21,6 +21,7 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.WallSign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -125,7 +126,7 @@ public final class Undertaker extends Job {
         if (grave != null && !colony.graves.contains(grave)) { grave = null; state = State.FIND; } // decayed or broken meanwhile
         switch (state) {
             case FIND -> {
-                if (!load.isEmpty()) { state = State.DUMP; return; }
+                if (loaded()) { state = State.DUMP; return; }
                 if (body != null) { state = State.BURY; return; }
                 if (spots().isEmpty()) { // structures converted before burial spots were marked
                     note = "This graveyard has no burial spots: its structures need converting again (tools/convert_blueprints.py).";
@@ -164,11 +165,13 @@ public final class Undertaker extends Job {
             case EMPTY -> {
                 if (!w.isBeside(grave.block)) { state = State.TO_GRAVE; return; } // back from bed, a meal or the rain
                 if (!work(w, EMPTY_TICKS)) return;
-                for (int i = 0; i < grave.items.getSize() && load.size() < slots(); i++) { // a citizen's inventory, as in the mod
+                Inventory bag = bag();
+                for (int i = 0; i < grave.items.getSize() && bag != null; i++) { // into its inventory, as much as fits (the mod's)
                     ItemStack item = grave.items.getItem(i);
                     if (item == null) continue;
-                    load.add(item);
-                    grave.items.setItem(i, null);
+                    var left = bag.addItem(item).values();
+                    grave.items.setItem(i, left.isEmpty() ? null : left.iterator().next());
+                    if (!left.isEmpty()) break;
                 }
                 effort = 0;
                 state = grave.items.isEmpty() ? State.RESURRECT : State.DUMP; // full: to the hut, then back to this grave
@@ -236,7 +239,7 @@ public final class Undertaker extends Job {
     /** Swings the shovel, counting up effort; @return true once {@code ticks} of swinging have passed. */
     private boolean work(Colonist w, int ticks) {
         if (effort >= ticks) return true;
-        w.hold(tools.get(Tool.SHOVEL));
+        w.hold(tool(Tool.SHOVEL));
         act(w);
         effort += SWING_TICKS;
         cooldown = SWING_TICKS;

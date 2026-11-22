@@ -1,5 +1,6 @@
 package dev.minecp.colony;
 
+import dev.minecp.citizen.Disease;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Food;
 import dev.minecp.job.Job;
@@ -13,6 +14,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -81,8 +83,11 @@ public final class ColonyStore {
             var inv = c.inventory();
             if (inv != null) {
                 cs.set("inventory-size", inv.getSize());
-                List<String> items = new java.util.ArrayList<>();
-                for (int i = 0; i < inv.getSize(); i++) { var it = inv.getItem(i); if (it != null && !it.isEmpty()) items.add(i + ":" + java.util.Base64.getEncoder().encodeToString(it.serializeAsBytes())); }
+                List<String> items = new ArrayList<>();
+                for (int i = 0; i < inv.getSize(); i++) {
+                    ItemStack it = inv.getItem(i);
+                    if (it != null && !it.isEmpty()) items.add(i + ":" + Base64.getEncoder().encodeToString(it.serializeAsBytes()));
+                }
                 cs.set("inventory", items);
             }
             if (!c.mourns.isEmpty()) cs.set("mourns", c.mourns);
@@ -163,14 +168,14 @@ public final class ColonyStore {
                 c.defendedDays = days.get(5);
             }
             String disease = cs.getString("disease");
-            if (disease != null) c.disease = dev.minecp.citizen.Disease.valueOf(disease);
+            if (disease != null) c.disease = Disease.valueOf(disease);
             c.immunity = cs.getInt("immunity");
             c.sickDays = cs.getInt("sick-days");
             if (cs.contains("inventory-size")) {
                 var inv = c.inventory(cs.getInt("inventory-size"));
                 for (String it : cs.getStringList("inventory")) {
                     int colon = it.indexOf(':');
-                    inv.setItem(Integer.parseInt(it.substring(0, colon)), org.bukkit.inventory.ItemStack.deserializeBytes(java.util.Base64.getDecoder().decode(it.substring(colon + 1))));
+                    inv.setItem(Integer.parseInt(it.substring(0, colon)), ItemStack.deserializeBytes(Base64.getDecoder().decode(it.substring(colon + 1))));
                 }
             }
             c.mourns.addAll(cs.getStringList("mourns"));

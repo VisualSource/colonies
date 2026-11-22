@@ -87,11 +87,24 @@ public final class Colonist {
     /** Its inventory, at least {@code size} slots (27, more with research): grown, it keeps what it held. */
     public Inventory inventory(int size) {
         if (inventory == null || inventory.getSize() < size) {
-            Inventory bigger = Bukkit.createInventory(null, size, net.kyori.adventure.text.Component.text(name));
-            if (inventory != null) bigger.setContents(java.util.Arrays.copyOf(inventory.getContents(), size));
+            Inventory bigger = Bukkit.createInventory(null, size, Component.text(name));
+            if (inventory != null) {
+                inventory.close(); // a player with the old one open would put things where they'd be lost
+                bigger.setContents(java.util.Arrays.copyOf(inventory.getContents(), size));
+            }
             inventory = bigger;
         }
         return inventory;
+    }
+
+    /** Everything in its inventory, which is left empty (closed for anyone looking, so nothing is taken twice). */
+    public List<ItemStack> takeInventory() {
+        List<ItemStack> out = new ArrayList<>();
+        if (inventory == null) return out;
+        inventory.close();
+        for (ItemStack i : inventory.getContents()) if (i != null && !i.isEmpty()) out.add(i);
+        inventory.clear();
+        return out;
     }
 
     /** Its inventory as it is, or null if it never had one. */

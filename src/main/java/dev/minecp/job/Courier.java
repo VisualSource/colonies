@@ -44,6 +44,12 @@ public final class Courier extends Job {
         return before >= wh.hut.level * COURIERS_PER_LEVEL;
     }
 
+    /** All it carries is for others: tools and food it was asked to bring are delivered too. */
+    @Override
+    boolean keepsOwn() {
+        return false;
+    }
+
     /** Stacks it can carry per trip, as in the mod: 1, 2, 4, 8 for hut levels 1-4, any amount at level 5. */
     int maxStacks() {
         return hut.level >= Hut.MAX_LEVEL ? Integer.MAX_VALUE : 1 << Math.max(0, hut.level - 1);
@@ -68,18 +74,18 @@ public final class Courier extends Job {
         Warehouse wh = colony.warehouse();
         if (serving != null && (!colony.jobs.contains(serving) || crafted != null && !colony.jobs.contains(crafted.crafter))) drop();
 
-        if (!load.isEmpty()) { // deliver what it carries
+        if (loaded()) { // deliver what it carries
             // Where it goes: the hut it is for; else the warehouse; with neither (the hut is gone, no warehouse), its own hut.
             Job toJob = toWarehouse || serving == null ? null : serving;
             Block to = toJob != null ? toJob.hut.block : wh != null ? wh.hut.block : hut.block;
             if (!w.isBeside(to)) { w.setStatus("Courier: working"); w.goBeside(to); return; }
             Inventory into = toJob != null ? toJob.chest() : wh != null ? null : chest();
+            List<ItemStack> load = unload();
             List<ItemStack> left = into == null && wh != null && toJob == null ? wh.store(load)
-                    : into == null ? new ArrayList<>(load) : new ArrayList<>(into.addItem(load.toArray(ItemStack[]::new)).values());
-            load.clear();
-            load.addAll(left);
+                    : into == null ? load : new ArrayList<>(into.addItem(load.toArray(ItemStack[]::new)).values());
+            gather(left, w); // what didn't fit, back in its inventory
             act(w);
-            if (!load.isEmpty()) { // didn't fit
+            if (!left.isEmpty()) { // didn't fit
                 if (toJob != null && wh != null) { toWarehouse = true; return; } // take it back to the warehouse
                 // No warehouse to take it back to, or the warehouse is full: wait for room and try again.
                 idle(w, "The " + (toJob != null ? toJob.hut.type.title : wh != null ? "warehouse" : hut.type.title) + "'s chest is full.", 60, to);
@@ -104,14 +110,18 @@ public final class Courier extends Job {
             Block source = crafted != null ? crafted.crafter.hut.block : wh == null ? null : wh.hut.block;
             if (source == null) { drop(); return; }
             if (!w.isBeside(source)) { w.goBeside(source); return; }
-            load.addAll(crafted != null ? crafted.crafter.handOver(crafted, maxStacks()) : wh.take(want.test(), want.amount(), maxStacks()));
-            if (load.isEmpty()) drop(); // gone meanwhile
+            int stacks = Math.min(maxStacks(), freeSlots()); // only what fits in its inventory
+            if (stacks <= 0) { idle(w, "Its inventory is full: open it from its menu and take something out.", 100, null); return; }
+            List<ItemStack> got = crafted != null ? crafted.crafter.handOver(crafted, stacks) : wh.take(want.test(), want.amount(), stacks);
+            gather(got, w);
+            if (got.isEmpty()) drop(); // gone meanwhile
             act(w);
             cooldown = 10;
         } else { // collect surplus from the hut
             if (!w.isBeside(serving.hut.block)) { w.goBeside(serving.hut.block); return; }
-            load.addAll(surplus(serving, maxStacks()));
-            if (load.isEmpty()) serving = null;
+            List<ItemStack> got = surplus(serving, Math.min(maxStacks(), freeSlots()));
+            gather(got, w);
+            if (got.isEmpty()) serving = null;
             toWarehouse = true;
             act(w);
             cooldown = 10;
@@ -161,10 +171,7 @@ public final class Courier extends Job {
 
     /** How many items matching {@code test} it is carrying to {@code to} now, crafted or from the warehouse. */
     public int carrying(Job to, java.util.function.Predicate<ItemStack> test) {
-        if (serving != to || toWarehouse) return 0;
-        int n = 0;
-        for (ItemStack i : load) if (test.test(i)) n += i.getAmount();
-        return n;
+        return serving != to || toWarehouse ? 0 : has(test);
     }
 
     /** Another courier is already on its way for this hut. */

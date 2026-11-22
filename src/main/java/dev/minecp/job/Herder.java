@@ -98,7 +98,7 @@ public final class Herder extends Job {
         List<Want> wants = new ArrayList<>();
         wantTool(wants, Tool.AXE);
         if (kind == Kind.SHEEP) wantTool(wants, Tool.SHEARS);
-        int food = inChest(i -> i.getType() == kind.food) + carried.getOrDefault(kind.food, 0);
+        int food = inChest(i -> i.getType() == kind.food) + has(kind.food);
         if (food < FOOD_MIN) wants.add(new Want(Job.name(kind.food), i -> i.getType() == kind.food, FOOD_WANTED - food, FOOD_MIN));
         if (kind == Kind.COW) { // the mod keeps 2 of each for one a day
             if (containers(Material.BUCKET) > 0 && inChest(i -> i.getType() == Material.BUCKET) == 0)
@@ -136,7 +136,7 @@ public final class Herder extends Job {
         }
         if (w.isMoving() || --cooldown > 0) return;
         if (act != Act.NONE) { carryOut(w); return; }
-        if (actions >= ACTIONS_FOR_DUMP || !load.isEmpty() && actions == 0) { dump(w); return; }
+        if (actions >= ACTIONS_FOR_DUMP || loaded() && actions == 0) { dump(w); return; }
         if (!hasTool(Tool.AXE, null) || kind == Kind.SHEEP && !hasTool(Tool.SHEARS, null)) {
             if (!atHut(w)) { goToHut(w); return; }
             fetchTool(Tool.AXE, null);
@@ -149,7 +149,7 @@ public final class Herder extends Job {
             }
         }
         for (Material m : supplies()) // low on the breeding item (or the cowhand's buckets and bowls): more from the chest
-            if (carried.getOrDefault(m, 0) <= (m == kind.food ? 1 : 0) && inChest(i -> i.isSimilar(new ItemStack(m))) > 0) { // plain ones only, as bring takes
+            if (has(m) <= (m == kind.food ? 1 : 0) && inChest(i -> i.isSimilar(new ItemStack(m))) > 0) { // plain ones only, as bring takes
                 if (!atHut(w)) { goToHut(w); return; }
                 bring(m);
             }
@@ -179,7 +179,7 @@ public final class Herder extends Job {
             Animals sheep = adults.stream().filter(a -> a instanceof Sheep s && !s.isSheared()).findFirst().orElse(null);
             if (sheep != null) { start(Act.SHEAR, sheep, null); return; }
         }
-        if (hut.on(Settings.BREEDING) && Bukkit.getCurrentTick() >= breedUntil && carried.getOrDefault(kind.food, 0) > 1) {
+        if (hut.on(Settings.BREEDING) && Bukkit.getCurrentTick() >= breedUntil && has(kind.food) > 1) {
             List<Animals> ready = animals.stream().filter(a -> a.isAdult() && a.canBreed() && !a.isLoveMode()).toList();
             if (ready.size() < 2) pause(BREED_PAUSE);
             else { // the one nearest the middle of those that can breed, and its nearest partner
@@ -201,7 +201,7 @@ public final class Herder extends Job {
             Animals cow = null;
             if (milked < hut.number(Settings.MILKING)) cow = adults.stream().filter(a -> a.getType() != EntityType.MOOSHROOM).findFirst().orElse(null);
             if (cow == null && stewed < hut.number(Settings.STEWING)) cow = adults.stream().filter(a -> a instanceof MushroomCow).findFirst().orElse(null);
-            if (cow != null && carried.getOrDefault(cow instanceof MushroomCow ? Material.BOWL : Material.BUCKET, 0) > 0) {
+            if (cow != null && has(cow instanceof MushroomCow ? Material.BOWL : Material.BUCKET) > 0) {
                 start(Act.MILK, cow, null);
                 return;
             }
@@ -237,12 +237,12 @@ public final class Herder extends Job {
                 cooldown = PICKUP_TICKS;
             }
             case BUTCHER -> {
-                w.hold(tools.get(Tool.AXE));
+                w.hold(tool(Tool.AXE));
                 act(w);
                 cooldown = BUTCHER_TICKS;
                 if (kind.rarelyHits && rnd.nextInt(21) > 1) return;
                 wear(Tool.AXE, w);
-                ItemStack axe = tools.get(Tool.AXE);
+                ItemStack axe = tool(Tool.AXE);
                 if (axe != null && colony.research.effect(Effects.LOOTING) > 0 && axe.getEnchantmentLevel(Enchantment.LOOTING) < 1) {
                     // The mod's Skilled Butcher: the blow is struck with at least Looting I. Ours: a copy in hand for the blow only.
                     axe = axe.clone();
@@ -250,16 +250,16 @@ public final class Herder extends Job {
                     w.hold(axe);
                 }
                 ((Animals) target).damage(kind.damage, w.living());
-                w.hold(tools.get(Tool.AXE)); // its own axe back in hand
+                w.hold(tool(Tool.AXE)); // its own axe back in hand
                 if (target.isValid() && !target.isDead()) return;
                 actions++;
                 pickUp(w); // ours: what it dropped, at once (the mod leaves it for its 1 in 10 pick-up)
                 act = Act.NONE;
             }
             case BREED -> {
-                if (carried.getOrDefault(kind.food, 0) < 1) { act = Act.NONE; return; }
+                if (has(kind.food) < 1) { act = Act.NONE; return; }
                 ((Animals) target).setLoveModeTicks(600);
-                take(kind.food);
+                use(kind.food, 1);
                 act(w);
                 actions++;
                 cooldown = BREED_TICKS;
@@ -270,13 +270,13 @@ public final class Herder extends Job {
             case SHEAR -> {
                 Sheep s = (Sheep) target;
                 if (s.isSheared() || !hasTool(Tool.SHEARS, null)) { act = Act.NONE; return; }
-                w.hold(tools.get(Tool.SHEARS));
+                w.hold(tool(Tool.SHEARS));
                 act(w);
                 wear(Tool.SHEARS, w);
                 s.setSheared(true);
                 s.getWorld().playSound(s.getLocation(), Sound.ENTITY_SHEEP_SHEAR, SoundCategory.PLAYERS, 1, 1);
                 Material wool = Material.matchMaterial((s.getColor() == null ? DyeColor.WHITE : s.getColor()).name() + "_WOOL");
-                if (wool != null) load.add(new ItemStack(wool)); // 1 wool: the mod's amount without Fortune
+                if (wool != null) gather(List.of(new ItemStack(wool)), w); // 1 wool: the mod's amount without Fortune
                 if (hut.on(Settings.DYEING) && rnd.nextInt(100) <= hut.level) s.setColor(DyeColor.values()[rnd.nextInt(DyeColor.values().length)]); // the mod's dyeing
                 actions++;
                 act = Act.NONE;
@@ -285,9 +285,9 @@ public final class Herder extends Job {
             case MILK -> {
                 boolean stew = target instanceof MushroomCow;
                 Material from = stew ? Material.BOWL : Material.BUCKET;
-                if (carried.getOrDefault(from, 0) < 1) { act = Act.NONE; return; }
-                take(from);
-                load.add(new ItemStack(stew ? Material.MUSHROOM_STEW : Material.MILK_BUCKET));
+                if (has(from) < 1) { act = Act.NONE; return; }
+                use(from, 1);
+                gather(List.of(new ItemStack(stew ? Material.MUSHROOM_STEW : Material.MILK_BUCKET)), w);
                 target.getWorld().playSound(target.getLocation(), stew ? Sound.ENTITY_MOOSHROOM_MILK : Sound.ENTITY_COW_MILK, SoundCategory.PLAYERS, 1, 1);
                 act(w);
                 if (stew) stewed++; else milked++;
@@ -304,16 +304,19 @@ public final class Herder extends Job {
     }
 
     private void pickUp(Colonist w) {
-        for (Item i : items()) if (i.getLocation().distance(w.location()) <= 3) { load.add(i.getItemStack()); i.remove(); }
+        Inventory bag = bag();
+        if (bag == null) return;
+        for (Item i : items()) {
+            if (i.getLocation().distance(w.location()) > 3) continue;
+            var left = bag.addItem(i.getItemStack()).values(); // what doesn't fit stays on the ground
+            if (left.isEmpty()) i.remove();
+            else i.setItemStack(left.iterator().next());
+        }
     }
 
     private void dump(Colonist w) {
         if (!atHut(w)) { goToHut(w); return; }
-        java.util.Map<Material, Integer> kept = new java.util.EnumMap<>(Material.class); // what it works with stays with it
-        for (Material m : supplies()) { Integer n = carried.remove(m); if (n != null) kept.put(m, n); }
-        boolean ok = deliver();
-        carried.putAll(kept);
-        if (!ok) {
+        if (!deliver()) { // what it works with stays with it (keepsOnHand)
             note = "The hut chest is full.";
             w.setStatus(hut.type.worker + ": idle");
             cooldown = 100;
@@ -324,17 +327,13 @@ public final class Herder extends Job {
 
     /** Takes {@code m} from the hut chest, which it stands at: 16 of the breeding item, else 1. */
     private void bring(Material m) {
-        Inventory chest = chest();
-        if (chest == null) return;
-        int want = (m == kind.food ? 16 : 1) - carried.getOrDefault(m, 0);
-        if (want <= 0) return;
-        int got = want - chest.removeItem(new ItemStack(m, want)).values().stream().mapToInt(ItemStack::getAmount).sum();
-        if (got > 0) carried.merge(m, got, Integer::sum);
+        fetch(m, (m == kind.food ? 16 : 1) - has(m));
     }
 
-    private void take(Material m) {
-        carried.merge(m, -1, Integer::sum);
-        carried.values().removeIf(n -> n <= 0);
+    /** It keeps the breeding item, and the cowhand its buckets and bowls, when it hands the rest in. */
+    @Override
+    boolean keepsOnHand(ItemStack i) {
+        return supplies().contains(i.getType()) && i.getPersistentDataContainer().isEmpty();
     }
 
     /** The building's box (the mod's hut corners), a little up and down. */

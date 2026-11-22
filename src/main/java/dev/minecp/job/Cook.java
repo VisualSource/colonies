@@ -112,9 +112,7 @@ public final class Cook extends Job {
     /** Food it was carrying goes back to the chest when the job ends. */
     @Override
     public void dropCarried() {
-        serving.forEach(i -> carried.merge(i.getType(), i.getAmount(), Integer::sum));
-        serving.clear();
-        super.dropCarried();
+        stow();
     }
 
     @Override

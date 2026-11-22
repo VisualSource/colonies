@@ -443,7 +443,7 @@ public final class Menus {
         // the mod's citizen inventory (OpenInventoryMessage: MANAGE_HUTS): give it cures, food or anything else
         List<ActionButton> buttons = List.of(Dialogs.button(plugin, "Inventory", 200, p, () -> c.colonists.contains(x), (player, view) -> {
             if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
-            player.openInventory(x.inventory(27 + (int) c.research.effect(dev.minecp.research.Effects.INVENTORY_SLOTS)));
+            player.openInventory(x.inventory(c.inventorySlots()));
         }));
         Dialogs.show(p, x.name, body, List.of(), buttons, 1);
     }

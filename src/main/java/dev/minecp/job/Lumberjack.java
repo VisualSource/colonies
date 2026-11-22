@@ -102,7 +102,7 @@ public final class Lumberjack extends Job {
         if (w.isMoving() || --cooldown > 0) return;
         switch (state) {
             case FIND -> {
-                if (!carried.isEmpty()) { state = State.TO_HUT; return; } // e.g. after a restart mid-trip
+                if (loaded()) { state = State.TO_HUT; return; } // e.g. after a restart mid-trip
                 if (!w.onGround()) return; // vanilla can't plan a walk mid-air; that is not an unreachable tree
                 if (!getTools(w)) return;
                 if (!findTree()) {
@@ -165,7 +165,7 @@ public final class Lumberjack extends Job {
                 if (!atHut(w)) { goToHut(w); return; }
                 deliver(); // the wood first
                 Material sapling = saplingFor(logType);
-                int got = sapling == null ? 0 : takeSaplings(sapling, bareSpotBlocks().size());
+                int got = sapling == null ? 0 : fetch(sapling, bareSpotBlocks().size());
                 if (got == 0) { // note says which sapling; the tree's spot stays bare
                     note = "No " + (sapling == null ? "sapling" : name(sapling)) + " in the hut chest to replant the last tree.";
                     state = State.FIND;
@@ -214,7 +214,7 @@ public final class Lumberjack extends Job {
 
     /** Breaks a log or leaf block with the tool, keeping its drops (leaves roll their usual saplings, sticks, apples). */
     private void chop(Block block, Tool tool, Colonist w) {
-        for (var drop : breakWith(tool, block, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
+        gather(breakWith(tool, block, w), w);
         var data = block.getBlockData();
         var sounds = data.getSoundGroup();
         block.getWorld().playSound(block.getLocation(), sounds.getBreakSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());
@@ -231,27 +231,15 @@ public final class Lumberjack extends Job {
         if (sapling == null) return true;
         boolean all = true;
         for (Block log : bareSpotBlocks()) {
-            if (carried.getOrDefault(sapling, 0) <= 0) { all = false; break; }
-            carried.merge(sapling, -1, Integer::sum);
+            if (use(sapling, 1) == 0) { all = false; break; }
             log.setType(sapling);
         }
-        carried.values().removeIf(n -> n <= 0);
         return all;
     }
 
     /** Where the trunk stood on soil and nothing grows yet. */
     private List<Block> bareSpotBlocks() {
         return logs.stream().filter(b -> b.isEmpty() && Tag.DIRT.isTagged(b.getRelative(0, -1, 0).getType())).toList();
-    }
-
-    /** Takes up to {@code n} of {@code sapling} from the hut chest (it stands there). @return how many. */
-    private int takeSaplings(Material sapling, int n) {
-        var chest = chest();
-        if (chest == null || n <= 0) return 0;
-        int got = n - chest.removeItem(new org.bukkit.inventory.ItemStack(sapling, n)).values().stream()
-                .mapToInt(org.bukkit.inventory.ItemStack::getAmount).sum();
-        if (got > 0) carried.merge(sapling, got, Integer::sum);
-        return got;
     }
 
     private static Material saplingFor(Material log) {

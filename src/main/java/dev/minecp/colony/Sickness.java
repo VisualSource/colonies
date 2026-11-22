@@ -34,24 +34,25 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class Sickness {
     static final int CHECK_TICKS = 60;              // the mod ticks citizen data every 3 s
-    private static final int ODDS = 5 * (100000 / 3); // diseaseModifier default 5 x DISEASE_FACTOR (ours: not a setting)
+    private static final int SICK_ODDS = 5 * (100000 / 3); // diseaseModifier default 5 x DISEASE_FACTOR (ours: not a setting)
     private static final int STARTING = 4;          // initialCitizenAmount: nobody falls sick until the colony has more
     private static final int IMMUNITY = 20 * 60 * 90, VACCINE = 10; // IMMUNITY_TIME after a cure in a hospital bed, x10 with Vaccines
     private static final int COLLISION_COOLDOWN = 20 * 30; // after masks stopped it catching a disease (x2 with Vaccines)
-    private static final double CATCH = 0.01;       // a bump into a sick citizen: 1 in 100 (the mod rolls each bump)
-    private static final double BUMP = 0.6;         // ours: bodies this close (horizontally) count as bumping
+    private static final double CATCH_CHANCE = 0.01;       // a bump into a sick citizen: 1 in 100 (the mod rolls each bump)
+    private static final double BUMP_RANGE = 0.6;         // ours: bodies this close (horizontally) count as bumping
     private static final double SEEK_DOCTOR = 6;    // SEEK_DOCTOR_HEALTH: hurt this badly, it goes to a hospital
     private static final int CURE_STEPS = 60, STEP_TICKS = 20; // REQUIRED_TIME_TO_CURE, a step a second
     private static final int SELF_CURE = 60 * 60 * 2; // waiting at a hospital, 1 in this each second: it gets well by itself
     private static final double HOSPITAL_NEAR = 10; // MINIMUM_DISTANCE_TO_HOSPITAL
     private static final int APPLE_ODDS = 3;        // a golden apple cures 1 time in 3
-    private static final int INTERACT_COOLDOWN = 20 * 60 * 5;
+    private static final int APPLE_COOLDOWN = 20 * 60 * 5, POISON_COOLDOWN = 20 * 20; // the mod's interactionCooldown after each
+    private static final int BED_BELOW = 4, BED_ABOVE = 12; // ours: heights around the hut block searched for its beds
     private static final Set<Material> POISON = Set.of(Material.POISONOUS_POTATO, Material.CHICKEN, Material.SPIDER_EYE,
             Material.ROTTEN_FLESH); // the mod's poisonous_food tag
 
     private final Colony colony;
     private final Map<Colonist, Block> beds = new HashMap<>(); // patients in hospital beds (not saved: they lie down again)
-    private final Set<Colonist> told = new HashSet<>();        // whose "no hospital" message was sent (not saved)
+    private final Set<Colonist> toldNoHospital = new HashSet<>();        // whose "no hospital" message was sent (not saved)
     private int ticks;
 
     Sickness(Colony colony) {
@@ -82,9 +83,9 @@ public final class Sickness {
         if (++ticks % CHECK_TICKS != 0) return;
         var rnd = ThreadLocalRandom.current();
         for (Colonist c : colony.colonists)
-            if (canFallSick(c) && rnd.nextInt(ODDS) < modifier(c) * 10) fallSick(c, Disease.random());
+            if (canFallSick(c) && rnd.nextInt(SICK_ODDS) < modifier(c) * 10) fallSick(c, Disease.random());
         // ours: bumps are checked every 3 s, each with the chance of the 60 ticks of bumping the mod would roll
-        double perCheck = 1 - Math.pow(1 - CATCH, CHECK_TICKS);
+        double perCheck = 1 - Math.pow(1 - CATCH_CHANCE, CHECK_TICKS);
         for (Colonist sick : List.copyOf(colony.colonists)) {
             if (sick.disease == null || sick.living() == null) continue;
             for (Colonist other : colony.colonists) {
@@ -99,13 +100,13 @@ public final class Sickness {
     private static boolean near(Colonist a, Colonist b) {
         var x = a.location();
         var y = b.location();
-        return x.getWorld() == y.getWorld() && Math.hypot(x.getX() - y.getX(), x.getZ() - y.getZ()) < BUMP && Math.abs(x.getY() - y.getY()) < 1;
+        return x.getWorld() == y.getWorld() && Math.hypot(x.getX() - y.getX(), x.getZ() - y.getZ()) < BUMP_RANGE && Math.abs(x.getY() - y.getY()) < 1;
     }
 
     private void fallSick(Colonist c, Disease d) {
         c.disease = d;
         c.cureTicks = 0;
-        told.remove(c);
+        toldNoHospital.remove(c);
         Colony.log.info(colony.where() + ": " + c.name + " fell sick with " + d.label + ".");
     }
 
@@ -125,7 +126,7 @@ public final class Sickness {
      * Its tick while sick (or hurt with a hospital to go to): instead of work, as the mod's sick task. @return false if
      * it has nothing to do as a patient and gets on with its day.
      */
-    boolean tend(Colonist c, Job job) {
+    boolean careFor(Colonist c, Job job) {
         if (job != null && !job.interruptible()) return false;
         Hut hospital = hospital(c);
         if (c.disease == null) { // hurt: to a hospital, if there is one, where its healer heals it
@@ -137,25 +138,29 @@ public final class Sickness {
         c.setStatus("Sick: " + c.disease.label);
         if (hasCure(c)) { applyCure(c); return true; }
         if (hospital == null) { // it says what it needs and wanders near its work (the mod's NO_HOSPITAL interaction)
-            if (told.add(c)) colony.tell(c.name + " has " + c.disease.label + " and needs " + c.disease.cureLabel()
+            if (toldNoHospital.add(c)) colony.tell(c.name + " has " + c.disease.label + " and needs " + c.disease.cureLabel()
                     + " in their inventory (right-click them) to get well. A Hospital's healer would see to it.");
             Hut near = job != null ? job.hut : c.home != null ? c.home : colony.townHall();
             c.wander(near.block.getLocation().toCenterLocation());
             return true;
         }
         Block bed = beds.get(c);
-        if (bed != null && c.bed() != null) { // lying in a hospital bed, waiting for the healer
-            if (c.cureTicks++ % STEP_TICKS == 0 && ThreadLocalRandom.current().nextInt(SELF_CURE) == 0) cure(c);
-            return true;
-        }
+        if (bed != null && c.bed() != null) { selfCure(c); return true; } // lying in a hospital bed, waiting for the healer
         if (c.isMoving()) return true;
         if (!near(c, hospital)) { c.goBeside(hospital.block); return true; }
         if (bed == null) bed = freeBed(hospital);
-        if (bed == null) { c.wander(hospital.block.getLocation().toCenterLocation()); return true; } // no bed free: waits about
+        if (bed == null) { selfCure(c); c.wander(hospital.block.getLocation().toCenterLocation()); return true; } // no bed free: waits about
         beds.put(c, bed);
         if (c.isBeside(bed)) c.sleepIn(bed);
         else c.goBeside(bed);
         return true;
+    }
+
+    /** Waiting at a hospital: 1 in 7200 each second it gets well by itself, at full health (the mod's waitForCure). */
+    private void selfCure(Colonist c) {
+        if (c.cureTicks++ % STEP_TICKS != 0 || ThreadLocalRandom.current().nextInt(SELF_CURE) != 0) return;
+        cure(c);
+        c.health = colony.health.max(c);
     }
 
     private static boolean near(Colonist c, Hut h) {
@@ -178,7 +183,7 @@ public final class Sickness {
         int[] box = colony.footprint(hospital); // minX, maxX+1, minZ, maxZ+1
         if (box == null) return found;
         int y0 = hospital.block.getY();
-        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = y0 - 4; y <= y0 + 12; y++) {
+        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = y0 - BED_BELOW; y <= y0 + BED_ABOVE; y++) {
             Block b = hospital.block.getWorld().getBlockAt(x, y, z);
             if (b.getBlockData() instanceof Bed bd && bd.getPart() == Bed.Part.HEAD) found.add(b);
         }
@@ -190,19 +195,26 @@ public final class Sickness {
         return null;
     }
 
-    /** The sick citizens at this hospital: in its beds or near it (the healer's patients). */
+    /** The healer's patients: the sick inside this hospital's building or in its beds (the mod's). */
     public List<Colonist> patients(Hut hospital) {
         List<Colonist> out = new ArrayList<>();
-        for (Colonist c : colony.colonists) if (c.disease != null && (near(c, hospital) || beds.containsKey(c))) out.add(c);
+        int[] box = colony.footprint(hospital); // minX, maxX+1, minZ, maxZ+1
+        for (Colonist c : colony.colonists) {
+            if (c.disease == null) continue;
+            Block bed = beds.get(c);
+            if (box != null && (inside(c.location(), hospital, box) || bed != null && inside(bed.getLocation(), hospital, box))) out.add(c);
+        }
         return out;
     }
 
+    private static boolean inside(org.bukkit.Location at, Hut hospital, int[] box) {
+        return at.getWorld() == hospital.block.getWorld()
+                && at.getBlockX() >= box[0] && at.getBlockX() < box[1] && at.getBlockZ() >= box[2] && at.getBlockZ() < box[3];
+    }
+
     /** One of each cure item in its own inventory. */
-    public static boolean hasCure(Colonist c) {
-        Inventory inv = c.inventory();
-        if (inv == null || c.disease == null) return false;
-        for (Material m : c.disease.cures) if (!inv.contains(m)) return false;
-        return true;
+    static boolean hasCure(Colonist c) {
+        return c.disease != null && c.disease.curedBy(c.inventory());
     }
 
     /** A minute with a cure item in hand (the mod's applyCure), then it uses one of each up and is well. */
@@ -229,14 +241,14 @@ public final class Sickness {
         c.disease = null;
         c.cureTicks = 0;
         c.sickDays = 0;
-        told.remove(c);
+        toldNoHospital.remove(c);
         colony.tell(c.name + " is well again.");
     }
 
     /** It died or left: its hospital bed is free. */
     void forget(Colonist c) {
         beds.remove(c);
-        told.remove(c);
+        toldNoHospital.remove(c);
     }
 
     // ---- a player's hand -----------------------------------------------------------------------------------------
@@ -249,8 +261,8 @@ public final class Sickness {
         boolean apple = held.getType() == Material.GOLDEN_APPLE && c.disease != null, poison = POISON.contains(held.getType());
         if (!apple && !poison) return false;
         if (c.interactCooldown > 0) { p.sendMessage(Component.text(c.name + " can't take that now.", NamedTextColor.RED)); return true; }
-        held.subtract();
-        c.interactCooldown = INTERACT_COOLDOWN;
+        held.subtract(); // used up whether or not it works, as the mod's
+        c.interactCooldown = apple ? APPLE_COOLDOWN : POISON_COOLDOWN;
         var at = c.location();
         if (apple) {
             if (ThreadLocalRandom.current().nextInt(APPLE_ODDS) == 0) {
@@ -262,7 +274,7 @@ public final class Sickness {
             fallSick(c, Disease.random());
             at.getWorld().playSound(at, Sound.ENTITY_VILLAGER_HURT, SoundCategory.NEUTRAL, 1, 1);
             p.sendMessage(Component.text(c.name + " ate it and fell sick.", NamedTextColor.RED));
-        }
+        } else p.sendMessage(Component.text(c.name + " ate it, but didn't fall sick.", NamedTextColor.GRAY)); // immune, or a colony too small
         return true;
     }
 }

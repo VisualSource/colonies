@@ -349,7 +349,8 @@ public final class MineCP extends JavaPlugin implements Listener {
             return;
         }
         c.despawn(); // first: serving food and meals go back into their chests
-        c.jobs.forEach(Job::dropCarried); // every worker's load and tools, at its hut
+        c.jobs.forEach(Job::dropCarried); // what jobs hold beyond their workers' inventories (a knight's armor, food on its way)
+        for (var x : c.colonists) for (ItemStack i : x.takeInventory()) x.location().getWorld().dropItemNaturally(x.location(), i); // citizens' own
         c.graves.forEach(Grave::dropAll); // grave contents only live in the colony
         getLogger().info("Colony " + c.where() + " disbanded by " + p.getName() + " (" + c.colonists.size() + " citizens).");
         colonies.remove(c.owner);

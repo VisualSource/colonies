@@ -51,12 +51,6 @@ public final class Healer extends Job {
         return 0; // the mod's JobHealer: healers don't fall sick
     }
 
-    /** One of each of a disease's cure items in the hut chest. */
-    private boolean chestHasCure(Disease d) {
-        for (Material m : d.cures) if (inChest(i -> i.getType() == m) < 1) return false;
-        return true;
-    }
-
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {
@@ -85,13 +79,13 @@ public final class Healer extends Job {
         var rnd = ThreadLocalRandom.current();
         for (Colonist p : colony.sickness.patients(hut)) {
             if (rnd.nextInt(FREE_CURE_ODDS) <= 1) { act = Act.FREE_CURE; patient = p; return; }
-            if (!dev.minecp.colony.Sickness.hasCure(p) && chestHasCure(p.disease)) { act = Act.DELIVER; patient = p; return; }
+            if (!p.disease.curedBy(p.inventory()) && (p.disease.curedBy(bag()) || p.disease.curedBy(chest()))) { act = Act.DELIVER; patient = p; return; }
         }
         if (healPlayer(w)) return;
         List<Colonist> all = colony.colonists;
         Colonist someone = all.isEmpty() ? null : all.get(rnd.nextInt(all.size())); // the mod's random citizen
         if (someone != null && someone != w && someone.health < REMOTE_HEALTH && someone.location().getWorld() == hut.block.getWorld()
-                && someone.location().distance(hut.block.getLocation()) < hut.level * REMOTE_RANGE) {
+                && flat(someone.location(), hut.block.getLocation()) < hut.level * REMOTE_RANGE) {
             act = Act.REMOTE;
             patient = someone;
             return;
@@ -101,24 +95,33 @@ public final class Healer extends Job {
         w.wander(hut.block.getLocation().toCenterLocation());
     }
 
-    /** Takes one of each cure item from the chest, then walks to the patient and puts them in its inventory. */
+    /** Gets one of each cure item (from its own inventory, else the hut chest), walks to the patient and puts them in its inventory. */
     private void deliver(Colonist w) {
         if (patient.disease == null) { reset(); return; }
-        if (load.isEmpty()) {
+        if (!patient.disease.curedBy(bag())) {
             if (!atHut(w)) { w.setStatus("Healer: working"); goToHut(w); return; }
-            Inventory chest = chest();
-            if (chest == null || !chestHasCure(patient.disease)) { reset(); return; }
-            for (Material m : patient.disease.cures) { chest.removeItem(new ItemStack(m)); load.add(new ItemStack(m)); }
+            for (Material m : patient.disease.cures) if (has(m) < 1) fetch(m, 1);
+            if (!patient.disease.curedBy(bag())) { reset(); return; } // gone meanwhile, or no room
         }
         if (!near(w, patient)) { w.setStatus("Healer: bringing a cure"); w.goBeside(patient.location().getBlock()); return; }
         w.swing();
-        List<ItemStack> left = new ArrayList<>(patient.inventory(slots()).addItem(load.toArray(ItemStack[]::new)).values());
-        load.clear();
-        if (!left.isEmpty()) { // the mod's PATIENT_FULL_INVENTORY: what doesn't fit goes back
-            load.addAll(left);
-            colony.tell(patient.name + "'s inventory is full: the healer can't give them their cure.");
+        Inventory into = patient.inventory(slots());
+        for (Material m : patient.disease.cures) {
+            if (use(m, 1) == 0) continue;
+            if (!into.addItem(new ItemStack(m)).isEmpty()) { // the mod's PATIENT_FULL_INVENTORY: it keeps it
+                gather(List.of(new ItemStack(m)), w);
+                colony.tell(patient.name + "'s inventory is full: the healer can't give them their cure.");
+                break;
+            }
         }
         reset();
+    }
+
+    /** It keeps cure items with it for the next patient. */
+    @Override
+    boolean keepsOnHand(ItemStack i) {
+        for (Disease d : Disease.values()) if (d.cures.contains(i.getType())) return true;
+        return false;
     }
 
     /** Hearts for 30 s beside the patient, then it is well (the mod's freeCure). */
@@ -127,8 +130,7 @@ public final class Healer extends Job {
         if (!near(w, patient)) { w.setStatus("Healer: working"); w.goBeside(patient.location().getBlock()); progress = 0; return; }
         w.setStatus("Healer: curing " + patient.name);
         w.swing();
-        Location at = patient.location().add(0, 1, 0);
-        at.getWorld().spawnParticle(Particle.HEART, at, 2, 0.3, 0.3, 0.3);
+        hearts(patient.location(), 2);
         if (++progress < FREE_CURE_STEPS) return;
         colony.sickness.cure(patient);
         reset();
@@ -138,10 +140,8 @@ public final class Healer extends Job {
     private void remote(Colonist w) {
         if (!near(w, patient)) { w.setStatus("Healer: going to a hurt citizen"); w.goBeside(patient.location().getBlock()); return; }
         w.swing();
-        double full = colony.health.max(patient);
-        patient.health = Math.max(patient.health, full - 5 - hut.level);
-        Location at = patient.location().add(0, 1, 0);
-        at.getWorld().spawnParticle(Particle.HEART, at, 5, 0.3, 0.3, 0.3);
+        patient.health = Math.max(patient.health, healedTo(colony.health.max(patient)));
+        hearts(patient.location(), 5);
         reset();
     }
 
@@ -157,11 +157,25 @@ public final class Healer extends Job {
             if (p.getHealth() >= full - 10 - 2 * hut.level) continue;
             if (w.location().distance(l) > REACH) { w.setStatus("Healer: working"); w.goBeside(l.getBlock()); return true; }
             w.swing();
-            p.setHealth(Math.min(full, Math.max(p.getHealth(), full - 5 - hut.level)));
+            p.setHealth(Math.min(full, Math.max(p.getHealth(), healedTo(full))));
             p.sendMessage(Component.text("The healer patches you up.", NamedTextColor.GREEN));
             return true;
         }
         return false;
+    }
+
+    /** What the healer heals someone to: 5, and its hut level, short of full (the mod's). */
+    private double healedTo(double full) {
+        return full - 5 - hut.level;
+    }
+
+    private static void hearts(Location at, int n) {
+        at.getWorld().spawnParticle(Particle.HEART, at.clone().add(0, 1, 0), n, 0.3, 0.3, 0.3);
+    }
+
+    /** Across the ground only, as the mod's getDistance2D. */
+    private static double flat(Location a, Location b) {
+        return Math.hypot(a.getX() - b.getX(), a.getZ() - b.getZ());
     }
 
     private static boolean near(Colonist w, Colonist other) {
@@ -173,7 +187,7 @@ public final class Healer extends Job {
     public List<Want> wants() {
         Set<Material> missing = new LinkedHashSet<>();
         if (hut.level >= 1) for (Colonist p : colony.sickness.patients(hut))
-            if (!dev.minecp.colony.Sickness.hasCure(p)) for (Material m : p.disease.cures) if (inChest(i -> i.getType() == m) < 1) missing.add(m);
+            if (!p.disease.curedBy(p.inventory())) for (Material m : p.disease.cures) if (inChest(i -> i.getType() == m) + has(m) < 1) missing.add(m);
         List<Want> wants = new ArrayList<>();
         for (Material m : missing) wants.add(new Want(name(m), i -> i.getType() == m, REQUEST_COUNT, 1));
         return wants;

@@ -86,6 +86,11 @@ public final class Colony {
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
     public final Sickness sickness = new Sickness(this);
+
+    /** A citizen's inventory slots: the mod's 27, more with research. */
+    public int inventorySlots() {
+        return 27 + (int) research.effect(dev.minecp.research.Effects.INVENTORY_SLOTS);
+    }
     final Routine routine = new Routine(this);
     public final Permissions permissions;
     public final Requests requests = new Requests(this);
@@ -574,7 +579,7 @@ public final class Colony {
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
             if (c.talkTicks > 0) { c.talkTicks--; continue; } // a player clicked it: it stands still for a moment
-            if (sickness.inHospital(c) && sickness.tend(c, job)) continue; // in a hospital bed: before a raid or the night, as the mod
+            if (sickness.inHospital(c) && sickness.careFor(c, job)) continue; // in a hospital bed: before a raid or the night, as the mod
             boolean hide = raids.underway() && !(job instanceof dev.minecp.job.Guard); // the mod: citizens shelter at home during a raid
             if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
@@ -583,7 +588,10 @@ public final class Colony {
                 continue;
             }
             if (c.bedtime) { c.bedtime = false; c.wake(); }
-            if ((c.disease != null || sickness.hurt(c, job)) && sickness.tend(c, job)) continue; // sick or hurt: before meals and work, as the mod
+            if ((c.disease != null || sickness.hurt(c, job)) && sickness.careFor(c, job)) { // sick or hurt: before meals and work, as the mod
+                if (c.meal != null) { c.meal.abandon(); c.meal = null; } // its food back, out of the restaurant's queue
+                continue;
+            }
             if (c.meal != null) { // eating comes before work
                 if (c.meal.tick(this, job)) {
                     c.hungerNote = c.meal.why;

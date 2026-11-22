@@ -244,7 +244,7 @@ public final class Miner extends Job {
         if (ladder == null || ladder.getType() != Material.LADDER) {
             if (!findLadder()) { idle(w, "No ladder found in the Miner's Hut building.", 100, null); return; }
         }
-        if (delivering || carriedTotal() >= DELIVER_AT && loot() >= DELIVER_AT) {
+        if (delivering || loot() >= DELIVER_AT || bagFull() && loot() > 0) { // the mod's miner also goes up with a full inventory
             delivering = true;
             if (!atHut(w)) { w.setStatus("Miner: working"); goToHut(w); return; }
             if (!deliverLoot()) { idle(w, "The hut chest is full.", 100, null); return; }
@@ -496,11 +496,11 @@ public final class Miner extends Job {
         }
         if (!near(w, b)) return;
         neededTool = null;
-        // A chest in the way spills what it holds, as when a player breaks it (its items can't go in the miner's carried counts).
+        // A chest in the way spills what it holds, as when a player breaks it.
         for (ItemStack i : takeContents(b)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
         Material lucky = luckyOre(b.getType());
-        for (ItemStack drop : breakWith(tool, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
-        if (lucky != null) carried.merge(lucky, 1, Integer::sum);
+        gather(breakWith(tool, b, w), w);
+        if (lucky != null) gather(lucky, 1, w);
         var data = b.getBlockData();
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);
         b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().toCenterLocation(), 10, 0.3, 0.3, 0.3, data);
@@ -512,8 +512,7 @@ public final class Miner extends Job {
     private void place(Colonist w, Block b, org.bukkit.block.data.BlockData data, Material cost) {
         if (data.getMaterial().isSolid() && w.overlaps(b)) w.hopAside(b);
         b.setBlockData(data, false);
-        if (cost != null) carried.merge(cost, -1, Integer::sum);
-        carried.values().removeIf(n -> n <= 0);
+        if (cost != null) use(cost, 1);
         var sounds = data.getSoundGroup();
         b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());
         act(w);
@@ -522,27 +521,19 @@ public final class Miner extends Job {
 
     /** Makes sure it carries some {@code m}, restocking from the hut chest. @return true if it does. */
     private boolean supply(Colonist w, Material m, int stock) {
-        if (carried.getOrDefault(m, 0) > 0) return true;
+        if (has(m) > 0) return true;
         if (!atHut(w)) { goToHut(w); return false; }
-        Inventory chest = chest();
-        int left = chest == null ? stock : chest.removeItem(new ItemStack(m, stock)).values().stream().mapToInt(ItemStack::getAmount).sum();
-        if (left < stock) { carried.merge(m, stock - left, Integer::sum); return true; }
+        if (fetch(m, stock) > 0) return true;
         idle(w, "Needs " + name(m) + " in the hut chest.", 100, null);
         return false;
     }
 
     /** Like {@link #supply}, for a structure block: fetches what the rest of the order needs at once. */
     private boolean supplyFor(Colonist w, Material m) {
-        if (carried.getOrDefault(m, 0) > 0) return true;
+        if (has(m) > 0) return true;
         if (!atHut(w)) { goToHut(w); return false; }
-        Inventory chest = chest();
-        if (chest != null) needs().forEach((mat, n) -> {
-            int want = n - carried.getOrDefault(mat, 0);
-            if (want <= 0) return;
-            int left = chest.removeItem(new ItemStack(mat, want)).values().stream().mapToInt(ItemStack::getAmount).sum();
-            if (want - left > 0) carried.merge(mat, want - left, Integer::sum);
-        });
-        if (carried.getOrDefault(m, 0) > 0) return true;
+        needs().forEach((mat, n) -> fetch(mat, n - has(mat))); // as much as its inventory holds
+        if (has(m) > 0) return true;
         idle(w, "Needs " + name(m) + " in the hut chest.", 100, null);
         return false;
     }
@@ -564,14 +555,10 @@ public final class Miner extends Job {
         for (Material m : stockBlocks()) need.merge(m, BLOCK_STOCK, Math::max);
         need.merge(Material.LADDER, LADDER_STOCK, Math::max);
         need.forEach((m, n) -> {
-            int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
+            int more = n - has(m) - inChest(i -> i.getType() == m);
             if (more > 0) out.put(new ItemStack(m), more);
         });
         return out;
-    }
-
-    private int carriedTotal() {
-        return carried.values().stream().mapToInt(Integer::intValue).sum();
     }
 
     /** Drops off what it dug up; keeps its cobblestone, ladders and what the current structure needs. */
@@ -589,22 +576,16 @@ public final class Miner extends Job {
      */
     private int loot() {
         Map<Material, Integer> keep = keep();
-        return carried.entrySet().stream().mapToInt(e -> Math.max(0, e.getValue() - keep.getOrDefault(e.getKey(), 0))).sum();
+        return holding().entrySet().stream().mapToInt(e -> Math.max(0, e.getValue() - keep.getOrDefault(e.getKey(), 0))).sum();
     }
 
     private boolean deliverLoot() {
-        Inventory chest = chest();
-        if (chest == null) return false;
         Map<Material, Integer> keep = keep();
         boolean all = true;
-        for (var e : new ArrayList<>(carried.entrySet())) {
+        for (var e : holding().entrySet()) {
             int give = e.getValue() - keep.getOrDefault(e.getKey(), 0);
-            if (give <= 0) continue;
-            int left = chest.addItem(new ItemStack(e.getKey(), give)).values().stream().mapToInt(ItemStack::getAmount).sum();
-            carried.put(e.getKey(), e.getValue() - give + left);
-            if (left > 0) all = false;
+            if (give > 0 && handIn(e.getKey(), give) > 0) all = false;
         }
-        carried.values().removeIf(n -> n <= 0);
         return all;
     }
 
@@ -631,13 +612,13 @@ public final class Miner extends Job {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
         for (Material m : stockBlocks()) {
-            int have = inChest(i -> i.getType() == m) + carried.getOrDefault(m, 0);
+            int have = inChest(i -> i.getType() == m) + has(m);
             if (have < BLOCK_STOCK / 2) wants.add(new Want(name(m), i -> i.getType() == m, BLOCK_STOCK - have, 1)); // minimum 1, as the mod
         }
-        int ladders = inChest(i -> i.getType() == Material.LADDER) + carried.getOrDefault(Material.LADDER, 0);
+        int ladders = inChest(i -> i.getType() == Material.LADDER) + has(Material.LADDER);
         if (ladders < LADDER_STOCK / 2) wants.add(new Want("ladders", i -> i.getType() == Material.LADDER, LADDER_STOCK - ladders, 1));
         needs().forEach((m, n) -> {
-            int more = n - carried.getOrDefault(m, 0) - inChest(i -> i.getType() == m);
+            int more = n - has(m) - inChest(i -> i.getType() == m);
             if (more > 0) wants.add(new Want(name(m), i -> i.getType() == m, more, 1)); // the mod's structure requests: minimum 1
         });
         wantTool(wants, Tool.PICKAXE);

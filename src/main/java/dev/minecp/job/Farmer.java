@@ -131,7 +131,7 @@ public final class Farmer extends Job {
         List<Want> wants = new java.util.ArrayList<>();
         if (hut.level < 1) return wants;
         for (Material seed : seeds()) {
-            int have = inChest(i -> i.getType() == seed) + carried.getOrDefault(seed, 0);
+            int have = inChest(i -> i.getType() == seed) + has(seed);
             // Ask once below half, for a full stock: not a courier trip for every few seeds planted.
             if (have < SEED_STOCK / 2) wants.add(new Want(name(seed), i -> i.getType() == seed, SEED_STOCK - have, 1)); // minimum 1, as the mod
         }
@@ -171,7 +171,7 @@ public final class Farmer extends Job {
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
-        if (delivering || carried.values().stream().mapToInt(Integer::intValue).sum() >= DELIVER_AT) {
+        if (delivering || holding().values().stream().mapToInt(Integer::intValue).sum() >= DELIVER_AT || bagFull() && loaded()) {
             delivering = true;
             if (!atHut(w)) { goToHut(w); return; }
             if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return; }
@@ -192,7 +192,7 @@ public final class Farmer extends Job {
             didWork = false;
         }
         if (current == null) {
-            if (!carried.isEmpty()) { delivering = true; return; } // done for the day: drop off the harvest
+            if (loaded()) { delivering = true; return; } // done for the day: drop off the harvest
             idle(w, "Every field has had its work today.", 100, hut.block);
             return;
         }
@@ -225,7 +225,7 @@ public final class Farmer extends Job {
             idle(w, "Needs a hoe in the hut chest to till new farmland.", 100, hut.block);
             return;
         }
-        if (best.kind != Kind.HARVEST && carried.getOrDefault(seed, 0) <= 0 && (chest == null || !chest.contains(seed))) {
+        if (best.kind != Kind.HARVEST && has(seed) <= 0 && (chest == null || !chest.contains(seed))) {
             idle(w, "Needs " + name(seed) + " in the hut chest to plant.", 100, hut.block);
             return;
         }
@@ -236,14 +236,12 @@ public final class Farmer extends Job {
             return;
         }
         // Fetch seeds from the hut before tilling too, not after the first plot.
-        if (best.kind != Kind.HARVEST && carried.getOrDefault(best.seed, 0) <= 0) {
+        if (best.kind != Kind.HARVEST && has(best.seed) <= 0) {
             if (!atHut(w)) { goToHut(w); return; }
-            int left = chest.removeItem(new ItemStack(best.seed, SEEDS_PER_TRIP)).values().stream().mapToInt(ItemStack::getAmount).sum();
-            if (left == SEEDS_PER_TRIP) { // only renamed or otherwise changed seeds: don't walk back and forth for them
-                idle(w, "Needs plain " + name(best.seed) + " in the hut chest to plant.", 100, hut.block);
+            if (fetch(best.seed, SEEDS_PER_TRIP) == 0) { // only renamed or otherwise changed seeds, or no room: don't walk back and forth
+                idle(w, "Needs plain " + name(best.seed) + " in the hut chest to plant (and room in its inventory).", 100, hut.block);
                 return;
             }
-            carried.merge(best.seed, SEEDS_PER_TRIP - left, Integer::sum);
             return;
         }
         note = null;
@@ -257,7 +255,7 @@ public final class Farmer extends Job {
             case HARVEST -> {
                 double doubleChance = colony.research.effect(Effects.FARMING); // research: each drop doubled with this chance, as the mod
                 for (ItemStack drop : breakWith(null, crop, w))
-                    carried.merge(drop.getType(), drop.getAmount() * (ThreadLocalRandom.current().nextDouble() < doubleChance ? 2 : 1), Integer::sum);
+                    gather(List.of(drop.asQuantity(drop.getAmount() * (ThreadLocalRandom.current().nextDouble() < doubleChance ? 2 : 1))), w);
                 crop.setType(Material.AIR, false);
                 crop.getWorld().playSound(crop.getLocation(), Sound.BLOCK_CROP_BREAK, SoundCategory.BLOCKS, 1, 1);
             }
@@ -268,8 +266,7 @@ public final class Farmer extends Job {
                 crop.getWorld().playSound(best.soil.getLocation(), Sound.ITEM_HOE_TILL, SoundCategory.BLOCKS, 1, 1);
             }
             case PLANT -> {
-                carried.merge(best.seed, -1, Integer::sum);
-                carried.values().removeIf(n -> n <= 0);
+                use(best.seed, 1);
                 crop.setType(CROPS.get(best.seed));
                 crop.getWorld().playSound(crop.getLocation(), Sound.ITEM_CROP_PLANT, SoundCategory.BLOCKS, 1, 1);
             }

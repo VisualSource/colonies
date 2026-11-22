@@ -18,9 +18,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,16 +29,12 @@ public abstract class Job {
     public final Hut hut;
     final Colony colony; // the colony it works for
     public UUID worker; // colonist id, or null while nobody has the job
-    final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
-    final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
     public String note; // why the worker is stuck, in full for the hut menu (the name tag stays short)
-    // Whole items in hand, kept as items (a courier's delivery, the builder's storage racks); saved with the colony.
-    public final List<ItemStack> load = new ArrayList<>();
     int cooldown; // ticks until the worker acts again
 
     /** A citizen's inventory slots: the mod's 27, more with research. */
     int slots() {
-        return 27 + (int) colony.research.effect(Effects.INVENTORY_SLOTS);
+        return colony.inventorySlots();
     }
 
     /** Items fetched per trip: a full inventory. */
@@ -65,28 +59,15 @@ public abstract class Job {
         return null;
     }
 
-    /** Saves what this job holds; kinds of job add their own state. */
+    /** Saves this job's state; kinds of job add their own. What the worker holds is in its inventory, saved with it. */
     public void save(ConfigurationSection s, Colony c) {
         if (worker != null) s.set("worker", worker.toString());
-        carried.forEach((m, n) -> s.set("carried." + m.name(), n));
-        // Tools keep durability and enchantments, so they are stored as whole items.
-        tools.forEach((kind, item) -> s.set("tools." + kind.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
-        if (!load.isEmpty()) s.set("load", load.stream().map(i -> Base64.getEncoder().encodeToString(i.serializeAsBytes())).toList());
     }
 
     /** Loads what {@link #save} wrote. Called once every hut and job of the colony exists. */
     public void load(ConfigurationSection s, Colony c) {
         String w = s.getString("worker");
         if (w != null) worker = UUID.fromString(w);
-        var ts = s.getConfigurationSection("tools");
-        if (ts != null) for (String kind : ts.getKeys(false))
-            tools.put(Tool.valueOf(kind), ItemStack.deserializeBytes(Base64.getDecoder().decode(ts.getString(kind))));
-        for (String item : s.getStringList("load")) load.add(ItemStack.deserializeBytes(Base64.getDecoder().decode(item)));
-        var cs = s.getConfigurationSection("carried");
-        if (cs != null) for (String m : cs.getKeys(false)) {
-            Material mat = Material.matchMaterial(m);
-            if (mat != null) carried.put(mat, cs.getInt(m));
-        }
     }
 
     /** The colony's entities are going away (shutdown, disband): put back what isn't saved. */
@@ -217,28 +198,182 @@ public abstract class Job {
         return hut.block.getState(false) instanceof Container c ? c.getInventory() : null;
     }
 
-    /** Puts what the worker carries (load included) into the chest; what doesn't fit stays carried. @return true if all fit. */
-    boolean deliver() {
-        Inventory chest = chest();
-        if (chest == null) return false;
-        carried.replaceAll((m, n) -> n <= 0 ? 0 : chest.addItem(new ItemStack(m, n)).values().stream().mapToInt(ItemStack::getAmount).sum());
-        carried.values().removeIf(n -> n <= 0);
-        List<ItemStack> left = new ArrayList<>(chest.addItem(load.toArray(ItemStack[]::new)).values());
-        load.clear();
-        load.addAll(left);
-        return carried.isEmpty() && load.isEmpty();
+    // ---- the worker's inventory (the mod's citizen inventory): its tools, what it carries, food and gifts ----------
+
+    /** Its worker's inventory, or null while nobody works here. Players can open it and give the worker what it needs. */
+    Inventory bag() {
+        Colonist w = colony.worker(this);
+        return w == null ? null : w.inventory(slots());
     }
 
-    /** The hut is gone or the job ends: drop what the worker carries, tools included, at the hut. */
-    public void dropCarried() {
-        Location at = hut.block.getLocation().toCenterLocation();
-        carried.forEach((m, n) -> { if (n > 0) at.getWorld().dropItemNaturally(at, new ItemStack(m, n)); });
-        carried.clear();
-        tools.values().forEach(t -> at.getWorld().dropItemNaturally(at, t));
-        tools.clear();
-        load.forEach(i -> at.getWorld().dropItemNaturally(at, i));
-        load.clear();
+    /** How many items matching {@code test} its worker holds. */
+    int has(Predicate<ItemStack> test) {
+        Inventory bag = bag();
+        int n = 0;
+        if (bag != null) for (ItemStack i : bag.getContents()) if (i != null && !i.isEmpty() && test.test(i)) n += i.getAmount();
+        return n;
     }
+
+    int has(Material m) {
+        return has(i -> i.getType() == m);
+    }
+
+    /** Empty slots in its worker's inventory. */
+    int freeSlots() {
+        Inventory bag = bag();
+        int n = 0;
+        if (bag != null) for (ItemStack i : bag.getStorageContents()) if (i == null || i.isEmpty()) n++;
+        return n;
+    }
+
+    /** Whether its worker's inventory has no free slot left. */
+    boolean bagFull() {
+        Inventory bag = bag();
+        return bag == null || bag.firstEmpty() < 0;
+    }
+
+    /** Puts these in its worker's inventory; what doesn't fit drops at the worker's feet (as the mod's: it can't pick it up). */
+    void gather(Collection<ItemStack> items, Colonist w) {
+        Inventory bag = bag();
+        Location at = w.location();
+        for (ItemStack i : items) {
+            if (i == null || i.isEmpty()) continue;
+            for (ItemStack over : bag == null ? List.of(i) : bag.addItem(i.clone()).values()) at.getWorld().dropItemNaturally(at, over);
+        }
+    }
+
+    void gather(Material m, int n, Colonist w) {
+        List<ItemStack> stacks = new ArrayList<>();
+        for (int left = n; left > 0; left -= m.getMaxStackSize()) stacks.add(new ItemStack(m, Math.min(left, m.getMaxStackSize())));
+        gather(stacks, w);
+    }
+
+    /** Uses up {@code n} items matching {@code test} from its worker's inventory. @return how many it had to use. */
+    int use(Predicate<ItemStack> test, int n) {
+        Inventory bag = bag();
+        int used = 0;
+        if (bag != null) for (int i = 0; i < bag.getSize() && used < n; i++) {
+            ItemStack it = bag.getItem(i);
+            if (it == null || it.isEmpty() || !test.test(it)) continue;
+            int take = Math.min(n - used, it.getAmount());
+            it.subtract(take);
+            bag.setItem(i, it.isEmpty() ? null : it);
+            used += take;
+        }
+        return used;
+    }
+
+    /** Uses up {@code n} of {@code m} from its worker's inventory. @return how many it had to use. */
+    int use(Material m, int n) {
+        Inventory bag = bag();
+        if (bag == null || n <= 0) return 0;
+        int missing = bag.removeItem(new ItemStack(m, n)).values().stream().mapToInt(ItemStack::getAmount).sum();
+        return n - missing;
+    }
+
+    /**
+     * Takes up to {@code n} items matching {@code test} from the hut chest into its worker's inventory, as many as fit
+     * (the rest stay in the chest). The worker must be at the hut. @return how many it took.
+     */
+    int fetch(Predicate<ItemStack> test, int n) {
+        Inventory chest = chest(), bag = bag();
+        if (chest == null || bag == null || n <= 0) return 0;
+        List<ItemStack> taken = new ArrayList<>();
+        int got = dev.minecp.logistics.Warehouse.take(chest, test, n, Integer.MAX_VALUE, taken);
+        for (ItemStack back : bag.addItem(taken.toArray(ItemStack[]::new)).values()) { got -= back.getAmount(); chest.addItem(back); }
+        return got;
+    }
+
+    int fetch(Material m, int n) {
+        return fetch(i -> i.getType() == m && i.getPersistentDataContainer().isEmpty(), n);
+    }
+
+    /** What a kind of job keeps on hand when its worker hands things in, besides its tools and a stack of food (the herder's breeding item). */
+    boolean keepsOnHand(ItemStack i) {
+        return false;
+    }
+
+    /** Whether its worker keeps a tool of each kind and a stack of food when it hands things in (not a courier: all it carries is for others). */
+    boolean keepsOwn() {
+        return true;
+    }
+
+    /**
+     * The slots of its worker's inventory it would hand in: all but one tool of each kind (the first; more, from a grave
+     * or caught as junk, go in), its first stack of food (to eat; ours: so a farmer's carrots still go to the hut) and
+     * what its job keeps on hand.
+     */
+    private List<Integer> handInSlots() {
+        Inventory bag = bag();
+        List<Integer> out = new ArrayList<>();
+        if (bag == null) return out;
+        boolean food = false;
+        java.util.Set<Tool> tools = java.util.EnumSet.noneOf(Tool.class);
+        for (int i = 0; i < bag.getSize(); i++) {
+            ItemStack it = bag.getItem(i);
+            if (it == null || it.isEmpty()) continue;
+            if (keepsOwn()) {
+                Tool kind = Tool.kindOf(it);
+                if (kind != null && tools.add(kind) || keepsOnHand(it)) continue;
+                if (!food && dev.minecp.citizen.Food.isMeal(it)) { food = true; continue; }
+            }
+            out.add(i);
+        }
+        return out;
+    }
+
+    /** Takes out of its worker's inventory everything it would hand in, and returns it (a courier's load, a catch). */
+    List<ItemStack> unload() {
+        Inventory bag = bag();
+        List<ItemStack> out = new ArrayList<>();
+        for (int i : handInSlots()) { out.add(bag.getItem(i)); bag.setItem(i, null); }
+        return out;
+    }
+
+    /** What its worker would hand in, by type (what it keeps aside). */
+    Map<Material, Integer> holding() {
+        Map<Material, Integer> out = new java.util.EnumMap<>(Material.class);
+        Inventory bag = bag();
+        for (int i : handInSlots()) out.merge(bag.getItem(i).getType(), bag.getItem(i).getAmount(), Integer::sum);
+        return out;
+    }
+
+    /**
+     * Hands {@code n} of {@code m} its worker would hand in into the hut chest: the stacks themselves, a renamed one too.
+     * @return how many it didn't (they didn't fit, or it held fewer).
+     */
+    int handIn(Material m, int n) {
+        Inventory chest = chest(), bag = bag();
+        if (chest == null || bag == null) return n;
+        for (int i : handInSlots()) {
+            ItemStack it = bag.getItem(i);
+            if (n <= 0 || it.getType() != m) continue;
+            ItemStack give = it.asQuantity(Math.min(n, it.getAmount()));
+            int left = chest.addItem(give.clone()).values().stream().mapToInt(ItemStack::getAmount).sum(), moved = give.getAmount() - left;
+            it.subtract(moved);
+            bag.setItem(i, it.isEmpty() ? null : it);
+            n -= moved;
+            if (left > 0) break; // the chest is full
+        }
+        return n;
+    }
+
+    /** Whether its worker holds anything it would hand in. */
+    boolean loaded() {
+        return !handInSlots().isEmpty();
+    }
+
+    /** Hands into the hut chest what its worker carries but keeps on hand; what doesn't fit stays with it. @return true if all fit. */
+    boolean deliver() {
+        Inventory chest = chest(), bag = bag();
+        if (chest == null || bag == null) return false;
+        List<ItemStack> left = new ArrayList<>(chest.addItem(unload().toArray(ItemStack[]::new)).values());
+        for (ItemStack i : left) bag.addItem(i);
+        return left.isEmpty();
+    }
+
+    /** The hut is gone or the job ends: its worker keeps what it holds (the mod's); kinds of job drop what is the hut's own. */
+    public void dropCarried() {}
 
     /**
      * The best tool tier this hut's worker may use (the mod's getMaxEquipmentLevel): stone up to hut level 1, then the
@@ -262,16 +397,9 @@ public abstract class Job {
         return kind.label + " (" + Tool.tierName(max) + " or lower until the hut is upgraded)";
     }
 
-    /** Everything the worker carries, tools included, taken off it (it died: it all goes into its grave). */
+    /** What the job holds of its worker's beyond its inventory, taken off it (it died: into its grave). The inventory goes too (Health). */
     public List<ItemStack> takeCarried() {
-        List<ItemStack> all = new ArrayList<>();
-        carried.forEach((m, n) -> { for (int left = n; left > 0; left -= m.getMaxStackSize()) all.add(new ItemStack(m, Math.min(left, m.getMaxStackSize()))); });
-        carried.clear();
-        all.addAll(tools.values());
-        tools.clear();
-        all.addAll(load);
-        load.clear();
-        return all;
+        return new ArrayList<>();
     }
 
     /**
@@ -298,39 +426,56 @@ public abstract class Job {
         return holder instanceof org.bukkit.block.Chest chest ? chest.getBlockInventory() : holder.getInventory();
     }
 
+    /** The slot of a tool of this kind in its worker's inventory, one this hut allows and good for {@code block} (null: any), or -1. */
+    private int toolSlot(Tool kind, Block block) {
+        Inventory bag = bag();
+        if (bag != null) for (int i = 0; i < bag.getSize(); i++) if (fits(kind, bag.getItem(i), block)) return i;
+        return -1;
+    }
+
+    /** Its worker's tool of this kind (any block), or null. */
+    ItemStack tool(Tool kind) {
+        int slot = toolSlot(kind, null);
+        return slot < 0 ? null : bag().getItem(slot);
+    }
+
     /** Whether the worker holds a tool of this kind that can break {@code block} (null: any block). */
     boolean hasTool(Tool kind, Block block) {
-        return fits(kind, tools.get(kind), block);
+        return toolSlot(kind, block) >= 0;
     }
 
     /**
-     * Takes a fitting tool of this kind from the hut chest (the worker must be at the hut), putting back the one it
-     * replaces. @return false if the chest has none.
+     * Takes a fitting tool of this kind from the hut chest into its worker's inventory (the worker must be at the hut);
+     * one of that kind it holds that won't do goes back. @return false if the chest has none.
      */
     boolean fetchTool(Tool kind, Block block) {
-        Inventory chest = chest();
-        if (chest == null) return false;
+        Inventory chest = chest(), bag = bag();
+        if (chest == null || bag == null) return false;
+        if (bag.firstEmpty() < 0) deliver(); // it stands at the chest: make room by handing in, rather than seem to lack the tool
         int best = -1; // the mod takes the lowest tier that will do, keeping better tools for harder blocks
         for (int i = 0; i < chest.getSize(); i++)
             if (fits(kind, chest.getItem(i), block) && (best < 0 || Tool.tier(chest.getItem(i)) < Tool.tier(chest.getItem(best)))) best = i;
         if (best < 0) return false;
+        for (int i = 0; i < bag.getSize(); i++) { // the one it replaces
+            ItemStack old = bag.getItem(i);
+            if (old != null && kind.fits(old, null) && !fits(kind, old, block)) { bag.setItem(i, null); for (ItemStack over : chest.addItem(old).values()) bag.setItem(i, over); }
+        }
         ItemStack item = chest.getItem(best);
-        ItemStack old = tools.put(kind, item.asOne());
+        if (!bag.addItem(item.asOne()).isEmpty()) return false; // no room for it
         item.subtract();
         chest.setItem(best, item.isEmpty() ? null : item);
-        if (old != null) for (ItemStack overflow : chest.addItem(old).values())
-            hut.block.getWorld().dropItemNaturally(hut.block.getLocation().toCenterLocation(), overflow);
         return true;
     }
 
     /**
-     * Breaks {@code block} with the held tool of this kind (null: by hand): drops as that tool would get them,
-     * the tool shows in the worker's hand and wears down, and is gone when it breaks.
+     * Breaks {@code block} with its tool of this kind (null: by hand): drops as that tool would get them, the tool
+     * shows in the worker's hand and wears down, and is gone when it breaks.
      */
     Collection<ItemStack> breakWith(Tool kind, Block block, Colonist w) {
-        ItemStack tool = kind == null ? null : tools.get(kind);
-        Collection<ItemStack> drops = drops(block, tool);
-        if (tool != null) wear(kind, w);
+        int slot = kind == null ? -1 : toolSlot(kind, block); // the one good enough for it, if it holds several
+        if (kind != null && slot < 0) slot = toolSlot(kind, null);
+        Collection<ItemStack> drops = drops(block, slot < 0 ? null : bag().getItem(slot));
+        if (slot >= 0) wearSlot(slot, w);
         return drops;
     }
 
@@ -351,16 +496,19 @@ public abstract class Job {
 
     /** Uses the held tool of this kind once: it shows in the worker's hand, wears down, and is gone when it breaks. */
     void wear(Tool kind, Colonist w) {
-        ItemStack tool = tools.get(kind);
-        if (tool == null) return;
+        int slot = toolSlot(kind, null);
+        if (slot >= 0) wearSlot(slot, w);
+    }
+
+    private void wearSlot(int slot, Colonist w) {
+        Inventory bag = bag();
+        ItemStack tool = bag.getItem(slot);
         w.hold(tool);
         double lasts = colony.research.effect(Effects.TOOL_DURABILITY); // research: skips a use with chance 1 - 1/(1+strength), as the mod
         if (lasts > 0 && java.util.concurrent.ThreadLocalRandom.current().nextDouble() > 1 / (1 + lasts)) return;
         ItemStack worn = tool.damage(1, w.living()); // Unbreaking and the break animation included
-        if (worn.isEmpty()) {
-            tools.remove(kind);
-            w.hold(null);
-        } else tools.put(kind, worn);
+        bag.setItem(slot, worn.isEmpty() ? null : worn);
+        if (worn.isEmpty()) w.hold(null);
     }
 
     /**

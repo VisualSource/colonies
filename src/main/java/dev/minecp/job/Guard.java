@@ -283,7 +283,7 @@ public final class Guard extends Job {
             ItemStack want = armor.get(slot);
             if (!java.util.Objects.equals(e.getItem(slot).isEmpty() ? null : e.getItem(slot), want)) e.setItem(slot, want);
         }
-        ItemStack sword = tools.get(Tool.SWORD);
+        ItemStack sword = tool(Tool.SWORD);
         if (!java.util.Objects.equals(e.getItemInMainHand().isEmpty() ? null : e.getItemInMainHand(), sword)) w.hold(sword);
         if (!java.util.Objects.equals(e.getItemInOffHand().isEmpty() ? null : e.getItemInOffHand(), shield)) e.setItemInOffHand(shield);
     }
@@ -363,7 +363,7 @@ public final class Guard extends Job {
         whirlwind(w, hit); // before the blow, as the mod
         target.damage(hit, w.living());
         if (target instanceof Mob m && colony.research.effect(Effects.KNIGHT_TAUNT) > 0) m.setTarget(w.living()); // research: it draws the mob onto itself
-        if (tools.containsKey(Tool.SWORD)) wear(Tool.SWORD, w);
+        if (hasTool(Tool.SWORD, null)) wear(Tool.SWORD, w);
     }
 
     /**
@@ -371,7 +371,7 @@ public final class Guard extends Job {
      * the base alone. Doubled at 20% health or less, as the mod's getAttackDamage.
      */
     private double damage(Colonist w) {
-        ItemStack sword = tools.get(Tool.SWORD);
+        ItemStack sword = tool(Tool.SWORD);
         double d = BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE)) + colony.research.effect(Effects.MELEE_DAMAGE);
         return w.health <= colony.health.max(w) * LOW_HEALTH ? d * 2 : d;
     }

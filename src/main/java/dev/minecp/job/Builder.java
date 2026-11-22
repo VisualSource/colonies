@@ -69,22 +69,6 @@ public final class Builder extends Job {
         needed = null;
     }
 
-    /** Storage Racks carried: in {@link #load}, as whole items, so they are never mixed up with plain chests. */
-    private int racks() {
-        int n = 0;
-        for (ItemStack i : load) if (Rack.is(i)) n += i.getAmount();
-        return n;
-    }
-
-    private void addRacks(int n) {
-        for (; n > 0; n -= 64) load.add(Rack.item().asQuantity(Math.min(n, 64)));
-    }
-
-    private void useRack() {
-        for (ItemStack i : load) if (Rack.is(i)) { i.subtract(); break; }
-        load.removeIf(ItemStack::isEmpty);
-    }
-
     /**
      * Items the rest of the build needs that are neither carried nor in the hut chest, as one-item stacks (a plain
      * block, or a Storage Rack for rack spots).
@@ -125,9 +109,9 @@ public final class Builder extends Job {
         return needed;
     }
 
-    /** How many of this build item it carries. */
+    /** How many of this build item it carries: matched whole, so a Storage Rack is never a plain chest or the other way round. */
     private int carrying(ItemStack item) {
-        return Rack.is(item) ? racks() : carried.getOrDefault(item.getType(), 0);
+        return has(i -> i.isSimilar(item));
     }
 
     private static String name(ItemStack item) {
@@ -203,7 +187,6 @@ public final class Builder extends Job {
         for (ItemStack i : inv.getContents()) if (i != null && item.isSimilar(i)) n += i.getAmount();
         return n;
     }
-
 
     @Override
     public void tick(Colonist w) {
@@ -328,7 +311,7 @@ public final class Builder extends Job {
     /** What breaking {@code b} with the tool it would be broken with drops. */
     private Collection<ItemStack> dropsOf(Block b) {
         Tool kind = Tool.forBlock(b.getType(), false);
-        ItemStack tool = kind == null ? null : tools.get(kind);
+        ItemStack tool = kind == null ? null : tool(kind);
         List<ItemStack> drops = new ArrayList<>(drops(b, tool));
         drops.addAll(contents(b)); // what a chest in the way holds goes to the hut chest too
         return drops;
@@ -360,9 +343,9 @@ public final class Builder extends Job {
             b.setBlockData(step.data(), false); // no physics: blocks are placed out of support order
             if (step.rack()) Rack.tag(b); // the builder places the block, not the structure's chest data
             if (cost != null) { // used up
-                if (step.rack()) useRack();
-                else carried.merge(cost, -1, Integer::sum);
-                if (cost == Material.WATER_BUCKET || cost == Material.LAVA_BUCKET) carried.merge(Material.BUCKET, 1, Integer::sum); // emptied
+                if (step.rack()) use(Rack::is, 1);
+                else use(cost, 1);
+                if (cost == Material.WATER_BUCKET || cost == Material.LAVA_BUCKET) gather(Material.BUCKET, 1, w); // emptied
             }
             var sounds = step.data().getSoundGroup();
             b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS,
@@ -370,19 +353,11 @@ public final class Builder extends Job {
         }
     }
 
-    /** Takes what the next steps need from the chest, up to a full inventory. */
+    /** Takes what the next steps need from the chest, as much as its inventory holds. */
     private void restock(Inventory chest) {
         Map<ItemStack, Integer> want = order.nextLoad(BuildOrder.Step::item, carryLimit());
-        want.forEach((item, n) -> {
-            int missing = n - carrying(item);
-            if (missing <= 0) return;
-            // removeItem matches whole items, so plain chests are never taken for racks or the other way round
-            int left = chest.removeItem(item.asQuantity(missing)).values().stream().mapToInt(ItemStack::getAmount).sum();
-            if (Rack.is(item)) addRacks(missing - left);
-            else carried.merge(item.getType(), missing - left, Integer::sum);
-        });
+        want.forEach((item, n) -> fetch(i -> i.isSimilar(item), n - carrying(item))); // whole items: racks never taken for chests
     }
-
 
     /**
      * shortcut: drops teleport straight into the hut chest; make the builder carry them back if it matters.
@@ -393,7 +368,6 @@ public final class Builder extends Job {
         for (ItemStack overflow : chest.addItem(items.toArray(ItemStack[]::new)).values())
             at.getWorld().dropItemNaturally(at, overflow);
     }
-
 
     /** Distance across the ground (the mod's getDistance2D): height doesn't count. */
     private static double across(Colonist w, Block b) {

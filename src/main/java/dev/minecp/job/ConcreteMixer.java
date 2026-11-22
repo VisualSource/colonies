@@ -3,7 +3,6 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
-import dev.minecp.logistics.Warehouse;
 import dev.minecp.research.Effects;
 
 import org.bukkit.DyeColor;
@@ -73,7 +72,7 @@ public final class ConcreteMixer extends Crafter {
     int inProgress(Recipe r) {
         Material m = r.getResult().getType();
         if (!concrete(m)) return super.inProgress(r);
-        int n = carried.getOrDefault(m, 0);
+        int n = has(m);
         for (Block b : spots()) if (b.getType() == m) n++;
         return n;
     }
@@ -99,7 +98,7 @@ public final class ConcreteMixer extends Crafter {
             Recipe r = recipeFor(t.test());
             if (r == null || craftsAtHut(r) || craftsLeft(t, r, false) == 0) continue;
             Material m = r.getResult().getType();
-            if (carried.getOrDefault(powderOf(m), 0) > 0 || inChest(i -> i.getType() == powderOf(m)) > 0) return m;
+            if (has(powderOf(m)) > 0 || inChest(i -> i.getType() == powderOf(m)) > 0) return m;
         }
         return null;
     }
@@ -116,7 +115,7 @@ public final class ConcreteMixer extends Crafter {
                 if (!fetchTool(Tool.PICKAXE, b)) { idle(w, "Needs " + toolLabel(Tool.PICKAXE) + " to mine the concrete it set.", 100, hut.block); return true; }
             }
             if (!w.isBeside(b)) { w.setStatus(hut.type.worker + ": mining concrete"); w.goBeside(b); return true; }
-            for (ItemStack drop : breakWith(Tool.PICKAXE, b, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
+            gather(breakWith(Tool.PICKAXE, b, w), w);
             b.getWorld().playSound(b.getLocation(), Sound.BLOCK_STONE_BREAK, SoundCategory.BLOCKS, 1, 1);
             b.setType(Material.AIR); // the water flows back in
             act(w);
@@ -127,11 +126,9 @@ public final class ConcreteMixer extends Crafter {
         Block free = water.stream().filter(b -> b.getType() == Material.WATER).findFirst().orElse(null);
         if (want != null && free != null) {
             Material powder = powderOf(want);
-            if (carried.getOrDefault(powder, 0) == 0) { // the powder for one trip: as many as there is water for
+            if (has(powder) == 0) { // the powder for one trip: as many as there is water for
                 if (!atHut(w)) { w.setStatus(hut.type.worker + ": working"); goToHut(w); return true; }
-                List<ItemStack> taken = new ArrayList<>();
-                Warehouse.take(chest, i -> i.getType() == powder, (int) water.stream().filter(b -> b.getType() == Material.WATER).count(), Integer.MAX_VALUE, taken);
-                taken.forEach(i -> carried.merge(i.getType(), i.getAmount(), Integer::sum));
+                fetch(i -> i.getType() == powder, (int) water.stream().filter(b -> b.getType() == Material.WATER).count());
                 return true;
             }
             if (!w.isBeside(free)) { w.setStatus(hut.type.worker + ": setting concrete"); w.goBeside(free); return true; }
@@ -139,12 +136,11 @@ public final class ConcreteMixer extends Crafter {
             act(w);
             free.setType(want); // vanilla's powder hardens at once in water
             free.getWorld().playSound(free.getLocation(), Sound.BLOCK_SAND_PLACE, SoundCategory.BLOCKS, 1, 1);
-            carried.merge(powder, -1, Integer::sum);
-            carried.values().removeIf(n -> n <= 0);
+            use(powder, 1);
             cooldown = faster(ACTION_TICKS, Effects.PLACE_SPEED);
             return true;
         }
-        if (carried.isEmpty()) return false;
+        if (!loaded()) return false;
         if (!atHut(w)) { w.setStatus(hut.type.worker + ": working"); goToHut(w); return true; } // the concrete, and any powder left, back to the chest
         if (!deliver()) idle(w, "The hut chest is full.", 100, hut.block);
         return true;

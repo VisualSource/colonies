@@ -85,7 +85,7 @@ public final class Fisherman extends Job {
         if (w.isMoving() || --cooldown > 0) return;
         switch (state) {
             case FIND -> {
-                if (catches >= MAX_CATCHES || !load.isEmpty() && catches == 0) { state = State.TO_HUT; return; }
+                if (catches >= MAX_CATCHES || bagFull() || loaded() && catches == 0) { state = State.TO_HUT; return; }
                 if (!hasTool(Tool.ROD, null)) {
                     if (!atHut(w)) { goToHut(w); return; }
                     if (!fetchTool(Tool.ROD, null)) {
@@ -116,14 +116,14 @@ public final class Fisherman extends Job {
             case CAST -> {
                 if (!hasTool(Tool.ROD, null)) { state = State.FIND; return; } // it broke
                 if (!w.isBeside(pond.stand)) { state = State.TO_POND; return; } // back from bed, a meal or the rain
-                w.hold(tools.get(Tool.ROD));
+                w.hold(tool(Tool.ROD));
                 w.swing(); // casting isn't counted towards hunger: the catch is
                 if (failed()) { cooldown = FAIL_TIMEOUT; return; }
                 var rnd = ThreadLocalRandom.current();
                 Location at = pond.water.getLocation().toCenterLocation();
                 at.getWorld().playSound(w.location(), Sound.ENTITY_FISHING_BOBBER_THROW, SoundCategory.NEUTRAL, 0.5f, 0.4f);
                 // The mod's bobber: a bite after 1060..1300 ticks less 100 per lure speed (5 unskilled, no Lure), then 20..80 to bite.
-                int lure = 5 + tools.get(Tool.ROD).getEnchantmentLevel(Enchantment.LURE);
+                int lure = 5 + tool(Tool.ROD).getEnchantmentLevel(Enchantment.LURE);
                 cooldown = Math.max(5, rnd.nextInt(1060, 1301) - lure * 100) + rnd.nextInt(20, 81);
                 state = State.WAIT;
             }
@@ -135,7 +135,7 @@ public final class Fisherman extends Job {
                 act(w);
                 state = State.CAST;
                 if (failed()) { cooldown = FAIL_TIMEOUT; return; } // it got away
-                load.addAll(catchFrom(pond.water));
+                gather(catchFrom(pond.water), w);
                 wear(Tool.ROD, w);
                 catches++;
                 cooldown = 20;
@@ -243,7 +243,8 @@ public final class Fisherman extends Job {
      */
     private List<ItemStack> catchFrom(Block water) {
         var rnd = ThreadLocalRandom.current();
-        int luck = tools.containsKey(Tool.ROD) ? tools.get(Tool.ROD).getEnchantmentLevel(Enchantment.LUCK_OF_THE_SEA) : 0;
+        ItemStack rod = tool(Tool.ROD);
+        int luck = rod != null ? rod.getEnchantmentLevel(Enchantment.LUCK_OF_THE_SEA) : 0;
         boolean ocean = water.getWorld().getBiome(water.getLocation()).getKey().getKey().contains("ocean")
                 || colony.research.effect(Effects.FISH_TREASURE) > 0;
         int junk = Math.max(0, 10 - 2 * luck), fish = Math.max(0, 85 - luck), treasure = ocean ? 5 + 2 * luck : 0;

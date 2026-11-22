@@ -31,6 +31,13 @@ public enum Tool {
         this.mines = null;
     }
 
+    /** The kind of tool {@code item} is, or null. */
+    static Tool kindOf(ItemStack item) {
+        if (item == null || item.isEmpty()) return null;
+        for (Tool t : values()) if (t.items.test(item.getType())) return t;
+        return null;
+    }
+
     /** Whether it mines blocks (not a sword, rod or shears). */
     boolean digs() {
         return mines != null;
