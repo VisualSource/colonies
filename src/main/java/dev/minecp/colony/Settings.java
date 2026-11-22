@@ -6,7 +6,7 @@ import java.util.List;
  * The mod's building settings (its SettingsModule, BuildingModules' *_SETTINGS) that MineCP has the behaviour for, with
  * the mod's defaults, and its hiring modes. Each hut keeps its own values (Hut.setting); the Town Hall's are the
  * colony's. Left out because their features don't exist here: the lumberjack's restricted area, defoliating and shears,
- * the farmer's fertilizing, the builder's work order mode and building patterns, crafters' recipe mode, the guard
+ * the builder's work order mode and building patterns, crafters' recipe mode, the guard
  * tower's tasks, and the tavern's music.
  */
 public final class Settings {
@@ -31,7 +31,11 @@ public final class Settings {
     }
 
     private static Setting bool(String key, String label) {
-        return new Setting(key, label, Kind.BOOL, "true", 0, 0);
+        return bool(key, label, true);
+    }
+
+    private static Setting bool(String key, String label, boolean initial) {
+        return new Setting(key, label, Kind.BOOL, String.valueOf(initial), 0, 0);
     }
 
     private static Setting number(String key, String label, int initial, int min, int max) {
@@ -54,7 +58,8 @@ public final class Settings {
     public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
-            CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type";
+            CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
+            MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
@@ -84,6 +89,9 @@ public final class Settings {
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"));
+            case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));
+            // not its "min warehouse stock" (16): MineCP's warehouse keeps nothing back from requests
+            case COMPOSTER -> List.of(bool(MAKE_DIRT, "Make dirt instead of compost", false));
             // at most what it asks for at a time (Crafter.ORES)
             case SMELTERY -> List.of(number(MIN_ORE, "Fewest ores a delivery may bring", 0, 0, 32));
             // the mod's crusher mode (ours: the first is gravel) and daily limit (the mod's 0: off; ours: its top)

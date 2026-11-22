@@ -58,6 +58,7 @@ public final class Farmer extends Job {
     private int skipped;      // its stages passed over with nothing to do
     private boolean didWork;  // whether it did this field's stage
     private boolean delivering;
+    private final Set<Block> fertilized = new java.util.HashSet<>(); // fertilized this harvest pass: once each, as the mod's one pass over the field
 
     public Farmer(Hut hut, Colony colony) {
         super(hut, colony);
@@ -136,13 +137,29 @@ public final class Farmer extends Job {
             if (have < SEED_STOCK / 2) wants.add(new Want(name(seed), i -> i.getType() == seed, SEED_STOCK - have, 1)); // minimum 1, as the mod
         }
         wantTool(wants, Tool.HOE);
+        // The mod's: with its fertilize setting (on by default), a stack of compost or bone meal once it has none
+        if (fertilizes() && has(Compost::fertilizer) + inChest(Compost::fertilizer) <= 0)
+            wants.add(new Want("compost or bone meal", Compost::fertilizer, FERTILIZER_STACK, 1));
         return wants;
+    }
+
+    private static final int FERTILIZER_STACK = 64; // the mod's STACKSIZE: asked for and taken; ours: kept in the chest too
+
+    private boolean fertilizes() {
+        return hut.on(dev.minecp.colony.Settings.FERTILIZE);
+    }
+
+    /** Its fertilizer stays with it when it hands in the harvest. */
+    @Override
+    boolean keepsOnHand(ItemStack i) {
+        return Compost.fertilizer(i);
     }
 
     /** Hoes and a stock of seeds stay; the harvest goes to the warehouse. */
     @Override
     int keep(ItemStack item) {
         if (fits(Tool.HOE, item, null)) return Integer.MAX_VALUE;
+        if (Compost.fertilizer(item)) return FERTILIZER_STACK;
         return seeds().contains(item.getType()) ? SEED_STOCK : 0;
     }
 
@@ -177,6 +194,10 @@ public final class Farmer extends Job {
             if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return; }
             delivering = false;
         }
+        if (has(Compost::fertilizer) == 0 && inChest(Compost::fertilizer) > 0) { // the mod gathers a stack first, setting or not
+            if (!atHut(w)) { w.setStatus("Farmer: getting fertilizer"); goToHut(w); return; }
+            fetch(Compost::fertilizer, FERTILIZER_STACK);
+        }
         List<Hut> fields = colony.fieldsOf(this);
         if (fields.size() == Hut.MAX_LEVEL) colony.milestones.maxFields(); // the mod: as many fields as the hut's top level
         if (fields.isEmpty()) {
@@ -190,6 +211,7 @@ public final class Farmer extends Job {
             for (Hut f : fields) if (f.workedDay < colony.day && (current == null || f.workedDay < current.workedDay)) current = f;
             skipped = 0;
             didWork = false;
+            fertilized.clear();
         }
         if (current == null) {
             if (loaded()) { delivering = true; return; } // done for the day: drop off the harvest
@@ -201,6 +223,7 @@ public final class Farmer extends Job {
         Material seed = seedOf(field);
         if (seed == null) { idle(w, "Choose a crop in each field's menu.", 100, hut.block); current = null; field.workedDay = colony.day; return; }
         Inventory chest = chest();
+        boolean fertilizing = has(Compost::fertilizer) > 0; // the mod's setting only stops it asking
         Task best = null;
         double bestDistance = Double.MAX_VALUE;
         int[] e = field.extent;
@@ -210,12 +233,13 @@ public final class Farmer extends Job {
             if (soil == null) continue;
             // Stems go in every other column, starting one in from the west edge; the rest stays free for the fruit.
             boolean free = FRUIT.containsKey(CROPS.get(seed)) && (dx + e[3]) % 2 == 0;
-            if (work(soil, free) != stage) continue;
+            if (work(soil, free, fertilizing && !fertilized.contains(soil)) != stage) continue;
             double d = w.location().distanceSquared(soil.getLocation().add(0.5, 1, 0.5));
             if (d < bestDistance) { best = new Task(stage, soil, seed); bestDistance = d; }
         }
         if (best == null) { // this stage is done (or had nothing to do): on to the next one
             field.stage = (field.stage + 1) % 3;
+            fertilized.clear();
             if (didWork || ++skipped >= 4) { field.workedDay = colony.day; current = null; } // the mod gives up after 4 empty stages
             return;
         }
@@ -253,6 +277,12 @@ public final class Farmer extends Job {
         }
         switch (best.kind) {
             case HARVEST -> {
+                if (crop.getBlockData() instanceof Ageable a && a.getAge() < a.getMaximumAge()) { // the mod's: fertilize, harvest if it ripened
+                    use(Compost::fertilizer, 1);
+                    fertilized.add(best.soil);
+                    crop.applyBoneMeal(org.bukkit.block.BlockFace.UP);
+                    if (!(crop.getBlockData() instanceof Ageable now) || now.getAge() < now.getMaximumAge()) break;
+                }
                 double doubleChance = colony.research.effect(Effects.FARMING); // research: each drop doubled with this chance, as the mod
                 for (ItemStack drop : breakWith(null, crop, w))
                     gather(List.of(drop.asQuantity(drop.getAmount() * (ThreadLocalRandom.current().nextDouble() < doubleChance ? 2 : 1))), w);
@@ -276,15 +306,16 @@ public final class Farmer extends Job {
     }
 
     /**
-     * What a plot needs: harvest a ripe crop or a grown pumpkin or melon, or (unless the plot is kept {@code free} for
-     * fruit) till bare soil and plant farmland.
+     * What a plot needs: harvest a ripe crop or a grown pumpkin or melon (any crop while {@code fertilizing}: it is
+     * fertilized first, as the mod's; not stems), or (unless the plot is kept {@code free} for fruit) till bare soil
+     * and plant farmland.
      */
-    private static Kind work(Block soil, boolean free) {
+    private static Kind work(Block soil, boolean free, boolean fertilizing) {
         Block above = soil.getRelative(0, 1, 0);
         if (FRUIT.containsValue(above.getType())) return Kind.HARVEST;
         if (FRUIT.containsKey(above.getType())) return null; // a stem: it keeps growing fruit
         if (CROPS.containsValue(above.getType()))
-            return above.getBlockData() instanceof Ageable a && a.getAge() >= a.getMaximumAge() ? Kind.HARVEST : null;
+            return fertilizing || above.getBlockData() instanceof Ageable a && a.getAge() >= a.getMaximumAge() ? Kind.HARVEST : null;
         if (free || !(above.isEmpty() || (above.isReplaceable() && !above.isLiquid()))) return null;
         if (soil.getType() == Material.FARMLAND) return Kind.PLANT;
         return TILLABLE.contains(soil.getType()) ? Kind.TILL : null;

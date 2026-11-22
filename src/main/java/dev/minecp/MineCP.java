@@ -470,6 +470,37 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getEntity().getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) e.setCancelled(true);
     }
 
+    /** A Composter's Hut's barrel, or null: which job it belongs to. */
+    private dev.minecp.job.Composter barrelOf(org.bukkit.block.Block b) {
+        if (b == null || b.getType() != Material.COMPOSTER) return null;
+        for (Colony c : colonies.values()) { var cp = c.barrelOwner(b); if (cp != null) return cp; }
+        return null;
+    }
+
+    /**
+     * Right-clicking a composter's barrel works it as the mod's barrel, not as vanilla's composter (Protection may
+     * refuse it first). Both hands' clicks are cancelled, so the off hand can't compost the vanilla way; the main hand's works it.
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.NORMAL)
+    public void onBarrel(PlayerInteractEvent e) {
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.useInteractedBlock() == org.bukkit.event.Event.Result.DENY) return;
+        var composter = barrelOf(e.getClickedBlock());
+        if (composter == null) return;
+        e.setCancelled(true);
+        if (e.getHand() != EquipmentSlot.HAND) return;
+        var held = e.getPlayer().getInventory().getItemInMainHand();
+        composter.use(e.getPlayer(), e.getClickedBlock(), e.getBlockFace(), e.getPlayer().getGameMode() == org.bukkit.GameMode.CREATIVE ? held.clone() : held);
+    }
+
+    /** Hoppers neither fill a composter's barrels nor take from them (they aren't vanilla's composters). */
+    @EventHandler(ignoreCancelled = true)
+    public void onBarrelHopper(org.bukkit.event.inventory.InventoryMoveItemEvent e) {
+        for (var inv : List.of(e.getSource(), e.getDestination())) {
+            var at = inv.getLocation();
+            if (at != null && barrelOf(at.getBlock()) != null) { e.setCancelled(true); return; }
+        }
+    }
+
     /** A guard's arrows hit only monsters: they fly on through citizens, players, pets and other animals (ours). */
     @EventHandler(ignoreCancelled = true)
     public void onGuardArrow(org.bukkit.event.entity.ProjectileHitEvent e) {

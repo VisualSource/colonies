@@ -178,6 +178,7 @@ public final class Studies {
             case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";
+            case Effects.PODZOL_CHANCE -> "A composter making dirt makes podzol " + pct + " more often";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";
             default -> e.id() + " " + n + " (not in Colonies yet)";
         };

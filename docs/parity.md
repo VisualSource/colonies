@@ -40,7 +40,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
 - [~] Advancements (the mod's `data/minecolonies/advancements/`): its MineColonies, production and military tabs, with the mod's tree, frames, triggers and vanilla icons (our own icons where the mod shows its hut blocks), in our own words. Loaded by the plugin at startup (`Advancements`), so no data pack is needed; a `/minecraft:reload` drops them until the next restart. Bukkit saves them in the world's `bukkit` data pack: when a MineCP update changes one, all of them are replaced at the next start (one data reload)
   - Each is awarded when it happens to every online player the colony sends messages to (RECEIVE_MESSAGES), as the mod does: placing a supply camp or ship (the tab's root, with the mod's quiet copy in vanilla's Story tab; awarded to the one who placed it), placing the town hall, asking for the Builder's Hut, finishing huts and levels, 5/10/25/50/75 citizens, a citizen's first meal, teaching torches or a wooden door; placing a postbox and a stash (the mod's two placed_block criteria, each awarded to the one who placed it)
   - Also: the miner's shaft within 8 blocks of the world's bottom (deep mine), a farmer with 5 fields (max fields), and the military tab: finishing a Guard Tower (its root, with stone bricks behind it as the mod's) and 8, 30 and 80 guards (ours: counted each colony tick, where the mod counts when one is hired)
-  - Left out until their features exist: the military tab's barracks, barracks towers, archery and combat academy; mystical site, the undertaker's totem, the hut guide, fulfilling a request from the request screen, composter, enchanter, florist, library. Finishing a Crusher or a Sifter is in the production tab. Rotten flesh can't happen: it's on the mod's list of foods citizens refuse, as on ours. The mod has no research advancements
+  - Left out until their features exist: the military tab's archery and combat academy; mystical site, the undertaker's totem, the hut guide, fulfilling a request from the request screen, enchanter, florist, library. Finishing a Crusher or a Sifter is in the production tab. Rotten flesh can't happen: it's on the mod's list of foods citizens refuse, as on ours. The mod has no research advancements
 
 ## Citizens
 
@@ -181,7 +181,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Done: one action per field per colony day; each field cycles till, plant, harvest; a stage with nothing to do is skipped, and after 4 empty stages the field is done for the day (as in the mod)
   - One field per Farmer's Hut level; the farmer waits max(4, 16 - 2 x level) ticks between actions (ours: the mod's delay depends on the worker's skill, which we don't have)
   - Sugar cane and others are the plantation's, not done
-  - No compost or fertiliser
+  - Fertilizing: with no compost or bone meal on hand or in its chest it asks for a stack (any amount will do) unless its setting (on by default) is off; setting or not, it takes a stack from its chest and uses what it has, as the mod's. Ours: its chest keeps a stack, so couriers don't take it back (the mod's farmer keeps only its tools). In its harvest pass it fertilizes each unripe wheat, carrot, potato or beetroot once (vanilla bone meal's growth) and harvests it if that ripened it; not stems, as the mod's (ours: bone meal growth via vanilla, the mod's growCrops)
 - [~] Miner
   - Climbs and slides down the shaft's ladder like any citizen route (vanilla ladder physics, about 4 blocks a second up)
   - Water and lava inside a tunnel's own area are removed, not walled off
@@ -197,7 +197,11 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - [x] Fishing with a rod from its hut chest (requested like other tools; better rods need hut levels): casting and reeling in each fail 3 times in 10 (the mod's roll, unskilled) with a 5 s pause; a bite after 1060 to 1300 ticks less 100 per lure speed (5, plus Lure) plus 20 to 80. 1 rod damage a catch. After 10 catches it takes them to the hut; after each catch a 5% chance to move to another pond
   - [x] Loot as the mod's table: junk 10, fish 85, treasure 5 only over ocean, anywhere with the Ocean's Heart research, with Luck of the Sea's quality; the junk, fish and treasure are vanilla's tables, written out (no bamboo; treasure enchanted at level 30). Bonus from hut level 3: prismarine shard or crystals 25 in 1000 each, a sponge 1 in 1000 from level 4
   - Ours: no bobber (vanilla's needs a player): it swings, waits, and the water splashes when it reels in; it doesn't turn to face the water. No experience orbs or skills. Advancement "Gone Fishing" (the mod's build_fisherman)
-- [ ] Composter
+- [~] Composter's Hut (`BuildingComposter`, `EntityAIWorkComposter`, `TileEntityBarrel`, `CompostRecipe`), the mod's numbers unless noted: unlocked by research; recipe as the mod's with a vanilla composter in the middle for its barrel block. Its building's barrels (vanilla composters, as the converter already places for the mod's barrel blocks: 1 at level 1 up to 8 at level 5, 5 in cavern) take items worth 64 (an item that only partly fits tops it up to 64 without being used up, as the mod's): rich foods (saturation modifier 1 or more) and podzol 8 each, foods from 0.5, the mod's compostables tag and crop seeds 4, poorer foods, seeds, saplings, the pitcher pod and small dripleaf 2; where the mod's lists overlap the weakest counts, as its own. A full barrel ferments 1200 steps, a step each tick with the mod's odds (1 in rand(40) + 1 of the game time: about 9 minutes), only while loaded, worker or not; then it gives 6 compost. The composter's fill level shows a barrel: 0 to 6 filling, full when ready (ours: the mod's barrel models). Ready barrels sparkle
+  - Its worker, every 2 s: empties a ready barrel into its inventory (6 compost, twice that 1 time in 100, the mod's chance without skills; or with "Make dirt instead of compost" a dirt block, podzol 5% of the time, more with research) and takes it to the hut chest; else fills a barrel that isn't full from its inventory, a stack from the hut chest at a time. With nothing on its list on hand or in the chest it asks for a stack per barrel, any amount will do. Not done: its "min warehouse stock" setting (16), what the warehouse keeps back from that request, as MineCP's warehouse keeps nothing back
+  - The compost list (the mod's item list, empty by default): players add items by name or from their hand, and take them off, in the hut menu (MANAGE_HUTS); items that don't compost are refused. It keeps everything on its list; compost and dirt go to the warehouse
+  - Players can use its barrels too (right-click, main hand, as the mod's): a ready barrel's 6 compost pop out of the side clicked, or what they hold goes in if it composts ("working" if the barrel is full). Hoppers can't fill or empty them (ours). Composters elsewhere stay vanilla's (the mod's barrels work anywhere)
+  - Not done: the composter's skills (barrels sped up and bigger yields), its "empty list" chat message (the hut menu says so), composted dirt (a florist's block)
 - [ ] Plantation
 - [ ] Florist
 - [ ] Beekeeper
@@ -324,7 +328,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [~] Storage rack: tagged chest
 - [~] Scarecrow (field): tagged hay bale
 - ~~Plantation field~~ (skipped)
-- [ ] Barrel (composter barrel)
+- [~] Barrel (composter barrel): a vanilla composter in a Composter's Hut's building (see Composter's Hut); no item of its own
 - ~~Composted dirt~~ (skipped)
 - ~~Farmland and flooded farmland (for the mod's crops; rice needs flooded farmland)~~ (skipped)
 - ~~Crops (bell pepper, cabbage, chickpea, durum, eggplant, garlic, onion, soy bean, tomato, rice, butternut squash, corn, mint, nether pepper, peas)~~ (skipped)
@@ -358,7 +362,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [ ] Adventure token
 - [ ] Ancient tome (enchanter)
 - [ ] Magic potion
-- [ ] Compost (fertiliser from the composter)
+- [~] Compost (`ItemCompost`): bone meal with a tag (named Compost, the pack shows the mod's model), so players use it as bone meal, as the mod's; stacks to 64. Crafting recipes refuse it, as all of MineCP's items
 - [ ] Mistletoe
 - [ ] Santa hat (seasonal)
 - [ ] Assistant hammers: gold, iron, diamond

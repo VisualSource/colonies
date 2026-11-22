@@ -146,6 +146,9 @@ public abstract class Job {
     /** One tick of work for the worker, whose entities are spawned. */
     public abstract void tick(Colonist w);
 
+    /** Once a second, worker or not (the composter's barrels ferment on their own). */
+    public void everySecond() {}
+
     /** Called each tick while work stops (night, rain). @return false while it is still getting out of its work place. */
     public boolean leaveWork(Colonist w) {
         return true;

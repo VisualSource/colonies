@@ -143,6 +143,8 @@ public final class Menus {
             materials(player, c, h, missing == null ? Map.of() : missing);
         }));
         if (h.type == Hut.Type.UNIVERSITY && h.level > 0) buttons.add(button("Research", p, c, h, player -> research.branches(player, c, h)));
+        if (job instanceof dev.minecp.job.Composter cp && h.level > 0)
+            buttons.add(button("Compost list (" + cp.list.size() + ")", p, c, h, player -> compostList(player, c, h, cp)));
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));
@@ -627,6 +629,33 @@ public final class Menus {
                 DialogInput.text("item", Component.text("Item, like torch (blank: the one in your hand)")).width(250).build(),
                 DialogInput.text("stacks", Component.text("Stacks to keep (1 to 27)")).initial("1").width(250).build());
         Dialogs.show(p, h.type.title + ": minimum stock", body, inputs, buttons, 1);
+    }
+
+    /** What the composter composts (the mod's compostables item list): add by name or the item in hand, or take off. */
+    void compostList(Player p, Colony c, Hut h, dev.minecp.job.Composter cp) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(text(Component.text("It asks for these and composts them. How much one fills a barrel of 64: rich foods 8, "
+                + "most plants and foods 4, seeds, saplings and poor foods 2.", NamedTextColor.GRAY)));
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button("Add", p, c, h, (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
+            ItemStack item = itemFrom(player, view.getText("item"));
+            if (item != null && dev.minecp.job.Compost.strength(item.getType()) == 0)
+                player.sendMessage(Component.text(Job.name(item.getType()) + " doesn't compost.", NamedTextColor.RED));
+            else if (item != null && cp.list.add(item.getType())) plugin.save(c);
+            compostList(player, c, h, cp);
+        }));
+        for (Material m : List.copyOf(cp.list)) {
+            body.add(text(Component.text(Job.name(m) + " (" + dev.minecp.job.Compost.strength(m) + ")")));
+            buttons.add(button("Take off " + Job.name(m), p, c, h, Action.MANAGE_HUTS, player -> {
+                cp.list.remove(m);
+                plugin.save(c);
+                compostList(player, c, h, cp);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        List<DialogInput> inputs = List.of(DialogInput.text("item", Component.text("Item, like wheat_seeds (blank: the one in your hand)")).width(250).build());
+        Dialogs.show(p, h.type.title + ": compost list", body, inputs, buttons, 1);
     }
 
     /**

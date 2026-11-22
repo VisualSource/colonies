@@ -494,6 +494,13 @@ public final class Colony {
         return towers(h).stream().anyMatch(t -> t.level < 4) ? 2 : 3;
     }
 
+    /** The Composter's Hut job whose building has this barrel, or null. */
+    public dev.minecp.job.Composter barrelOwner(Block b) {
+        if (b.getType() != Material.COMPOSTER) return null;
+        for (Job j : jobs) if (j instanceof dev.minecp.job.Composter cp && cp.isBarrel(b)) return cp;
+        return null;
+    }
+
     /** A barracks' towers. */
     public List<Hut> towers(Hut barracks) {
         return huts.stream().filter(t -> t.barracks == barracks).toList();
@@ -616,6 +623,7 @@ public final class Colony {
         boolean raining = townHall().block.getWorld().hasStorm() && research.effect(Effects.WORK_IN_RAIN) == 0; // research: everyone works in it
         if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
+        if (colonyTick % 20 == 0) for (Job j : jobs) j.everySecond();
         visitors.tick();
         raids.tick();
         sickness.tick();

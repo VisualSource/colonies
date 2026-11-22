@@ -4,7 +4,7 @@ A Paper 26.3 plugin (plus a data pack of converted structures) that recreates Mi
 
 ## Before implementing a feature
 
-1. Read the mod's source for that feature first (`ldtteam/minecolonies`, branch `version/main`; `gh api repos/ldtteam/minecolonies/contents/<path>?ref=version/main`). Find the building, its job's AI (`core/entity/ai/workers/...`), its job (`core/colony/jobs/...`) and its recipe (`src/datagen/generated/minecolonies/data/minecolonies/recipes/`).
+1. Read the mod's source for that feature first. It is cloned at `minecolonies/` (gitignored; set up or refresh as in `docs/minecolonies/README.md`). Start from the indexes in `docs/minecolonies/`: `huts.md` (each hut's files), `constants.md` (their numbers), `classes.md` (every class) and the README's map of colony-wide systems. Find the building, its job's AI (`core/entity/ai/workers/...`), its job (`core/colony/jobs/...`) and its recipe (`src/datagen/generated/minecolonies/data/minecolonies/recipes/`).
 2. Gather every constant and rule that shapes behaviour: ranges, timings, limits per building level, thresholds, item amounts, the order things happen in. Use the mod's numbers, not guesses. Say which numbers came from the mod and which didn't.
 3. Note what cannot be ported cleanly to a plugin with a vanilla client: custom blocks, items, screens, entity AI, rendering. Decide on the closest stand-in, and record the difference in `docs/parity.md` under that feature.
 4. Use the mod as a reference only: write our own code, never copy its code or assets. The one exception is its blueprints, converted with `tools/convert_blueprints.py`.

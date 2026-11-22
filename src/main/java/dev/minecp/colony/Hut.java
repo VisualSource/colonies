@@ -1,6 +1,7 @@
 package dev.minecp.colony;
 
 import dev.minecp.job.Builder;
+import dev.minecp.job.Composter;
 import dev.minecp.job.Cook;
 import dev.minecp.job.Courier;
 import dev.minecp.job.CraftRules;
@@ -100,6 +101,9 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
         BAKER("Bakery", Material.CHEST, "craftsmanship/luxury/baker", "baker", "A baker bakes bread, cookies, pumpkin pie and cake",
                 () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", Type::baker, false),
+        // Unlocked by research; the mod's recipe has its barrel block in the middle: a vanilla composter here
+        COMPOSTER("Composter's Hut", Material.CHEST, "agriculture/horticulture/composter", "composter", "A composter turns plants and food into compost",
+                () -> new RecipeChoice.MaterialChoice(Material.COMPOSTER), "Composter", Composter::new, false),
         // Fisherman and herders: the mod's recipe middles (a rod, an egg, beef, shears, a porkchop, a rabbit)
         FISHERMAN("Fisherman's Hut", Material.CHEST, "agriculture/husbandry/fisherman", "fisherman", "A fisherman fishes in ponds nearby",
                 () -> new RecipeChoice.MaterialChoice(Material.FISHING_ROD), "Fisherman", Fisherman::new, false),
