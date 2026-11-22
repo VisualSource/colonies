@@ -10,6 +10,7 @@ import dev.minecp.job.Job;
 import dev.minecp.logistics.Rack;
 import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -163,7 +164,7 @@ public final class Colony {
      * research allows, never over {@link #CITIZEN_MAX} (the mod's getMaxCitizens and maxCitizensFromResearch).
      */
     public int capacity() {
-        int cap = (int) Math.min(CITIZEN_MAX, Math.max(CITIZEN_CAP, research.effect("citizencapaddition")));
+        int cap = (int) Math.min(CITIZEN_MAX, Math.max(CITIZEN_CAP, research.effect(Effects.CITIZEN_CAP)));
         // a Locked home counts only who lives there now (the mod's calculateMaxCitizens)
         return Math.max(1, Math.min(cap, huts.stream().mapToInt(h -> h.hiring == Settings.Hiring.LOCKED
                 ? Math.min(residents(h).size(), h.type.rooms(h.level)) : h.type.rooms(h.level)).sum()));
@@ -236,7 +237,7 @@ public final class Colony {
     private void growUp() {
         var rnd = ThreadLocalRandom.current();
         if (colonists.stream().anyMatch(c -> c.child)) childPool += COLONY_TICK; // shortcut: the mod's pool also empties at 70000; ours doesn't
-        double growth = 1 + research.effect("growthmultiplier"); // the mod divides both the odds and the time limit by it
+        double growth = 1 + research.effect(Effects.GROWTH); // the mod divides both the odds and the time limit by it
         for (Colonist c : colonists) {
             if (!c.child) continue;
             if (childPool >= CHILD_SHARE) { childPool -= CHILD_SHARE; c.childTime += CHILD_SHARE; }
@@ -547,12 +548,12 @@ public final class Colony {
         }
         long time = townHall().block.getWorld().getTime(); // 0..23999
         routine.clock(time);
-        boolean raining = townHall().block.getWorld().hasStorm();
+        boolean raining = townHall().block.getWorld().hasStorm() && research.effect(Effects.WORK_IN_RAIN) == 0; // research: everyone works in it
         if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         visitors.tick();
         raids.tick();
-        double walking = 1 + research.effect("walkingmultiplier");
+        double walking = 1 + research.effect(Effects.WALKING);
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
             c.pace = walking; // for its next tick's walk; working sets its job's pace below

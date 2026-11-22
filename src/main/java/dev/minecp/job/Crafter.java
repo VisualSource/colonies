@@ -6,6 +6,7 @@ import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -58,15 +59,13 @@ public final class Crafter extends Job {
     private int hits;
     private List<Block> furnaces = List.of();
     private int scan;
-    private final Colony colony; // smelters only: for the furnaces in their building; null for table crafters
 
-    public Crafter(Hut hut, Predicate<Recipe> accepts, String makes) {
-        this(hut, null, accepts, makes, false, false);
+    public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes) {
+        this(hut, colony, accepts, makes, false, false);
     }
 
     public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes, boolean smelts, boolean oreSmelter) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
         this.accepts = accepts;
         this.makes = makes;
         this.smelts = smelts;
@@ -86,8 +85,9 @@ public final class Crafter extends Job {
 
     // ---- recipes ------------------------------------------------------------------------------------------------
 
+    /** 2^level x 5, more with research (the mod's getMaxRecipes). */
     public int maxRecipes() {
-        return (1 << hut.level) * EXTRA_RECIPES;
+        return (int) ((1 << hut.level) * EXTRA_RECIPES * (1 + colony.research.effect(Effects.RECIPES)));
     }
 
     /** Teaches it a recipe. @return why not, or null when learnt. */

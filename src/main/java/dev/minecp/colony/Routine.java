@@ -5,6 +5,7 @@ import dev.minecp.citizen.Food;
 import dev.minecp.citizen.Meal;
 import dev.minecp.job.Job;
 import dev.minecp.job.Miner;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -75,7 +76,7 @@ final class Routine {
         }
         double dx = home.getX() - at.getX(), dz = home.getZ() - at.getZ(), dy = (home.getY() - at.getY()) * Y_WEIGHT;
         double needed = (Math.sqrt(dx * dx + dy * dy + dz * dz) + extra) * TICKS_PER_BLOCK;
-        double workLonger = colony.research.effect("workingdayhaddition") * 1000; // research: 1000 ticks (an hour) a level, as the mod's CitizenSleepHandler
+        double workLonger = colony.research.effect(Effects.WORK_LONGER) * 1000; // research: 1000 ticks (an hour) a level, as the mod's CitizenSleepHandler
         return NIGHT + workLonger - time - needed <= 0;
     }
 

@@ -6,6 +6,7 @@ import dev.minecp.colony.Colony;
 import dev.minecp.colony.ColonyStore;
 import dev.minecp.colony.Grave;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -42,7 +43,6 @@ public final class Undertaker extends Job {
 
     private enum State { FIND, TO_GRAVE, EMPTY, RESURRECT, DIG, BURY, DUMP }
 
-    private final Colony colony;
     private State state = State.FIND;
     private Grave grave;            // the grave it works on
     private String body, bodyJob;   // dug up, waiting to be buried
@@ -53,8 +53,7 @@ public final class Undertaker extends Job {
     private int spotsLevel = -1;
 
     public Undertaker(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     /** The named grave of a citizen buried here, or null. */
@@ -96,13 +95,13 @@ public final class Undertaker extends Job {
 
     /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%. */
     private double chance() {
-        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + colony.research.effect("resurrectchanceaddition"));
+        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + colony.research.effect(Effects.RESURRECT_CHANCE));
     }
 
     /** It runs to a grave once researched (the mod's undertakerrun: vanilla sprinting, +30%). */
     @Override
     public double pace() {
-        return state == State.TO_GRAVE && colony.research.effect("undertakerrun") > 0 ? SPRINT : 1;
+        return state == State.TO_GRAVE && colony.research.effect(Effects.UNDERTAKER_RUN) > 0 ? SPRINT : 1;
     }
 
     /** The burial spots of the graveyard as built (the mod's named grave blocks in its blueprint). */
@@ -165,7 +164,7 @@ public final class Undertaker extends Job {
             case EMPTY -> {
                 if (!w.isBeside(grave.block)) { state = State.TO_GRAVE; return; } // back from bed, a meal or the rain
                 if (!work(w, EMPTY_TICKS)) return;
-                for (int i = 0; i < grave.items.getSize() && load.size() < 27; i++) { // a citizen's 27 slots, as in the mod
+                for (int i = 0; i < grave.items.getSize() && load.size() < slots(); i++) { // a citizen's inventory, as in the mod
                     ItemStack item = grave.items.getItem(i);
                     if (item == null) continue;
                     load.add(item);

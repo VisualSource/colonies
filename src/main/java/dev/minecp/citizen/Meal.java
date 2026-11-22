@@ -3,6 +3,7 @@ package dev.minecp.citizen;
 import dev.minecp.colony.Colony;
 import dev.minecp.job.Cook;
 import dev.minecp.job.Job;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -55,7 +56,7 @@ public final class Meal {
 
     /** What a point of food value is worth to a citizen of this colony (the mod's getFoodValue research bonus). */
     private static double fills(Colony colony) {
-        return 1 + colony.research.effect("saturationmultiplier");
+        return 1 + colony.research.effect(Effects.SATURATION);
     }
 
     /** @return true when the meal is over: eaten, or no food could be had ({@link #why} says why). */

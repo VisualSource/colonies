@@ -3,6 +3,7 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,8 +24,8 @@ import java.util.Set;
 public final class PostBox extends Job {
     /** The mod's limit on one order (its quantity field allows up to 1000). */
     public static final int MAX_ORDER = 1000;
-    /** Items it keeps in stock: the mod's 5 per building level, its level always 1 (no research). */
-    public static final int MAX_STOCK = 5;
+    /** Items it keeps in stock: the mod's 5 per building level, its level always 1. */
+    private static final int STOCK_PER_LEVEL = 5;
     /** Items told apart by their data (which enchantment, which potion); any other item matches by type, worn or renamed. */
     private static final Set<Material> BY_DATA = Set.of(Material.ENCHANTED_BOOK, Material.POTION, Material.SPLASH_POTION,
             Material.LINGERING_POTION, Material.TIPPED_ARROW);
@@ -52,8 +53,8 @@ public final class PostBox extends Job {
     public final List<Order> orders = new ArrayList<>();
     public final List<Stock> stock = new ArrayList<>();
 
-    public PostBox(Hut hut) {
-        super(hut);
+    public PostBox(Hut hut, Colony colony) {
+        super(hut, colony);
     }
 
     @Override
@@ -82,10 +83,15 @@ public final class PostBox extends Job {
         orders.remove(o);
     }
 
-    /** Keeps {@code stacks} stacks of {@code item}; replaces its earlier amount. @return false if all {@link #MAX_STOCK} are taken. */
+    /** How many items it can keep in stock: more with research (the mod's minimumStockSize). */
+    public int maxStock() {
+        return (int) (STOCK_PER_LEVEL * (1 + colony.research.effect(Effects.MINIMUM_STOCK)));
+    }
+
+    /** Keeps {@code stacks} stacks of {@code item}; replaces its earlier amount. @return false if all {@link #maxStock} are taken. */
     public boolean keepStocked(ItemStack item, int stacks) {
         stock.removeIf(s -> same(s.item, item));
-        if (stock.size() >= MAX_STOCK) return false;
+        if (stock.size() >= maxStock()) return false;
         stock.add(new Stock(item, stacks));
         return true;
     }

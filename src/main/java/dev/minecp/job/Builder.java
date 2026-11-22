@@ -6,6 +6,7 @@ import dev.minecp.colony.Colony;
 import dev.minecp.colony.ColonyStore;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Rack;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -46,8 +47,8 @@ public final class Builder extends Job {
     private BiConsumer<Hut.WorkOrder, BuildOrder> onFinish = (w, o) -> {};
     public Predicate<Block> protect = b -> false; // blocks a build must never replace; the colony sets its hut blocks
 
-    public Builder(Hut hut) {
-        super(hut);
+    public Builder(Hut hut, Colony colony) {
+        super(hut, colony);
     }
 
     /** Called when an order is finished, with its work order (null for a plain structure) and the order. */
@@ -320,7 +321,7 @@ public final class Builder extends Job {
         place(w, step, chest);
         if (partner != null) place(w, partner, chest);
         w.swing();
-        cooldown = PLACE_TICKS;
+        cooldown = faster(PLACE_TICKS, Effects.PLACE_SPEED); // ours: one step places, breaking what was there
         return true;
     }
 
@@ -369,9 +370,9 @@ public final class Builder extends Job {
         }
     }
 
-    /** Takes what the next steps need from the chest, up to {@link #CARRY_LIMIT} items. */
+    /** Takes what the next steps need from the chest, up to a full inventory. */
     private void restock(Inventory chest) {
-        Map<ItemStack, Integer> want = order.nextLoad(BuildOrder.Step::item, CARRY_LIMIT);
+        Map<ItemStack, Integer> want = order.nextLoad(BuildOrder.Step::item, carryLimit());
         want.forEach((item, n) -> {
             int missing = n - carrying(item);
             if (missing <= 0) return;

@@ -22,15 +22,13 @@ import java.util.List;
  */
 public final class Courier extends Job {
 
-    private final Colony colony;
     Job serving;          // the hut it is bringing to or fetching from, so couriers don't double up
     private Want want;    // what it fetches for {@link #serving}; null: it collects surplus
     private Requests.Request crafted; // when fetching what a crafter made for {@link #serving}: that request; null: the warehouse
     private boolean toWarehouse; // with a load: heading to the warehouse (surplus, or a delivery that no longer fit)
 
     public Courier(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     /** Stacks it can carry per trip, as in the mod: 1, 2, 4, 8 for hut levels 1-4, any amount at level 5. */

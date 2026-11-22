@@ -3,6 +3,7 @@ package dev.minecp.colony;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Food;
 import dev.minecp.job.Job;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -39,8 +40,8 @@ public final class Health {
         c.healTicks = 0;
         if (c.health >= max(c) || c.hurtTicks > 0) return;
         // research lowers the saturation needed for the full rate (a negative strength) and speeds up both rates
-        double regen = 1 + colony.research.effect("regenerationmultiplier");
-        double amount = c.saturation >= Food.MAX_SATURATION + colony.research.effect("healingsaturationlimitaddition") ? 2 * regen
+        double regen = 1 + colony.research.effect(Effects.REGENERATION);
+        double amount = c.saturation >= Food.MAX_SATURATION + colony.research.effect(Effects.HEALING_SATURATION) ? 2 * regen
                 : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : regen;
         c.health = Math.min(max(c), c.health + amount);
     }
@@ -48,7 +49,7 @@ public final class Health {
     /** Most health it can have: its job's (a knight has more), plus research's for every citizen. */
     public double max(Colonist c) {
         Job job = colony.jobOf(c);
-        return (job != null ? job.maxHealth() : Colonist.MAX_HEALTH) + colony.research.effect("healthaddition");
+        return (job != null ? job.maxHealth() : Colonist.MAX_HEALTH) + colony.research.effect(Effects.HEALTH);
     }
 
     /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
@@ -62,6 +63,7 @@ public final class Health {
         // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
         if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_CITIZEN)) return;
         Job job = colony.jobOf(c);
+        if (job != null && job.ignores(cause)) return;
         double hit = job != null ? job.afterArmor(e.getDamage()) : e.getDamage();
         double damage = cause == DamageCause.VOID || cause == DamageCause.KILL ? c.health : Math.min(hit, max(c) * MAX_HIT);
         if (damage <= 0) return;
@@ -108,7 +110,7 @@ public final class Health {
         }
         spot.setType(Grave.BLOCK);
         Grave grave = new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items);
-        grave.timer += (int) (colony.research.effect("gravedecaybonus") * 60 * 20); // research: minutes more before it decays
+        grave.timer += (int) (colony.research.effect(Effects.GRAVE_DECAY) * 60 * 20); // research: minutes more before it decays
         colony.graves.add(grave);
         colony.tell(c.name + " " + deathCause(cause, source) + where + ". Their grave is at "
                 + spot.getX() + " " + spot.getY() + " " + spot.getZ() + "." + mourn);

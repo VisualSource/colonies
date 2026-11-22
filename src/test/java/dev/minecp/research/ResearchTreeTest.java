@@ -51,11 +51,14 @@ class ResearchTreeTest {
     }
 
     @Test
-    void citizenEffectsAreDescribed() {
-        for (String id : new String[]{"civilian/firstaid", "civilian/haste", "civilian/bandaid", "civilian/resistance", "civilian/gourmand",
-                "civilian/circus", "civilian/nurture", "civilian/outpost", "civilian/nightowl", "civilian/gravedecaybonus1",
-                "civilian/resurrectchance1", "civilian/undertakeremergency"})
-            for (var e : ResearchTree.get(id).effects()) assertTrue(!Studies.describe(e).contains("not in Colonies"), id);
+    void effectsAreDescribed() {
+        for (String id : Effects.ALL) { // each effect Colonies applies is in the tree (no typo reads as 0) and has its own text
+            var given = ResearchTree.all().stream().flatMap(r -> r.effects().stream()).filter(e -> e.id().equals(id)).toList();
+            assertTrue(!given.isEmpty(), id + " is in research.json");
+            for (var e : given) assertTrue(!Studies.describe(e).contains("not in Colonies"), id);
+        }
+        assertEquals("Workers break blocks with no wait", Studies.describe(ResearchTree.get("technology/lightning").effects().getFirst()));
+        assertEquals("Workers break blocks in 10% less time", Studies.describe(ResearchTree.get("technology/isthisredstone").effects().getFirst()));
         assertEquals("Citizens walk 5% faster", Studies.describe(ResearchTree.get("civilian/haste").effects().getFirst()));
         assertEquals("Citizens heal at the full rate with 0.5 less food in them",
                 Studies.describe(ResearchTree.get("civilian/resistance").effects().getFirst()));

@@ -4,6 +4,7 @@ import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -13,6 +14,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -74,7 +76,6 @@ public final class Herder extends Job {
 
     private enum Act { NONE, PICKUP, BUTCHER, BREED, SHEAR, MILK }
 
-    private final Colony colony;
     private final Kind kind;
     private Act act = Act.NONE;
     private Entity target, partner;
@@ -83,8 +84,7 @@ public final class Herder extends Job {
     private int milked, stewed, milkDays, countedDay = -1;
 
     public Herder(Hut hut, Colony colony, Kind kind) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
         this.kind = kind;
     }
 
@@ -237,7 +237,15 @@ public final class Herder extends Job {
                 cooldown = BUTCHER_TICKS;
                 if (kind.rarelyHits && rnd.nextInt(21) > 1) return;
                 wear(Tool.AXE, w);
+                ItemStack axe = tools.get(Tool.AXE);
+                if (axe != null && colony.research.effect(Effects.LOOTING) > 0 && axe.getEnchantmentLevel(Enchantment.LOOTING) < 1) {
+                    // The mod's Skilled Butcher: the blow is struck with at least Looting I. Ours: a copy in hand for the blow only.
+                    axe = axe.clone();
+                    axe.addUnsafeEnchantment(Enchantment.LOOTING, 1);
+                    w.hold(axe);
+                }
                 ((Animals) target).damage(kind.damage, w.living());
+                w.hold(tools.get(Tool.AXE)); // its own axe back in hand
                 if (target.isValid() && !target.isDead()) return;
                 actions++;
                 pickUp(w); // ours: what it dropped, at once (the mod leaves it for its 1 in 10 pick-up)

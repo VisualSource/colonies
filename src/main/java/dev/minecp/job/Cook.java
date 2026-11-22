@@ -30,11 +30,9 @@ public final class Cook extends Job {
     private final List<ItemStack> serving = new ArrayList<>(); // food it carries to the next customer
     private List<Block> furnaces = List.of();
     private int scan = 0;
-    private final Colony colony;
 
     public Cook(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     private static final int STOCK = 32; // ours: food, raw food and fuel it keeps on hand

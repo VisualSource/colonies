@@ -46,7 +46,6 @@ public final class Guard extends Job {
     private static final int[][] ARMOR = {{0, 1}, {0, 2}, {0, 3}, {2, 4}, {3, 5}};
     private static final EquipmentSlot[] SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
 
-    private final Colony colony;
     private final Map<EquipmentSlot, ItemStack> armor = new EnumMap<>(EquipmentSlot.class); // worn; saved
     private LivingEntity target;
     private Hut patrolTo;
@@ -54,8 +53,7 @@ public final class Guard extends Job {
     private Location chasing; // where its route to the target leads
 
     public Guard(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     /** Health with the knight's and the tower's bonuses (the mod adds them as max health modifiers). */

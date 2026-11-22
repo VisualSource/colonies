@@ -28,11 +28,8 @@ public final class Researcher extends Job {
     private Block shelf;
     private int studying;
 
-    private final Colony colony;
-
     public Researcher(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     @Override

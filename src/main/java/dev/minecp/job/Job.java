@@ -3,6 +3,7 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
@@ -10,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -25,6 +27,7 @@ import java.util.function.Predicate;
 /** A job at a worker hut: one colonist works it, using the hut's chest. */
 public abstract class Job {
     public final Hut hut;
+    final Colony colony; // the colony it works for
     public UUID worker; // colonist id, or null while nobody has the job
     final Map<Material, Integer> carried = new EnumMap<>(Material.class); // what the worker holds; saved with the colony
     final Map<Tool, ItemStack> tools = new EnumMap<>(Tool.class);          // tools taken from the hut chest; saved too
@@ -33,8 +36,20 @@ public abstract class Job {
     public final List<ItemStack> load = new ArrayList<>();
     int cooldown; // ticks until the worker acts again
 
-    /** Items fetched per trip: a citizen's 27-slot inventory, as in the mod. */
-    static final int CARRY_LIMIT = 27 * 64;
+    /** A citizen's inventory slots: the mod's 27, more with research. */
+    int slots() {
+        return 27 + (int) colony.research.effect(Effects.INVENTORY_SLOTS);
+    }
+
+    /** Items fetched per trip: a full inventory. */
+    int carryLimit() {
+        return slots() * 64;
+    }
+
+    /** Ticks for a work step, shortened by a speed research ({@link Effects#BREAK_SPEED}, {@link Effects#PLACE_SPEED}) as the mod's delays. */
+    int faster(int ticks, String speedEffect) {
+        return Math.max(1, (int) (ticks * (1 - colony.research.effect(speedEffect))));
+    }
 
     // ---- what a kind of job adds: the hut menu, saving, shutting down ----------------------------------------
 
@@ -123,8 +138,9 @@ public abstract class Job {
         if (!hasTool(kind, null) && inChest(i -> fits(kind, i, null)) == 0) wants.add(new Want(toolLabel(kind), i -> fits(kind, i, null), 1));
     }
 
-    Job(Hut hut) {
+    Job(Hut hut, Colony colony) {
         this.hut = hut;
+        this.colony = colony;
     }
 
     /** How much faster than others this job makes a citizen hungry (the mod: farmer and lumberjack 1.2). */
@@ -143,6 +159,11 @@ public abstract class Job {
     /** Most health its worker can have (the knight has more). */
     public double maxHealth() {
         return Colonist.MAX_HEALTH;
+    }
+
+    /** Whether this kind of damage doesn't hurt its worker at all (a miner with Hot Boots and fire). */
+    public boolean ignores(EntityDamageEvent.DamageCause cause) {
+        return false;
     }
 
     /** What of a hit reaches its worker (the knight's armor takes some). */
@@ -311,6 +332,8 @@ public abstract class Job {
         ItemStack tool = tools.get(kind);
         if (tool == null) return;
         w.hold(tool);
+        double lasts = colony.research.effect(Effects.TOOL_DURABILITY); // research: skips a use with chance 1 - 1/(1+strength), as the mod
+        if (lasts > 0 && java.util.concurrent.ThreadLocalRandom.current().nextDouble() > 1 / (1 + lasts)) return;
         ItemStack worn = tool.damage(1, w.living()); // Unbreaking and the break animation included
         if (worn.isEmpty()) {
             tools.remove(kind);

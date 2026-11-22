@@ -38,15 +38,15 @@ public final class Hut {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall", "townhall", "Place to found a colony",
                 null, true), // its recipe has the Build Tool in the middle (Items)
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder", "builderhut", "Its chest holds building materials",
-                () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", (h, c) -> new Builder(h), true),
+                () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", Builder::new, true),
         HOUSE("House", Material.CHEST, "fundamentals/residence", "house", "Room for more citizens",
                 () -> new RecipeChoice.MaterialChoice(Material.TORCH), false),
         LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack", "lumberjack", "A citizen cuts and replants trees nearby",
-                () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), "Lumberjack", (h, c) -> new Lumberjack(h), false),
+                () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), "Lumberjack", Lumberjack::new, false),
         FARMER("Farmer's Hut", Material.CHEST, "agriculture/horticulture/farmer", "farmer", "A citizen works the colony's fields",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_HOE), "Farmer", Farmer::new, false),
         COOK("Cook's Hut", Material.CHEST, "fundamentals/cook", "cook", "A restaurant: its cook cooks and serves food",
-                () -> new RecipeChoice.MaterialChoice(Material.APPLE), "Cook", (h, c) -> new Cook(h, c), false),
+                () -> new RecipeChoice.MaterialChoice(Material.APPLE), "Cook", Cook::new, false),
         WAREHOUSE("Warehouse", Material.CHEST, "craftsmanship/storage/warehouse", "warehouse", "The colony's store, which couriers work from",
                 () -> new RecipeChoice.MaterialChoice(Material.CHEST), true),
         COURIER("Courier's Hut", Material.CHEST, "craftsmanship/storage/deliveryman", "courier", "A courier carries goods between the warehouse and huts",
@@ -56,27 +56,27 @@ public final class Hut {
         // The crafters: middle rows from the mod's recipes.
         SAWMILL("Sawmill", Material.CHEST, "craftsmanship/carpentry/sawmill", "sawmill", "A carpenter crafts the wooden things the colony needs",
                 () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), () -> new RecipeChoice.MaterialChoice(Material.WOODEN_AXE), "Carpenter",
-                (h, c) -> new Crafter(h, CraftRules.SAWMILL, "things made mostly of wood"), false),
+                (h, c) -> new Crafter(h, c, CraftRules.SAWMILL, "things made mostly of wood"), false),
         STONEMASON("Stonemason's Hut", Material.CHEST, "craftsmanship/masonry/stonemason", "stonemason", "A stonemason crafts stone blocks, stairs, slabs and walls",
                 () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stonemason",
-                (h, c) -> new Crafter(h, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"), false),
+                (h, c) -> new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"), false),
         STONE_SMELTERY("Stone Smeltery", Material.CHEST, "craftsmanship/masonry/stonesmeltery", "stonesmeltery", "A stone smelter fires stone, bricks and terracotta",
                 () -> new RecipeChoice.MaterialChoice(Material.FURNACE), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stone Smelter",
                 (h, c) -> new Crafter(h, c, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", true, false), false),
         BLACKSMITH("Blacksmith's Hut", Material.CHEST, "craftsmanship/metallurgy/blacksmith", "blacksmith", "A blacksmith makes tools, weapons and armor",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), "Blacksmith",
-                (h, c) -> new Crafter(h, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)"), false),
+                (h, c) -> new Crafter(h, c, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)"), false),
         SMELTERY("Smeltery", Material.CHEST, "craftsmanship/metallurgy/smeltery", "smeltery", "A smelter turns the miner's ores into ingots",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), null, "Smelter",
                 (h, c) -> new Crafter(h, c, CraftRules.SMELTERY, "ingots from ores", true, true), false),
         MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
                 () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
-                (h, c) -> new Crafter(h, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
+                (h, c) -> new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
         BAKER("Bakery", Material.CHEST, "craftsmanship/luxury/baker", "baker", "A baker bakes bread, cookies, pumpkin pie and cake",
-                () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", (h, c) -> baker(h), false),
+                () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", Type::baker, false),
         // Fisherman and herders: the mod's recipe middles (a rod, an egg, beef, shears, a porkchop, a rabbit)
         FISHERMAN("Fisherman's Hut", Material.CHEST, "agriculture/husbandry/fisherman", "fisherman", "A fisherman fishes in ponds nearby",
                 () -> new RecipeChoice.MaterialChoice(Material.FISHING_ROD), "Fisherman", Fisherman::new, false),
@@ -106,9 +106,9 @@ public final class Hut {
         // MineColonies' postbox and stash: blocks, never built; nobody works there. Recipes: a row of three chests, or
         // two with planks between; plain chests (the mod's chests tag), never huts or racks, which are chests too
         POST_BOX("Postbox", Material.CHEST, null, "postbox", "Order items from the warehouse; couriers bring them here",
-                Type::plainChests, Type::plainChests, null, (h, c) -> new PostBox(h), false),
+                Type::plainChests, Type::plainChests, null, PostBox::new, false),
         STASH("Stash", Material.CHEST, null, "stash", "Couriers take what you put in here to the warehouse",
-                () -> new RecipeChoice.MaterialChoice(Tag.PLANKS), Type::plainChests, null, (h, c) -> new Stash(h), false);
+                () -> new RecipeChoice.MaterialChoice(Tag.PLANKS), Type::plainChests, null, Stash::new, false);
 
         private static RecipeChoice plainChests() {
             return RecipeChoice.exactChoice(new org.bukkit.inventory.ItemStack(Material.CHEST), new org.bukkit.inventory.ItemStack(Material.TRAPPED_CHEST));
@@ -153,8 +153,8 @@ public final class Hut {
          * The baker knows the mod's own recipes for vanilla bread (level 1), cookies (2), pumpkin pie (3) and cake (4), as
          * the vanilla crafting recipes: the mod's doughs and batters, baked in a furnace, are its own items.
          */
-        private static Job baker(Hut h) {
-            Crafter b = new Crafter(h, CraftRules.BAKER, "bread, cookies, pumpkin pie, cake, and other things made from wheat");
+        private static Job baker(Hut h, Colony c) {
+            Crafter b = new Crafter(h, c, CraftRules.BAKER, "bread, cookies, pumpkin pie, cake, and other things made from wheat");
             b.builtIn.put(org.bukkit.NamespacedKey.minecraft("bread"), 1);
             b.builtIn.put(org.bukkit.NamespacedKey.minecraft("cookie"), 2);
             b.builtIn.put(org.bukkit.NamespacedKey.minecraft("pumpkin_pie"), 3);

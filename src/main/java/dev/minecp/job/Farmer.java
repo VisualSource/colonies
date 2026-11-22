@@ -3,6 +3,7 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -18,6 +19,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Works the colony's fields: tills soil with a hoe, plants the crop chosen by the seed in each field's barrel,
@@ -52,15 +54,13 @@ public final class Farmer extends Job {
         Block crop() { return soil.getRelative(0, 1, 0); }
     }
 
-    private final Colony colony;
     private Hut current;      // the field being worked today
     private int skipped;      // its stages passed over with nothing to do
     private boolean didWork;  // whether it did this field's stage
     private boolean delivering;
 
     public Farmer(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
     }
 
     /** The seed the field is planted with, chosen in its menu; null if none. */
@@ -254,7 +254,9 @@ public final class Farmer extends Job {
         }
         switch (best.kind) {
             case HARVEST -> {
-                for (ItemStack drop : breakWith(null, crop, w)) carried.merge(drop.getType(), drop.getAmount(), Integer::sum);
+                double doubleChance = colony.research.effect(Effects.FARMING); // research: each drop doubled with this chance, as the mod
+                for (ItemStack drop : breakWith(null, crop, w))
+                    carried.merge(drop.getType(), drop.getAmount() * (ThreadLocalRandom.current().nextDouble() < doubleChance ? 2 : 1), Integer::sum);
                 crop.setType(Material.AIR, false);
                 crop.getWorld().playSound(crop.getLocation(), Sound.BLOCK_CROP_BREAK, SoundCategory.BLOCKS, 1, 1);
             }

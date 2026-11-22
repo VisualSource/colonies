@@ -4,6 +4,7 @@ import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.ColonyStore;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.PotionContents;
@@ -52,7 +53,7 @@ public final class Fisherman extends Job {
     private int catches;
 
     public Fisherman(Hut hut, Colony colony) {
-        super(hut);
+        super(hut, colony);
     }
 
     @Override
@@ -236,14 +237,15 @@ public final class Fisherman extends Job {
     // ---- the catch ----------------------------------------------------------------------------------------------
 
     /**
-     * The mod's fisherman loot: junk 10, fish 85 and (only in an ocean: no research here) treasure 5, with vanilla's
+     * The mod's fisherman loot: junk 10, fish 85 and (only in an ocean, or anywhere with the Ocean's Heart research) treasure 5, with vanilla's
      * quality per Luck of the Sea level; each from vanilla's fishing tables. From hut level 3 a bonus: prismarine shard
      * or crystals, 25 in 1000 each, and from level 4 a sponge, 1 in 1000.
      */
     private List<ItemStack> catchFrom(Block water) {
         var rnd = ThreadLocalRandom.current();
         int luck = tools.containsKey(Tool.ROD) ? tools.get(Tool.ROD).getEnchantmentLevel(Enchantment.LUCK_OF_THE_SEA) : 0;
-        boolean ocean = water.getWorld().getBiome(water.getLocation()).getKey().getKey().contains("ocean");
+        boolean ocean = water.getWorld().getBiome(water.getLocation()).getKey().getKey().contains("ocean")
+                || colony.research.effect(Effects.FISH_TREASURE) > 0;
         int junk = Math.max(0, 10 - 2 * luck), fish = Math.max(0, 85 - luck), treasure = ocean ? 5 + 2 * luck : 0;
         int roll = rnd.nextInt(junk + fish + treasure);
         List<ItemStack> out = new ArrayList<>();

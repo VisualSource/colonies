@@ -138,7 +138,7 @@ public final class Menus {
         if (h.type == Hut.Type.UNIVERSITY && h.level > 0) buttons.add(button("Research", p, c, h, player -> research.branches(player, c, h)));
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
-            buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + PostBox.MAX_STOCK + ")", p, c, h, player -> stock(player, c, h, pb)));
+            buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));
         }
         if (job instanceof Crafter cr && h.level > 0 && !cr.oreSmelter) { // the Smeltery knows every ore by itself
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
@@ -583,7 +583,7 @@ public final class Menus {
             Integer n = item == null ? null : number(player, "Stacks", view.getText("stacks"), 1, 27); // a chest's worth (ours)
             if (n != null) {
                 if (pb.keepStocked(item, n)) plugin.save(c);
-                else player.sendMessage(Component.text("The postbox keeps at most " + PostBox.MAX_STOCK + " items in stock.", NamedTextColor.RED));
+                else player.sendMessage(Component.text("The postbox keeps at most " + pb.maxStock() + " items in stock.", NamedTextColor.RED));
             }
             stock(player, c, h, pb);
         }));

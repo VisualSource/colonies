@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 
 import org.bukkit.inventory.ItemStack;
@@ -12,8 +13,8 @@ import org.bukkit.inventory.ItemStack;
  * no menu.
  */
 public final class Stash extends Job {
-    public Stash(Hut hut) {
-        super(hut);
+    public Stash(Hut hut, Colony colony) {
+        super(hut, colony);
     }
 
     @Override

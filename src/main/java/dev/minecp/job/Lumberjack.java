@@ -50,8 +50,8 @@ public final class Lumberjack extends Job {
     private boolean onLeaves;
     private final Set<Block> unreachable = new HashSet<>();
 
-    public Lumberjack(Hut hut) {
-        super(hut);
+    public Lumberjack(Hut hut, Colony colony) {
+        super(hut, colony);
     }
 
     @Override
@@ -89,7 +89,7 @@ public final class Lumberjack extends Job {
     }
 
     private int chopTicks() {
-        return Math.max(6, 26 - 4 * hut.level);
+        return faster(Math.max(6, 26 - 4 * hut.level), "blockbreakspeedmultiplier");
     }
 
     @Override

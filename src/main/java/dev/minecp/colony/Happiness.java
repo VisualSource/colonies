@@ -3,6 +3,7 @@ package dev.minecp.colony;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
+import dev.minecp.research.Effects;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -49,7 +50,7 @@ public final class Happiness {
 
     /** 0 to 10. All factors neutral gives 10 (the mod divides by zero there). Research raises it by a share. */
     public double of(Colonist c) {
-        return Math.min(MAX, of(factors(c)) * (1 + colony.research.effect("happinessmultiplier")));
+        return Math.min(MAX, of(factors(c)) * (1 + colony.research.effect(Effects.HAPPINESS)));
     }
 
     static double of(List<Factor> factors) {

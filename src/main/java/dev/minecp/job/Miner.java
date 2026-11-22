@@ -5,6 +5,7 @@ import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Settings;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -16,6 +17,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Ladder;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BlockVector;
@@ -95,11 +97,15 @@ public final class Miner extends Job {
     private Tool neededTool;
     private boolean delivering;
 
-    private final Colony colony;
-
     public Miner(Hut hut, Colony colony) {
-        super(hut);
-        this.colony = colony;
+        super(hut, colony);
+    }
+
+    /** The mod's Hot Boots: lava, magma, fire and burning (its four fire damage types, not campfires) don't hurt a miner. */
+    @Override
+    public boolean ignores(DamageCause cause) {
+        return colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0
+                && (cause == DamageCause.LAVA || cause == DamageCause.HOT_FLOOR || cause == DamageCause.FIRE || cause == DamageCause.FIRE_TICK);
     }
 
     @Override
@@ -450,7 +456,7 @@ public final class Miner extends Job {
         b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().toCenterLocation(), 10, 0.3, 0.3, 0.3, data);
         b.setType(Material.AIR, false);
         w.swing();
-        cooldown = Math.max(4, 14 - 2 * hut.level);
+        cooldown = faster(Math.max(4, 14 - 2 * hut.level), "blockbreakspeedmultiplier");
     }
 
     private void place(Colonist w, Block b, org.bukkit.block.data.BlockData data, Material cost) {
@@ -461,7 +467,7 @@ public final class Miner extends Job {
         var sounds = data.getSoundGroup();
         b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());
         w.swing();
-        cooldown = 8;
+        cooldown = faster(8, Effects.PLACE_SPEED);
     }
 
     /** Makes sure it carries some {@code m}, restocking from the hut chest. @return true if it does. */
@@ -493,7 +499,7 @@ public final class Miner extends Job {
 
     /** What the level or node being built still needs to place, up to a full load. */
     private Map<Material, Integer> needs() {
-        return order == null ? new LinkedHashMap<>() : order.nextLoad(BuildOrder.Step::cost, CARRY_LIMIT);
+        return order == null ? new LinkedHashMap<>() : order.nextLoad(BuildOrder.Step::cost, carryLimit());
     }
 
     /** For the menu: tools, shaft stock and the current level or tunnel's materials that are neither carried nor in the hut chest. */
@@ -555,7 +561,6 @@ public final class Miner extends Job {
     private static boolean isOre(Material m) {
         return m.name().endsWith("_ORE") || m == Material.ANCIENT_DEBRIS;
     }
-
 
     // ---- couriers ------------------------------------------------------------------------------------------
 
