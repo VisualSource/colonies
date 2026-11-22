@@ -40,3 +40,64 @@ tasks.test {
 tasks.runServer {
     minecraftVersion("26.3")
 }
+
+// The structure data packs (tools/convert_blueprints.py), from the mod's blueprints in the local MineColonies checkout
+// (minecolonies/, git-ignored). `./gradlew datapacks` builds build/datapacks/minecp-<style>-<version>.zip, each pack's
+// description naming the plugin version, and refreshes docs/structures/<style>.md; `./gradlew installDatapacks` also
+// puts them in run/world/datapacks for the dev server (restart it or /reload to load them). Neither touches the jar.
+val packStyles = listOf("medievaloak", "medievalspruce", "medievalbirch", "medievaldarkoak", "cavern")
+val blueprints = layout.projectDirectory.dir("minecolonies/src/main/resources/blueprints/minecolonies")
+
+val convertTasks = packStyles.associateWith { style ->
+    tasks.register<Exec>("convertDatapack_$style") {
+        group = "minecp"
+        description = "Converts the $style blueprints into a data pack folder."
+        val source = blueprints.dir(style)
+        val out = layout.buildDirectory.dir("datapacks/minecp-$style")
+        val report = layout.projectDirectory.file("docs/structures/$style.md")
+        val v = project.version.toString()
+        inputs.dir(source)
+        inputs.file("tools/convert_blueprints.py")
+        inputs.file("tools/nbt.py")
+        inputs.file("tools/blocks-26.3.json")
+        inputs.property("version", v)
+        outputs.dir(out)
+        outputs.file(report)
+        doFirst {
+            if (!source.asFile.isDirectory) throw GradleException("No blueprints at ${source.asFile}: clone MineColonies into minecolonies/")
+            out.get().asFile.deleteRecursively()
+        }
+        commandLine("python3", "tools/convert_blueprints.py", source.asFile.path, out.get().asFile.path, report.asFile.path, "--version", v)
+    }
+}
+
+val zipTasks = packStyles.map { style ->
+    tasks.register<Zip>("zipDatapack_$style") {
+        group = "minecp"
+        description = "Zips the $style data pack, named with the plugin version."
+        from(convertTasks.getValue(style)) // its output folder: pack.mcmeta at the zip's root
+        archiveFileName = "minecp-$style-${project.version}.zip"
+        destinationDirectory = layout.buildDirectory.dir("datapacks")
+    }
+}
+
+tasks.register("datapacks") {
+    group = "minecp"
+    description = "Builds every style's structure data pack as build/datapacks/minecp-<style>-<version>.zip."
+    dependsOn(zipTasks)
+}
+
+val installTasks = packStyles.map { style ->
+    tasks.register<Sync>("installDatapack_$style") {
+        group = "minecp"
+        description = "Puts the $style data pack in run/world/datapacks."
+        from(convertTasks.getValue(style))
+        into(layout.projectDirectory.dir("run/world/datapacks/minecp-$style")) // only this pack's folder is replaced
+    }
+}
+
+tasks.register("installDatapacks") {
+    group = "minecp"
+    description = "Builds the data packs and puts them in run/world/datapacks for the dev server."
+    dependsOn(installTasks)
+}

@@ -294,12 +294,13 @@ def main():
     ap.add_argument("report")
     ap.add_argument("--blocks", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "blocks-26.3.json"))
     ap.add_argument("--pack-name", default=None, help="structure path prefix, defaults to the pack folder name")
+    ap.add_argument("--version", default=None, help="the plugin version the pack is built for, shown in its description")
     a = ap.parse_args()
     blocks = json.load(open(a.blocks))
     pack = a.pack_name or os.path.basename(os.path.normpath(a.pack_dir))
     os.makedirs(a.datapack_dir, exist_ok=True)
     with open(os.path.join(a.datapack_dir, "pack.mcmeta"), "w") as f:
-        json.dump({"pack": {"description": f"MineCP structures: {pack}",
+        json.dump({"pack": {"description": f"MineCP structures: {pack}" + (f" (Colonies {a.version})" if a.version else ""),
                             "min_format": DATA_FORMAT, "max_format": DATA_FORMAT}}, f, indent=2)
     files = sorted(os.path.relpath(os.path.join(d, f), a.pack_dir)
                    for d, _, fs in os.walk(a.pack_dir) for f in fs if f.endswith(".blueprint"))

@@ -160,7 +160,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Each step takes the mod's place time with its adaptability (150 / (level / 2 + 10) ticks, less the place-speed research), plus the mod's mining time with its athletics for whatever it cleared (ours: one step places and clears)
   - No repair or move work orders
   - Hut rotation comes from the build tool (for hut blocks placed by hand: the block's facing)
-- [~] Blueprints: medieval oak, spruce, birch and dark oak, and cavern, converted to vanilla structures (`tools/convert_blueprints.py`, one data pack each: `run/world/datapacks/minecp-<style>`; reports in `docs/structures/`)
+- [~] Blueprints: medieval oak, spruce, birch and dark oak, and cavern, converted to vanilla structures (`tools/convert_blueprints.py`, one data pack each: `run/world/datapacks/minecp-<style>`, rebuilt with `./gradlew datapacks` as `build/datapacks/minecp-<style>-<version>.zip`, their description naming the plugin version, or `./gradlew installDatapacks` into the dev server; reports in `docs/structures/`)
   - The colony's style is picked in the Town Hall menu ("Style", MANAGE_HUTS) from the installed packs; new buildings and upgrades use it. The mod picks it with the build tool when placing the town hall, and changes it in the town hall's settings
   - Cavern keeps each hut in "default", "alternative" and "megahall" folders: huts use "default" unless the build tool picks another; it has no mine shafts, so its miners dig the medieval oak ones
   - The other 18 styles aren't converted
