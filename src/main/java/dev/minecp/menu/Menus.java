@@ -140,7 +140,7 @@ public final class Menus {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));
         }
-        if (job instanceof Crafter cr && h.level > 0 && !cr.oreSmelter) { // the Smeltery knows every ore by itself
+        if (job instanceof Crafter cr && h.level > 0 && cr.taught) { // the Smeltery, Crusher and Concrete Mixer know their own recipes
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
             if (cr.crafts) buttons.add(button(cr.smelts ? "Teach a crafting recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
                     player -> plugin.teaching.start(player, c, cr)));
@@ -202,6 +202,12 @@ public final class Menus {
             case BOOL -> inputs.add(DialogInput.bool(s.key(), Component.text(s.label())).initial(h.on(s.key())).build());
             case INT -> inputs.add(DialogInput.text(s.key(), Component.text(s.label() + " (" + s.min() + " to " + s.max() + ")"))
                     .initial(h.setting(s.key())).width(250).build());
+            case CHOICE -> {
+                List<SingleOptionDialogInput.OptionEntry> options = new ArrayList<>();
+                for (String o : s.options())
+                    options.add(SingleOptionDialogInput.OptionEntry.create(o, Component.text(Job.name(Material.valueOf(o))), o.equals(h.setting(s.key()))));
+                inputs.add(DialogInput.singleOption(s.key(), Component.text(s.label()), options).width(250).build());
+            }
             case BLOCK -> {
                 body.add(text(Component.text(s.label() + ": " + Job.name(h.block(s.key())))));
                 buttons.add(button("Use held block: " + s.label().toLowerCase(), p, c, h, Action.MANAGE_HUTS, player -> {
@@ -223,6 +229,7 @@ public final class Menus {
                     if (n != null) h.set(s.key(), String.valueOf(n));
                     else player.sendMessage(Component.text("Kept " + h.setting(s.key()) + ".", NamedTextColor.RED));
                 }
+                case CHOICE -> { String o = view.getText(s.key()); if (s.options().contains(o)) h.set(s.key(), o); }
                 case BLOCK -> {}
             }
             c.hiringChanged(); // a hiring mode or the Town Hall's switches may now fill huts and homes

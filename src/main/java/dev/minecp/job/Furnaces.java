@@ -36,17 +36,22 @@ final class Furnaces {
      * to each other don't share furnaces, and players' furnaces outside it are left alone. None before level 1.
      */
     static List<Block> in(Colony colony, Hut hut, Material... types) {
+        var wanted = EnumSet.noneOf(Material.class);
+        wanted.addAll(List.of(types));
+        return in(colony, hut, HEIGHT, HEIGHT, b -> wanted.contains(b.getType()));
+    }
+
+    /** The blocks inside the hut's own building, from {@code below} to {@code above} the hut block, that pass {@code test}. */
+    static List<Block> in(Colony colony, Hut hut, int below, int above, Predicate<Block> test) {
         List<Block> found = new ArrayList<>();
         int[] box = colony.footprint(hut); // minX, maxX+1, minZ, maxZ+1
         if (box == null) return found;
-        var wanted = EnumSet.noneOf(Material.class);
-        wanted.addAll(List.of(types));
         var w = hut.block.getWorld();
         int y0 = hut.block.getY();
         for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++)
-            for (int y = y0 - HEIGHT; y <= y0 + HEIGHT; y++) {
+            for (int y = y0 - below; y <= y0 + above; y++) {
                 Block b = w.getBlockAt(x, y, z);
-                if (wanted.contains(b.getType())) found.add(b);
+                if (test.test(b)) found.add(b);
             }
         return found;
     }

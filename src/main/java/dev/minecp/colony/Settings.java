@@ -21,10 +21,14 @@ public final class Settings {
         }
     }
 
-    public enum Kind { BOOL, INT, BLOCK }
+    public enum Kind { BOOL, INT, BLOCK, CHOICE }
 
-    /** A setting: its save key, its label in the menu, its kind, the mod's default, and for numbers their range (ours). */
-    public record Setting(String key, String label, Kind kind, String initial, int min, int max) {}
+    /** A setting: its save key, its label in the menu, its kind, the mod's default, for numbers their range (ours), and for a choice its options. */
+    public record Setting(String key, String label, Kind kind, String initial, int min, int max, List<String> options) {
+        Setting(String key, String label, Kind kind, String initial, int min, int max) {
+            this(key, label, kind, initial, min, max, List.of());
+        }
+    }
 
     private static Setting bool(String key, String label) {
         return new Setting(key, label, Kind.BOOL, "true", 0, 0);
@@ -38,13 +42,19 @@ public final class Settings {
         return new Setting(key, label, Kind.BLOCK, initial.name(), 0, 0);
     }
 
+    /** One of {@code options} (item names), the first by default. */
+    private static Setting choice(String key, String label, org.bukkit.Material... options) {
+        return new Setting(key, label, Kind.CHOICE, options[0].name(), 0, 0, java.util.Arrays.stream(options).map(Enum::name).toList());
+    }
+
     // The Town Hall's (the colony's), all on by default as in the mod.
     // Keys are also the menu's input names, which allow only letters, digits and underscores.
     public static final String MOVE_IN = "move_in", AUTO_HIRING = "auto_hiring", AUTO_HOUSING = "auto_housing",
             TAPE = "construction_tape", ENTER_LEAVE = "enter_leave_messages";
     public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
-            MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount";
+            MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
+            CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
@@ -67,6 +77,11 @@ public final class Settings {
             case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"));
             // at most what it asks for at a time (Crafter.ORES)
             case SMELTERY -> List.of(number(MIN_ORE, "Fewest ores a delivery may bring", 0, 0, 32));
+            // the mod's crusher mode (ours: the first is gravel) and daily limit (the mod's 0: off; ours: its top)
+            case CRUSHER -> List.of(choice(CRUSHER_MODE, "Crush each day", org.bukkit.Material.GRAVEL, org.bukkit.Material.SAND,
+                            org.bukkit.Material.CLAY, org.bukkit.Material.CLAY_BALL, org.bukkit.Material.BONE_MEAL,
+                            org.bukkit.Material.COBBLESTONE, org.bukkit.Material.TUFF),
+                    number(DAILY_LIMIT, "How many a day (0: only what huts ask for)", 0, 0, 4096));
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));
             case COWBOY -> List.of(BREED, number(MILKING, "Buckets of milk each time", 1, 0, 64),

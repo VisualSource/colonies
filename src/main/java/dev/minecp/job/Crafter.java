@@ -38,7 +38,7 @@ import java.util.function.Predicate;
  * recipes and smelt in the furnaces of their building, with fuel they ask for; the Smeltery knows every ore and also
  * smelts whatever ore it is brought. The Dyer and Glassblower do both, as the mod's crafting and smelting modules.
  */
-public final class Crafter extends Job {
+public class Crafter extends Job {
     private static final int HITS = 3;       // the mod's HITTING_TIME at a typical skill (it is 30 with no skill at all)
     private static final int HIT_TICKS = 10; // the mod's HIT_DELAY
     private static final int EXTRA_RECIPES = 5; // the mod's EXTRA_RECIPE_MULTIPLIER
@@ -46,8 +46,11 @@ public final class Crafter extends Job {
     private static final int FUEL = 16; // ours, as the cook: fuel it keeps on hand, asked for once below this
     private static final int ORES = 32; // ours: ores the Smeltery asks the warehouse for at a time
 
-    /** What it works at: a crafting table, furnaces, both, or (the Smeltery) furnaces with every ore recipe known. */
-    public enum Kind { TABLE, FURNACE, BOTH, ORES }
+    /**
+     * What it works at: a crafting table, furnaces, both, (the Smeltery) furnaces with every ore recipe known, or (the
+     * Crusher, the Concrete Mixer) only its own recipes, never taught (the mod's custom crafting modules).
+     */
+    public enum Kind { TABLE, FURNACE, BOTH, ORES, OWN }
 
     private final Predicate<Recipe> accepts;
     /** What this crafter makes, for the menus. */
@@ -58,6 +61,8 @@ public final class Crafter extends Job {
     public final boolean smelts;
     /** The Smeltery: knows every ore recipe without being taught, and asks for and smelts any ore. */
     public final boolean oreSmelter;
+    /** Players teach it recipes (not the Smeltery, Crusher or Concrete Mixer). */
+    public final boolean taught;
     public final List<NamespacedKey> recipes = new ArrayList<>(); // taught; saved
     /** Requests Requests gave it to craft, refreshed each second. */
     public final List<Requests.Request> tasks = new ArrayList<>();
@@ -74,8 +79,9 @@ public final class Crafter extends Job {
         this.accepts = accepts;
         this.makes = makes;
         this.crafts = kind == Kind.TABLE || kind == Kind.BOTH;
-        this.smelts = kind != Kind.TABLE;
+        this.smelts = kind == Kind.FURNACE || kind == Kind.BOTH || kind == Kind.ORES;
         this.oreSmelter = kind == Kind.ORES;
+        this.taught = kind != Kind.ORES && kind != Kind.OWN;
         if (oreSmelter) for (Recipe r : teachable()) recipes.add(((Keyed) r).getKey());
     }
 
@@ -98,7 +104,7 @@ public final class Crafter extends Job {
 
     /** Teaches it a recipe. @return why not, or null when learnt. */
     public String teach(Recipe r) {
-        if (oreSmelter) return "It already knows every recipe it can use.";
+        if (!taught) return "It already knows every recipe it can use.";
         boolean table = r instanceof ShapedRecipe || r instanceof ShapelessRecipe;
         if (!(table ? crafts : smelts && r instanceof CookingRecipe<?>) || !(r instanceof Keyed k))
             return !crafts ? "Only furnace recipes can be taught." : !smelts ? "Only crafting table recipes can be taught."
@@ -123,14 +129,48 @@ public final class Crafter extends Job {
      */
     public final Map<Recipe, Integer> builtIn = new LinkedHashMap<>();
 
+    /** One of the mod's own crafter recipes, never registered with the server (players can't use it): {@code count} x {@code result}. */
+    public static Recipe own(String id, Material result, int count, Map<Material, Integer> ingredients) {
+        var r = new ShapelessRecipe(new NamespacedKey("minecp", id), new ItemStack(result, count));
+        ingredients.forEach((m, n) -> r.addIngredient(n, m));
+        return r;
+    }
+
     /** A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null. */
     public Recipe recipeFor(Predicate<ItemStack> want) {
         for (NamespacedKey key : recipes) {
             Recipe r = Bukkit.getRecipe(key);
             if (r != null && want.test(r.getResult())) return r;
         }
-        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && want.test(e.getKey().getResult())) return e.getKey();
+        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && want.test(e.getKey().getResult())) return e.getKey();
         return null;
+    }
+
+    // ---- what kinds of crafter change (the Crusher, the Concrete Mixer) ---------------------------------------------
+
+    /** Whether research lets it use this built-in recipe now (the mod's research-id and not-research-id). */
+    boolean knows(Recipe builtIn) {
+        return true;
+    }
+
+    /** Whether it makes this at the hut (at its table, or in its furnaces when it smelts); the mixer's concrete is made in water. */
+    boolean craftsAtHut(Recipe r) {
+        return !(r instanceof CookingRecipe<?>);
+    }
+
+    /** What it has made with {@code r} that isn't in the chest yet, counted as made: in its furnaces (or, for the mixer, in water). */
+    int inProgress(Recipe r) {
+        return inFurnaces(r);
+    }
+
+    /** What a craft gives besides the result (the crusher's flint from gravel). */
+    List<ItemStack> extras(Recipe r) {
+        return List.of();
+    }
+
+    /** Work of its own when no task is ready to craft (the crusher's daily crushing). @return true if it did some. */
+    boolean otherWork(Colonist w, Inventory chest) {
+        return false;
     }
 
     /** Whether the recipe uses something matching {@code test}: a crafter never makes what it would use up (a loop). */
@@ -173,8 +213,8 @@ public final class Crafter extends Job {
      * {@code raw}: count everything in the chest, ingredients set aside included (working out those ingredients
      * themselves; otherwise it would ask itself in a loop).
      */
-    private int craftsLeft(Requests.Request t, Recipe r, boolean raw) {
-        int ready = (raw ? inChest(t.test()) : ready(t.test())) + inFurnaces(r);
+    int craftsLeft(Requests.Request t, Recipe r, boolean raw) {
+        int ready = (raw ? inChest(t.test()) : ready(t.test())) + inProgress(r);
         int per = Math.max(1, r.getResult().getAmount());
         return Math.max(0, (owed(t) - ready + per - 1) / per);
     }
@@ -278,12 +318,13 @@ public final class Crafter extends Job {
         boolean anyWork = false;
         for (Requests.Request t : tasks) {
             Recipe r = recipeFor(t.test());
-            if (r == null || r instanceof CookingRecipe<?> || craftsLeft(t, r, false) == 0) continue;
+            if (r == null || !craftsAtHut(r) || craftsLeft(t, r, false) == 0) continue;
             anyWork = true;
             if (hasIngredients(chest, r)) { ready = r; break; }
         }
         if (ready == null) {
             hits = 0;
+            if (otherWork(w, chest)) return;
             idle(w, anyWork ? "Waiting for ingredients in the hut chest." : smeltNote(), 40, hut.block);
             return;
         }
@@ -342,17 +383,18 @@ public final class Crafter extends Job {
         return CraftRules.isOre(i.getType());
     }
 
-    private boolean hasIngredients(Inventory chest, Recipe r) {
+    boolean hasIngredients(Inventory chest, Recipe r) {
         for (var e : ingredients(r).entrySet()) if (inChest(e.getKey()::test) < e.getValue()) return false;
         return true;
     }
 
     /** Uses up one craft's ingredients from the chest and puts the result (and what's left, like empty buckets) in. */
-    private void craft(Inventory chest, Recipe r) {
+    void craft(Inventory chest, Recipe r) {
         List<ItemStack> used = new ArrayList<>();
         ingredients(r).forEach((c, n) -> Warehouse.take(chest, c::test, n, Integer.MAX_VALUE, used));
         List<ItemStack> out = new ArrayList<>();
         out.add(r.getResult().clone());
+        out.addAll(extras(r));
         for (ItemStack i : used) { // what's left of an ingredient, like an empty bucket
             Material remains = i.getType().getCraftingRemainingItem();
             if (remains != null) out.add(new ItemStack(remains, i.getAmount()));
@@ -371,6 +413,7 @@ public final class Crafter extends Job {
             return lines;
         }
         lines.add(Component.text(oreSmelter ? "Smelts the ores couriers bring from the warehouse, and the ingots huts ask for. Needs fuel and furnaces in its building."
+                : !taught ? "Makes what the colony's huts ask for from its own recipes: " + makes + "."
                 : (crafts && smelts ? "Crafts and smelts" : smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
                 + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));
         if (!builtIn.isEmpty()) {

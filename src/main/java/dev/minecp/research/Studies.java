@@ -38,10 +38,10 @@ public final class Studies {
     private static final Map<String, String> MISSING = Map.ofEntries(
             Map.entry("hospital", "Hospital"), Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
             Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
-            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"), Map.entry("crusher", "Crusher"),
+            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"),
             Map.entry("sifter", "Sifter"), Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
             Map.entry("netherworker", "Nether Mine"), Map.entry("beekeeper", "Apiary"), Map.entry("florist", "Flower Shop"),
-            Map.entry("concretemixer", "Concrete Mixer"), Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
+            Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
     /** What undoing a finished research costs: the mod's 1 ancient tome, which Colonies doesn't have (config). */
@@ -164,6 +164,8 @@ public final class Studies {
             case Effects.WHIRLWIND -> "Knights sometimes spin, striking and knocking back every enemy around them";
             case Effects.SLEEP_LESS -> "Knights nap less on duty (Colonies' knights never nap)";
             case Effects.ARMOR_DURABILITY -> "Knights' armor wears less (Colonies' knights' armor doesn't wear yet)";
+            case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
+            case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";
             default -> e.id() + " " + n + " (not in Colonies yet)";
         };

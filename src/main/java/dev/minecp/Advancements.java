@@ -76,6 +76,7 @@ public final class Advancements {
         add("production/build_stone_smeltery", "production/build_sawmill", "furnace", "Fired Up", "Finish a Stone Smeltery", "task");
         add("production/build_blacksmith", "production/build_sawmill", "anvil", "Hammer and Tongs", "Finish a Blacksmith's Hut", "task");
         add("production/build_smeltery", "production/build_sawmill", "iron_ingot", "Molten Metal", "Finish a Smeltery", "task");
+        add("production/build_crusher", "production/build_sawmill", "grindstone", "Grind It Down", "Finish a Crusher", "task");
         add("production/build_smeltery_3", "production/build_smeltery", "iron_ingot", "Hotter Furnaces", "Upgrade a Smeltery to level 3", "task");
         add("production/build_smeltery_5", "production/build_smeltery_3", "gold_ingot", "Master Smelter", "Upgrade a Smeltery to level 5", "task");
         add("production/deep_mine", "production/build_miner", "bedrock", "Rock Bottom", "Your miner's shaft reaches the bottom of the world", "task");
@@ -109,6 +110,7 @@ public final class Advancements {
             case STONEMASON -> level == 1 ? "production/build_stonemason" : null;
             case STONE_SMELTERY -> level == 1 ? "production/build_stone_smeltery" : null;
             case BLACKSMITH -> level == 1 ? "production/build_blacksmith" : null;
+            case CRUSHER -> level == 1 ? "production/build_crusher" : null;
             case SMELTERY -> level == 1 ? "production/build_smeltery" : level == 3 ? "production/build_smeltery_3" : level == 5 ? "production/build_smeltery_5" : null;
             default -> null;
         };
