@@ -153,6 +153,18 @@ public final class Studies {
             case Effects.LOOTING -> "Herders butcher as if with Looting I";
             case Effects.MINER_FIRE_RESISTANCE -> "Miners aren't hurt by fire or lava";
             case Effects.WORK_IN_RAIN -> "Every worker works in the rain";
+            case Effects.MELEE_DAMAGE -> "Knights deal " + n + " more damage";
+            case Effects.MELEE_ARMOR -> "Knights' armor protects " + pct + " more";
+            case Effects.BLOCK_ATTACKS -> "Knights parry " + pct + " of hits entirely";
+            case Effects.GUARD_CRIT -> "Knights land critical hits (1.5x damage) on " + Math.round(100 - 100 / (1 + v)) + "% of blows";
+            case Effects.KNIGHT_TAUNT -> "A mob a knight hits turns on the knight";
+            case Effects.SHIELD_USAGE -> "Knights ask for a shield and raise it between blows";
+            case Effects.RETREAT -> "Knights below 20% health retreat to their tower and rest there";
+            case Effects.FLEEING_DAMAGE -> "Knights below 20% health take " + pct + " less damage";
+            case Effects.FLEEING_SPEED -> v > 0 ? "Retreating knights run with Speed " + ((int) v + 1) : "Prepares retreating knights to run faster";
+            case Effects.WHIRLWIND -> "Knights sometimes spin, striking and knocking back every enemy around them";
+            case Effects.SLEEP_LESS -> "Knights nap less on duty (Colonies' knights never nap)";
+            case Effects.ARMOR_DURABILITY -> "Knights' armor wears less (Colonies' knights' armor doesn't wear yet)";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";
             default -> e.id() + " " + n + " (not in Colonies yet)";
         };

@@ -11,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Entity;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -161,13 +162,12 @@ public abstract class Job {
         return Colonist.MAX_HEALTH;
     }
 
-    /** Whether this kind of damage doesn't hurt its worker at all (a miner with Hot Boots and fire). */
-    public boolean ignores(EntityDamageEvent.DamageCause cause) {
-        return false;
-    }
-
-    /** What of a hit reaches its worker (the knight's armor takes some). */
-    public double afterArmor(double damage) {
+    /**
+     * @return the damage of a hit (already capped at 20% of max health) that reaches its worker {@code w}, from
+     * {@code source} (the shooter of a projectile; null: no entity): 0 for none (a miner with Hot Boots in fire); the
+     * knight's research, shield and armor take some.
+     */
+    public double reaching(double damage, EntityDamageEvent.DamageCause cause, Entity source, Colonist w) {
         return damage;
     }
 

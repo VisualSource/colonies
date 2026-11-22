@@ -35,8 +35,24 @@ public final class Effects {
     public static final String WORK_IN_RAIN = "workinginrainunlock";
     public static final String SOFT_SHOES = "softshoesunlock";
 
+    // knights
+    public static final String MELEE_DAMAGE = "meleedamageaddition";
+    public static final String MELEE_ARMOR = "meleearmormultiplier";
+    public static final String BLOCK_ATTACKS = "blockattacksmultiplier";
+    public static final String GUARD_CRIT = "guardcrit";
+    public static final String KNIGHT_TAUNT = "knighttauntmobsunlock";
+    public static final String SHIELD_USAGE = "shieldusageunlock";
+    public static final String RETREAT = "retreatunlock";
+    public static final String FLEEING_DAMAGE = "fleeingdamagemultiplier";
+    public static final String FLEEING_SPEED = "fleeingspeedaddition";
+    public static final String WHIRLWIND = "whirlwindabilityunlock";
+    public static final String SLEEP_LESS = "sleeplessmultiplier";
+    public static final String ARMOR_DURABILITY = "armordurabilitymultiplier";
+
     /** Every id above, for the test. */
     static final String[] ALL = {HEALTH, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
             WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
-            MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES};
+            MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES,
+            MELEE_DAMAGE, MELEE_ARMOR, BLOCK_ATTACKS, GUARD_CRIT, KNIGHT_TAUNT, SHIELD_USAGE, RETREAT, FLEEING_DAMAGE, FLEEING_SPEED, WHIRLWIND,
+            SLEEP_LESS, ARMOR_DURABILITY};
 }

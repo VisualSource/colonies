@@ -3,17 +3,21 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
@@ -29,7 +33,8 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * A knight at a Guard Tower (the mod's JobKnight, EntityAIMelee, MeleeCombatAI and AbstractEntityAIGuard): it patrols
  * between the colony's built huts, attacks the hostile mobs it sees with a sword, and wears the armor its tower level
- * allows. It doesn't sleep at night or shelter from rain, and it doesn't run when hurt.
+ * allows. It doesn't sleep at night or shelter from rain, and it doesn't run when hurt (unless research lets it
+ * retreat to its tower). Research adds damage, critical hits, armor, parrying, a shield, taunting and a whirlwind.
  */
 public final class Guard extends Job {
     // The mod's numbers (GuardConstants, AbstractBuildingGuards, BuildingGuardTower):
@@ -45,11 +50,26 @@ public final class Guard extends Job {
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
     private static final int[][] ARMOR = {{0, 1}, {0, 2}, {0, 3}, {2, 4}, {3, 5}};
     private static final EquipmentSlot[] SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+    // Research (the mod's MeleeCombatAI, EntityCitizen and AbstractEntityAIGuard):
+    private static final double CRIT = 1.5;            // a critical hit's damage
+    private static final int SHIELD_UP = 8;            // MIN_TIME_TO_ATTACK: the shield is raised while its next swing is this far off
+    private static final double SHIELD_HIT = 0.5;      // GUARD_BLOCK_DAMAGE: a blocked hit still costs this share, after armor
+    private static final int WHIRLWIND_ODDS = 5, WHIRLWIND_COOLDOWN = 240; // KNOCKBACK_CHANCE, KNOCKBACK_COOLDOWN
+    private static final double LOW_HEALTH = 0.2, RESTED = 0.75; // retreats below 20% of its health; rests up to 75%
+    private static final int RETREAT_FROM = 20;        // only farther than this (squared distance) from its tower
+    private static final double REST_ALARM = 10;       // its attacker this close ends the rest
+    private static final double WHIRLWIND_REACH = 2, WHIRLWIND_HEIGHT = 0.5, WHIRLWIND_KNOCKBACK = 2;
+    private static final int REST_CHECK = 40;          // GUARD_REGEN_INTERVAL
+    private static final int REST_HEAL = 50;           // vanilla Regeneration I, which the mod gives it: 1 health every 50 ticks
+    private static final double SPEED_PER_LEVEL = 0.2; // vanilla Speed: +20% a level
 
     private final Map<EquipmentSlot, ItemStack> armor = new EnumMap<>(EquipmentSlot.class); // worn; saved
+    private ItemStack shield; // carried once researched; saved
     private LivingEntity target;
     private Hut patrolTo;
-    private int attackIn, searchIn, waitAt;
+    private int attackIn, searchIn, waitAt, restTicks;
+    private long lastWhirlwind;
+    private boolean fleeing, resting; // retreating to the tower, then resting there (not saved: it simply carries on)
     private Location chasing; // where its route to the target leads
 
     public Guard(Hut hut, Colony colony) {
@@ -62,13 +82,46 @@ public final class Guard extends Job {
         return Colonist.MAX_HEALTH + HP_KNIGHT + (hut.level >= 1 ? HP_TOWER + HP_PER_LEVEL * hut.level : 0);
     }
 
-    /** What reaches it through its armor (vanilla's armor formula with each piece's points and toughness). */
+    /**
+     * What reaches it, in the mod's order: research may parry the whole hit; below 20% health research softens it; a
+     * raised shield blocks a hit from the mob it fights, which still costs half, after armor, and wears the shield
+     * (ours: "from its target" stands in for vanilla's facing check); then its armor.
+     */
     @Override
-    public double afterArmor(double damage) {
+    public double reaching(double damage, DamageCause cause, Entity source, Colonist w) {
+        double parry = colony.research.effect(Effects.BLOCK_ATTACKS);
+        if (parry > 0 && ThreadLocalRandom.current().nextDouble() < parry) return 0;
+        if (lowHealth(w)) damage *= 1 - colony.research.effect(Effects.FLEEING_DAMAGE);
+        if (shieldUp() && source != null && source == target) {
+            int wear = (int) (damage * SHIELD_HIT);
+            if (wear > 0) {
+                ItemStack worn = shield.damage(wear, w.living()); // Unbreaking included
+                shield = worn.isEmpty() ? null : worn;
+            }
+            return w.health > damage * SHIELD_HIT ? Math.max(SHIELD_HIT, afterArmor(damage * SHIELD_HIT)) : 0;
+        }
+        return afterArmor(damage);
+    }
+
+    /** What reaches it through its armor (vanilla's armor formula with each piece's points and toughness; research adds points). */
+    private double afterArmor(double damage) {
         double points = 0, toughness = 0;
         for (ItemStack piece : armor.values()) { points += stat(piece, Attribute.ARMOR); toughness += stat(piece, Attribute.ARMOR_TOUGHNESS); }
+        points = (int) (points * (1 + colony.research.effect(Effects.MELEE_ARMOR)));
         double cut = Math.min(20, Math.max(points / 5, points - damage / (2 + toughness / 4)));
         return damage * (1 - cut / 25);
+    }
+
+    /** Its shield is raised: researched, carried, fighting, and its next swing a while off. */
+    private boolean shieldUp() {
+        return shield != null && target != null && attackIn >= SHIELD_UP && shieldResearched();
+    }
+
+    /** Running back to the tower, with Speed from research (the mod gives a Speed effect of the research's level). */
+    @Override
+    public double pace() {
+        double speed = colony.research.effect(Effects.FLEEING_SPEED);
+        return fleeing && speed > 0 ? 1 + SPEED_PER_LEVEL * ((int) speed + 1) : 1;
     }
 
     /** Something hurt it: it fights back (a mob; players are left to permissions) instead of running. */
@@ -106,14 +159,28 @@ public final class Guard extends Job {
         for (EquipmentSlot slot : SLOTS) // the mod's guards ask for each missing piece; one the tower no longer allows counts as missing
             if (!fitsArmor(armor.get(slot), slot) && inChest(i -> fitsArmor(i, slot)) == 0)
                 wants.add(new Want(slotName(slot) + " (" + armorName(tier()[0]) + " to " + armorName(tier()[1]) + ")", i -> fitsArmor(i, slot), 1));
+        if (wantsShield() && inChest(Guard::isShield) == 0) wants.add(new Want("a shield", Guard::isShield, 1)); // the mod's "nice to have"
         return wants;
     }
 
     @Override
     int keep(ItemStack item) {
-        if (fits(Tool.SWORD, item, null)) return 1;
+        if (fits(Tool.SWORD, item, null) || isShield(item)) return 1;
         for (EquipmentSlot slot : SLOTS) if (fitsArmor(item, slot)) return 1;
         return 0;
+    }
+
+    /** Research lets it use a shield, and it has none. */
+    private boolean wantsShield() {
+        return shield == null && shieldResearched();
+    }
+
+    private boolean shieldResearched() {
+        return colony.research.effect(Effects.SHIELD_USAGE) > 0;
+    }
+
+    private static boolean isShield(ItemStack i) {
+        return i != null && i.getType() == Material.SHIELD;
     }
 
     private int[] tier() {
@@ -132,6 +199,7 @@ public final class Guard extends Job {
      */
     private boolean gearWaiting() {
         if (!hasTool(Tool.SWORD, null) && inChest(i -> fits(Tool.SWORD, i, null)) > 0) return true;
+        if (wantsShield() && inChest(Guard::isShield) > 0) return true;
         for (EquipmentSlot slot : SLOTS) {
             ItemStack worn = armor.get(slot);
             if (worn != null && !fitsArmor(worn, slot)) return true;
@@ -149,6 +217,13 @@ public final class Guard extends Job {
         if (!hasTool(Tool.SWORD, null)) fetchTool(Tool.SWORD, null);
         Inventory chest = chest();
         if (chest == null) return;
+        if (wantsShield()) for (int i = 0; i < chest.getSize() && shield == null; i++) {
+            ItemStack item = chest.getItem(i);
+            if (!isShield(item)) continue;
+            shield = item.asOne();
+            item.subtract();
+            chest.setItem(i, item.isEmpty() ? null : item);
+        }
         for (EquipmentSlot slot : SLOTS) {
             ItemStack worn = armor.get(slot);
             if (worn != null && !fitsArmor(worn, slot)) { putBack(chest, worn); armor.remove(slot); worn = null; } // the tower level changed
@@ -180,6 +255,7 @@ public final class Guard extends Job {
         }
         ItemStack sword = tools.get(Tool.SWORD);
         if (!java.util.Objects.equals(e.getItemInMainHand().isEmpty() ? null : e.getItemInMainHand(), sword)) w.hold(sword);
+        if (!java.util.Objects.equals(e.getItemInOffHand().isEmpty() ? null : e.getItemInOffHand(), shield)) e.setItemInOffHand(shield);
     }
 
     // ---- work ---------------------------------------------------------------------------------------------------
@@ -194,6 +270,9 @@ public final class Guard extends Job {
         }
         if (attackIn > 0) attackIn--;
         if (!valid(target)) target = null;
+        if (!fleeing && !resting && shouldRetreat(w)) { fleeing = true; target = null; }
+        if (fleeing) { retreat(w); return; }
+        if (resting && rest(w)) return;
         if (target == null && --searchIn <= 0) { searchIn = SEARCH_TICKS; target = nearestEnemy(w); }
         if (target != null) { fight(w); return; }
         if (w.isMoving() || --cooldown > 0) return;
@@ -236,14 +315,88 @@ public final class Guard extends Job {
         attackIn = ATTACK_DELAY;
         w.swing();
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.NEUTRAL, 1, 1);
-        target.damage(damage(), w.living());
+        double hit = damage();
+        if (ThreadLocalRandom.current().nextDouble() > 1 / (1 + colony.research.effect(Effects.GUARD_CRIT))) { // research: a critical hit
+            hit *= CRIT;
+            there.getWorld().spawnParticle(Particle.CRIT, there.clone().add(0, target.getHeight() / 2, 0), 12, 0.3, 0.3, 0.3, 0.2);
+        }
+        whirlwind(w, hit); // before the blow, as the mod
+        target.damage(hit, w.living());
+        if (target instanceof Mob m && colony.research.effect(Effects.KNIGHT_TAUNT) > 0) m.setTarget(w.living()); // research: it draws the mob onto itself
         if (tools.containsKey(Tool.SWORD)) wear(Tool.SWORD, w);
     }
 
-    /** The sword's attack damage (as the mod's SwordItem.getDamage) plus the mod's base 3; with no sword, the base alone. */
+    /** The sword's attack damage (as the mod's SwordItem.getDamage) plus the mod's base 3, and research's; with no sword, the base alone. */
     private double damage() {
         ItemStack sword = tools.get(Tool.SWORD);
-        return BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE));
+        return BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE)) + colony.research.effect(Effects.MELEE_DAMAGE);
+    }
+
+    /**
+     * Research's whirlwind, 1 swing in 5 and at most every 12 seconds: every enemy within 2 blocks is knocked back and
+     * takes the blow's damage shared among everything alive there, itself counted (the mod's doAoeAttack). Ours: knocked
+     * straight away from it.
+     */
+    private void whirlwind(Colonist w, double hit) {
+        Location at = w.location();
+        long now = at.getWorld().getGameTime();
+        if (colony.research.effect(Effects.WHIRLWIND) <= 0 || now - lastWhirlwind <= WHIRLWIND_COOLDOWN
+                || ThreadLocalRandom.current().nextInt(WHIRLWIND_ODDS) != 0) return;
+        lastWhirlwind = now;
+        List<LivingEntity> near = new ArrayList<>();
+        java.util.Set<Colonist> citizens = new java.util.HashSet<>(); // a citizen is a body and legs: counted once
+        int alive = 1; // itself
+        for (Entity e : at.getWorld().getNearbyEntities(w.living().getBoundingBox().expand(WHIRLWIND_REACH, WHIRLWIND_HEIGHT, WHIRLWIND_REACH))) {
+            if (!(e instanceof LivingEntity l)) continue;
+            Colonist other = colony.colonistOf(e);
+            if (other == null) { near.add(l); alive++; }
+            else if (other != w && citizens.add(other)) alive++;
+        }
+        double share = hit / alive;
+        for (LivingEntity l : near) {
+            if (!(l instanceof Enemy) || !valid(l)) continue;
+            l.knockback(WHIRLWIND_KNOCKBACK, at.getX() - l.getX(), at.getZ() - l.getZ());
+            l.damage(share, w.living());
+        }
+        at.getWorld().spawnParticle(Particle.SWEEP_ATTACK, at.clone().add(0, 1, 0), 2, 0.5, 0, 0.5, 0);
+    }
+
+    // ---- retreating (research) ----------------------------------------------------------------------------------
+
+    /** Below 20% of its health, rounded as the mod's (int) max * 0.2. */
+    private boolean lowHealth(Colonist w) {
+        return w.health < (int) colony.health.max(w) * LOW_HEALTH;
+    }
+
+    /** Below 20% health and away from the tower, with the retreat research (the mod's shouldFlee; its retreat setting is on by default). */
+    private boolean shouldRetreat(Colonist w) {
+        return colony.research.effect(Effects.RETREAT) > 0 && lowHealth(w)
+                && w.location().distanceSquared(hut.block.getLocation().toCenterLocation()) > RETREAT_FROM;
+    }
+
+    private void retreat(Colonist w) {
+        w.setStatus("Knight: retreating");
+        if (w.isMoving()) return;
+        if (!atHut(w)) { goToHut(w); return; }
+        fleeing = false;
+        resting = true;
+        restTicks = 0;
+    }
+
+    /**
+     * At the tower until 75% health, healing as with Regeneration I, unless what it fights (the mob that hurt it: the
+     * mod's threat table) comes within 10 blocks, checked every 2 seconds as the mod. @return true while resting.
+     */
+    private boolean rest(Colonist w) {
+        double max = colony.health.max(w);
+        if (w.health >= (int) max * RESTED) { resting = false; return false; }
+        if (++restTicks % REST_CHECK == 0 && target != null && target.getLocation().distance(w.location()) < REST_ALARM) {
+            resting = false;
+            return false;
+        }
+        w.setStatus("Knight: resting");
+        if (restTicks % REST_HEAL == 0) w.health = Math.min(max, w.health + 1);
+        return true;
     }
 
     private int vision() {
@@ -306,6 +459,7 @@ public final class Guard extends Job {
     public void save(org.bukkit.configuration.ConfigurationSection s, Colony c) {
         super.save(s, c);
         armor.forEach((slot, item) -> s.set("armor." + slot.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
+        if (shield != null) s.set("shield", Base64.getEncoder().encodeToString(shield.serializeAsBytes()));
     }
 
     @Override
@@ -314,6 +468,8 @@ public final class Guard extends Job {
         var as = s.getConfigurationSection("armor");
         if (as != null) for (String slot : as.getKeys(false))
             armor.put(EquipmentSlot.valueOf(slot), ItemStack.deserializeBytes(Base64.getDecoder().decode(as.getString(slot))));
+        String saved = s.getString("shield");
+        if (saved != null) shield = ItemStack.deserializeBytes(Base64.getDecoder().decode(saved));
     }
 
     @Override
@@ -322,6 +478,8 @@ public final class Guard extends Job {
         Location at = hut.block.getLocation().toCenterLocation();
         armor.values().forEach(i -> at.getWorld().dropItemNaturally(at, i));
         armor.clear();
+        if (shield != null) at.getWorld().dropItemNaturally(at, shield);
+        shield = null;
     }
 
     @Override
@@ -329,6 +487,8 @@ public final class Guard extends Job {
         List<ItemStack> all = super.takeCarried();
         all.addAll(armor.values());
         armor.clear();
+        if (shield != null) all.add(shield);
+        shield = null;
         return all;
     }
 }

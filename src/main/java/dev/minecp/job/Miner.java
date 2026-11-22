@@ -17,6 +17,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.type.Ladder;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Entity;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -103,9 +104,9 @@ public final class Miner extends Job {
 
     /** The mod's Hot Boots: lava, magma, fire and burning (its four fire damage types, not campfires) don't hurt a miner. */
     @Override
-    public boolean ignores(DamageCause cause) {
-        return colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0
-                && (cause == DamageCause.LAVA || cause == DamageCause.HOT_FLOOR || cause == DamageCause.FIRE || cause == DamageCause.FIRE_TICK);
+    public double reaching(double damage, DamageCause cause, Entity source, Colonist w) {
+        boolean fire = cause == DamageCause.LAVA || cause == DamageCause.HOT_FLOOR || cause == DamageCause.FIRE || cause == DamageCause.FIRE_TICK;
+        return fire && colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0 ? 0 : damage;
     }
 
     @Override
