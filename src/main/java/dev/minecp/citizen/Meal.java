@@ -48,8 +48,14 @@ public final class Meal {
         timer = 0;
     }
 
-    public double hunger() {
-        return Food.MAX_SATURATION - colonist.saturation;
+    /** How much plain food value it needs to be full: less once research makes meals fill more. */
+    public double hunger(Colony colony) {
+        return (Food.MAX_SATURATION - colonist.saturation) / fills(colony);
+    }
+
+    /** What a point of food value is worth to a citizen of this colony (the mod's getFoodValue research bonus). */
+    private static double fills(Colony colony) {
+        return 1 + colony.research.effect("saturationmultiplier");
     }
 
     /** @return true when the meal is over: eaten, or no food could be had ({@link #why} says why). */
@@ -79,7 +85,7 @@ public final class Meal {
                 if (c.isMoving()) return false;
                 if (!c.isBeside(source)) { c.goBeside(source); return false; }
                 Inventory inv = inventory(source);
-                if (inv != null) food.addAll(Food.take(inv, hunger()));
+                if (inv != null) food.addAll(Food.take(inv, hunger(colony)));
                 if (food.isEmpty()) { state = State.FIND; return false; } // someone took it first
                 state = State.EAT;
                 timer = 0;
@@ -108,7 +114,7 @@ public final class Meal {
                 c.location().getWorld().playSound(c.location(), Sound.ENTITY_GENERIC_EAT, SoundCategory.NEUTRAL, 0.6f, 1);
                 if (timer < BITE_TICKS * BITES) return false;
                 timer = 0;
-                c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(next));
+                c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(next) * fills(colony));
                 colony.milestones.ate();
                 c.ate(next.getType());
                 if (next.getAmount() > 1) next.subtract();

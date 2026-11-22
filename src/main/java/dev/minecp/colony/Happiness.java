@@ -47,9 +47,9 @@ public final class Happiness {
         return f;
     }
 
-    /** 0 to 10. All factors neutral gives 10 (the mod divides by zero there). */
+    /** 0 to 10. All factors neutral gives 10 (the mod divides by zero there). Research raises it by a share. */
     public double of(Colonist c) {
-        return of(factors(c));
+        return Math.min(MAX, of(factors(c)) * (1 + colony.research.effect("happinessmultiplier")));
     }
 
     static double of(List<Factor> factors) {

@@ -63,7 +63,7 @@ final class Routine {
         return c.home != null ? c.home : colony.townHall();
     }
 
-    /** Whether it must leave now to be home by nightfall, judging by how far it is (the mod's rule). */
+    /** Whether it must leave now to be home by nightfall (later with research), judging by how far it is (the mod's rule). */
     boolean shouldGoSleep(Colonist c, Job job, long time) {
         if (job != null && !job.sleepsAtNight()) return false;
         Location at = c.location(), home = homeOf(c).block.getLocation();
@@ -75,7 +75,8 @@ final class Routine {
         }
         double dx = home.getX() - at.getX(), dz = home.getZ() - at.getZ(), dy = (home.getY() - at.getY()) * Y_WEIGHT;
         double needed = (Math.sqrt(dx * dx + dy * dy + dz * dz) + extra) * TICKS_PER_BLOCK;
-        return NIGHT - time - needed <= 0;
+        double workLonger = colony.research.effect("workingdayhaddition") * 1000; // research: 1000 ticks (an hour) a level, as the mod's CitizenSleepHandler
+        return NIGHT + workLonger - time - needed <= 0;
     }
 
     /** Walks home and lies down in its bed; the homeless just wait at the town hall. */

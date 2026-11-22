@@ -166,6 +166,11 @@ public abstract class Job {
         return false;
     }
 
+    /** Walking speed multiplier for what it is doing now (1: walking; an undertaker may run to a grave). */
+    public double pace() {
+        return 1;
+    }
+
     /** The mod lets only the cook and fully upgraded huts' workers work in the rain. */
     public boolean worksInRain() {
         return hut.level >= Hut.MAX_LEVEL;

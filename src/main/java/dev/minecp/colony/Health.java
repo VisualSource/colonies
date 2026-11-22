@@ -38,15 +38,17 @@ public final class Health {
         if (++c.healTicks < HEAL_TICKS) return;
         c.healTicks = 0;
         if (c.health >= max(c) || c.hurtTicks > 0) return;
-        double amount = c.saturation >= Food.MAX_SATURATION ? 2
-                : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : 1;
+        // research lowers the saturation needed for the full rate (a negative strength) and speeds up both rates
+        double regen = 1 + colony.research.effect("regenerationmultiplier");
+        double amount = c.saturation >= Food.MAX_SATURATION + colony.research.effect("healingsaturationlimitaddition") ? 2 * regen
+                : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : regen;
         c.health = Math.min(max(c), c.health + amount);
     }
 
-    /** Most health it can have: its job's (a knight has more). */
+    /** Most health it can have: its job's (a knight has more), plus research's for every citizen. */
     public double max(Colonist c) {
         Job job = colony.jobOf(c);
-        return job != null ? job.maxHealth() : Colonist.MAX_HEALTH;
+        return (job != null ? job.maxHealth() : Colonist.MAX_HEALTH) + colony.research.effect("healthaddition");
     }
 
     /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
@@ -105,7 +107,9 @@ public final class Health {
             return;
         }
         spot.setType(Grave.BLOCK);
-        colony.graves.add(new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items));
+        Grave grave = new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items);
+        grave.timer += (int) (colony.research.effect("gravedecaybonus") * 60 * 20); // research: minutes more before it decays
+        colony.graves.add(grave);
         colony.tell(c.name + " " + deathCause(cause, source) + where + ". Their grave is at "
                 + spot.getX() + " " + spot.getY() + " " + spot.getZ() + "." + mourn);
     }

@@ -96,6 +96,7 @@ public final class Colonist {
     public double saturation = Food.MAX_SATURATION; // hunger: 0 starving .. 20 full; saved with the colony
     public static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
     public double health = MAX_HEALTH;               // saved with the colony
+    public double pace = 1;                          // walking speed multiplier (research, a running undertaker); the colony sets it each tick
     public int hurtTicks;   // ticks since a mob or player last hurt it are still counted down: no healing meanwhile
     public int fleeTicks;   // running away: no work until it runs out
     public int healTicks;
@@ -202,7 +203,7 @@ public final class Colonist {
             replan();
             return;
         }
-        Nms.drive(legs, s.x() + 0.5, s.h(), s.z() + 0.5, WALK_SPEED);
+        Nms.drive(legs, s.x() + 0.5, s.h(), s.z() + 0.5, WALK_SPEED * pace);
         // Progress counts across the ground only: hopping in place at a step it can't get up (a beam overhead) would
         // otherwise look like moving, and it would never search again or teleport.
         if (routeFrom == null || Math.hypot(at.getX() - routeFrom.getX(), at.getZ() - routeFrom.getZ()) > 0.5) { routeFrom = at; routeIdle = 0; return; }

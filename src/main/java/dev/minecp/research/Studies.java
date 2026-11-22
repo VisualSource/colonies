@@ -88,7 +88,7 @@ public final class Studies {
     }
 
     /** An effect's strength: the strongest of the finished researches that give it (the mod's overrides), 0 if none. */
-    double effect(String id) {
+    public double effect(String id) {
         double best = 0;
         for (var en : started.entrySet()) {
             if (!en.getValue().done) continue;
@@ -128,7 +128,27 @@ public final class Studies {
     public static String describe(ResearchTree.Effect e) {
         if (e.id().startsWith("blockhut")) return "Unlocks the " + hutName(e.id().substring("blockhut".length()));
         double v = e.strength();
-        return e.id() + " " + (v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v)) + " (not in Colonies yet)";
+        String n = num(v), pct = Math.round(v * 100) + "%";
+        return switch (e.id()) {
+            case "healthaddition" -> "Citizens have " + n + " more health";
+            case "walkingmultiplier" -> "Citizens walk " + pct + " faster";
+            case "regenerationmultiplier" -> "Citizens heal " + pct + " faster";
+            case "healingsaturationlimitaddition" -> "Citizens heal at the full rate with " + num(-v) + " less food in them";
+            case "saturationmultiplier" -> "Meals fill citizens " + pct + " more";
+            case "happinessmultiplier" -> "Citizens are " + pct + " happier";
+            case "growthmultiplier" -> "Children grow up " + pct + " faster";
+            case "citizencapaddition" -> "Room for up to " + n + " citizens";
+            case "workingdayhaddition" -> "Citizens work " + n + (v == 1 ? " hour" : " hours") + " later into the evening";
+            case "gravedecaybonus" -> "Graves last " + n + " minutes longer";
+            case "resurrectchanceaddition" -> "The undertaker is " + pct + " likelier to bring someone back (at most 2.5% in all)";
+            case "undertakerrun" -> "The undertaker runs to graves";
+            default -> e.id() + " " + n + " (not in Colonies yet)";
+        };
+    }
+
+    /** "2", "0.5": whole numbers without ".0". */
+    private static String num(double v) {
+        return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
     }
 
     /** A University at this level shows researches this deep: any at its top level (the mod's canDisplay). */

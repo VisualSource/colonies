@@ -35,6 +35,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Colony {
     private static final int STARTING_CITIZENS = 4; // the mod's initialcitizenamount default
     private static final int CITIZEN_CAP = 25; // the mod's CITIZEN_LIMIT_DEFAULT: the most citizens before research
+    private static final int CITIZEN_MAX = 250; // the mod's maxCitizenPerColony default: research can't go past it
     // The mod's starting citizens (CitizenManager.onColonyTick): every colony tick (500 ticks) the countdown drops by
     // 500 plus 60 per town hall level; one moves in when it runs out, and it starts again at 60 s (first time: 30 s).
     private static final int COLONY_TICK = 500;
@@ -78,8 +79,8 @@ public final class Colony {
     }
     // Children (the mod's EntityAICitizenChild): time towards growing up builds in a shared pool, 500 a colony tick
     // while there are children; each child takes 2000 from it at a time. From 4000 a child grows up with a 1 in 71 chance
-    // each colony tick, and surely past 70000.
-    private static final int CHILD_SHARE = 2000, CHILD_MIN = 4000, CHILD_MAX = 70_000, GROW_CHANCE = 71;
+    // each colony tick, and surely past 70000 (research makes both faster).
+    private static final int CHILD_SHARE = 2000, CHILD_MIN = 4000, CHILD_MAX = 70_000, GROW_CHANCE = 70;
     int childPool; // saved
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
@@ -157,10 +158,14 @@ public final class Colony {
         return null;
     }
 
-    /** How many citizens the colony has beds for: houses and taverns, at least 1, at most {@link #CITIZEN_CAP} (the mod's getMaxCitizens). */
+    /**
+     * How many citizens the colony has beds for: houses and taverns, at least 1, at most {@link #CITIZEN_CAP} or what
+     * research allows, never over {@link #CITIZEN_MAX} (the mod's getMaxCitizens and maxCitizensFromResearch).
+     */
     public int capacity() {
+        int cap = (int) Math.min(CITIZEN_MAX, Math.max(CITIZEN_CAP, research.effect("citizencapaddition")));
         // a Locked home counts only who lives there now (the mod's calculateMaxCitizens)
-        return Math.max(1, Math.min(CITIZEN_CAP, huts.stream().mapToInt(h -> h.hiring == Settings.Hiring.LOCKED
+        return Math.max(1, Math.min(cap, huts.stream().mapToInt(h -> h.hiring == Settings.Hiring.LOCKED
                 ? Math.min(residents(h).size(), h.type.rooms(h.level)) : h.type.rooms(h.level)).sum()));
     }
 
@@ -231,10 +236,11 @@ public final class Colony {
     private void growUp() {
         var rnd = ThreadLocalRandom.current();
         if (colonists.stream().anyMatch(c -> c.child)) childPool += COLONY_TICK; // shortcut: the mod's pool also empties at 70000; ours doesn't
+        double growth = 1 + research.effect("growthmultiplier"); // the mod divides both the odds and the time limit by it
         for (Colonist c : colonists) {
             if (!c.child) continue;
             if (childPool >= CHILD_SHARE) { childPool -= CHILD_SHARE; c.childTime += CHILD_SHARE; }
-            if (c.childTime >= CHILD_MIN && (rnd.nextInt(GROW_CHANCE) == 0 || c.childTime > CHILD_MAX)) {
+            if (c.childTime >= CHILD_MIN && (rnd.nextInt((int) (GROW_CHANCE / growth) + 1) == 0 || c.childTime > CHILD_MAX / growth)) {
                 c.setChild(false);
                 c.childTime = 0;
                 tell(c.name + " has grown up.");
@@ -546,8 +552,10 @@ public final class Colony {
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         visitors.tick();
         raids.tick();
+        double walking = 1 + research.effect("walkingmultiplier");
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
+            c.pace = walking; // for its next tick's walk; working sets its job's pace below
             Job job = jobOf(c);
             routine.hunger(c, job);
             health.heal(c);
@@ -577,7 +585,10 @@ public final class Colony {
             if (job != null && raining && !job.worksInRain()) { // the mod's workers stay in out of the rain
                 c.setStatus("Rain: off work");
                 if (job.leaveWork(c)) c.wander(routine.homeOf(c).block.getLocation().toCenterLocation());
-            } else if (job != null) job.tick(c);
+            } else if (job != null) {
+                c.pace = walking * job.pace(); // only while working: an undertaker runs to a grave, not to bed or a meal
+                job.tick(c);
+            }
             else {
                 c.setStatus(c.child ? "Playing" : "Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());

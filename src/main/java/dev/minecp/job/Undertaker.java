@@ -36,8 +36,9 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class Undertaker extends Job {
     private static final int EMPTY_TICKS = 50, RESURRECT_TICKS = 200, BURY_TICKS = 200, SWING_TICKS = 10;
-    // The mod's chance with no research, skills, totems or mystical site: 0.5% a hut level, at most 2.5%.
+    // The mod's chance without skills, totems or mystical site: 0.5% a hut level plus research, at most 2.5%.
     private static final double CHANCE_PER_LEVEL = 0.005, MAX_CHANCE = 0.025;
+    private static final double SPRINT = 1.3; // vanilla's sprinting speed modifier
 
     private enum State { FIND, TO_GRAVE, EMPTY, RESURRECT, DIG, BURY, DUMP }
 
@@ -93,8 +94,15 @@ public final class Undertaker extends Job {
         return lines;
     }
 
+    /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%. */
     private double chance() {
-        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level);
+        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + colony.research.effect("resurrectchanceaddition"));
+    }
+
+    /** It runs to a grave once researched (the mod's undertakerrun: vanilla sprinting, +30%). */
+    @Override
+    public double pace() {
+        return state == State.TO_GRAVE && colony.research.effect("undertakerrun") > 0 ? SPRINT : 1;
     }
 
     /** The burial spots of the graveyard as built (the mod's named grave blocks in its blueprint). */

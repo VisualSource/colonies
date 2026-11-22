@@ -51,6 +51,17 @@ class ResearchTreeTest {
     }
 
     @Test
+    void citizenEffectsAreDescribed() {
+        for (String id : new String[]{"civilian/firstaid", "civilian/haste", "civilian/bandaid", "civilian/resistance", "civilian/gourmand",
+                "civilian/circus", "civilian/nurture", "civilian/outpost", "civilian/nightowl", "civilian/gravedecaybonus1",
+                "civilian/resurrectchance1", "civilian/undertakeremergency"})
+            for (var e : ResearchTree.get(id).effects()) assertTrue(!Studies.describe(e).contains("not in Colonies"), id);
+        assertEquals("Citizens walk 5% faster", Studies.describe(ResearchTree.get("civilian/haste").effects().getFirst()));
+        assertEquals("Citizens heal at the full rate with 0.5 less food in them",
+                Studies.describe(ResearchTree.get("civilian/resistance").effects().getFirst()));
+    }
+
+    @Test
     void hutsUnlockedByResearch() {
         assertEquals("technology/woodwork", Studies.unlockOf(Hut.Type.SAWMILL).id());
         assertEquals("technology/hot", Studies.unlockOf(Hut.Type.SMELTERY).id());

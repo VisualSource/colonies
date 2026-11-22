@@ -89,7 +89,7 @@ public final class Cook extends Job {
             Meal next = waiting.peek();
             if (serving.isEmpty()) {
                 if (!atHut(w)) { w.setStatus("Cook: working"); goToHut(w); return; }
-                serving.addAll(Food.take(chest, next.hunger()));
+                serving.addAll(Food.take(chest, next.hunger(colony)));
                 if (serving.isEmpty()) note = "No food to serve: put food in the chest, or raw food and fuel to cook.";
             }
             if (!serving.isEmpty()) {
