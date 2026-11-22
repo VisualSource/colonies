@@ -52,7 +52,6 @@ public final class Sickness {
 
     private final Colony colony;
     private final Map<Colonist, Block> beds = new HashMap<>(); // patients in hospital beds (not saved: they lie down again)
-    private final Set<Colonist> toldNoHospital = new HashSet<>();        // whose "no hospital" message was sent (not saved)
     private int ticks;
 
     Sickness(Colony colony) {
@@ -106,7 +105,6 @@ public final class Sickness {
     private void fallSick(Colonist c, Disease d) {
         c.disease = d;
         c.cureTicks = 0;
-        toldNoHospital.remove(c);
         Colony.log.info(colony.where() + ": " + c.name + " fell sick with " + d.label + ".");
     }
 
@@ -137,9 +135,7 @@ public final class Sickness {
         }
         c.setStatus("Sick: " + c.disease.label);
         if (hasCure(c)) { applyCure(c); return true; }
-        if (hospital == null) { // it says what it needs and wanders near its work (the mod's NO_HOSPITAL interaction)
-            if (toldNoHospital.add(c)) colony.tell(c.name + " has " + c.disease.label + " and needs " + c.disease.cureLabel()
-                    + " in their inventory (right-click them) to get well. A Hospital's healer would see to it.");
+        if (hospital == null) { // it wanders near its work; its status and menu say what it needs (the mod's NO_HOSPITAL interaction)
             Hut near = job != null ? job.hut : c.home != null ? c.home : colony.townHall();
             c.wander(near.block.getLocation().toCenterLocation());
             return true;
@@ -241,14 +237,12 @@ public final class Sickness {
         c.disease = null;
         c.cureTicks = 0;
         c.sickDays = 0;
-        toldNoHospital.remove(c);
         colony.tell(c.name + " is well again.");
     }
 
     /** It died or left: its hospital bed is free. */
     void forget(Colonist c) {
         beds.remove(c);
-        toldNoHospital.remove(c);
     }
 
     // ---- a player's hand -----------------------------------------------------------------------------------------

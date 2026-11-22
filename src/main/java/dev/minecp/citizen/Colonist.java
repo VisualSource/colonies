@@ -5,6 +5,7 @@ import dev.minecp.colony.Hut;
 import io.papermc.paper.datacomponent.item.ResolvableProfile;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -351,7 +352,12 @@ public final class Colonist {
     public void setStatus(String status) {
         if (status.equals(this.status)) return;
         this.status = status;
-        if (body != null) body.setDescription(Component.text(status));
+        if (body != null) body.setDescription(statusLine());
+    }
+
+    /** Its status, green while it is sick (ours: the mod's sick icon). */
+    private Component statusLine() {
+        return Component.text(status, disease != null ? NamedTextColor.GREEN : null);
     }
 
     /** Shows {@code item} (null: nothing) in the colonist's main hand. */
@@ -808,7 +814,7 @@ public final class Colonist {
         body = world.spawn(last, Mannequin.class, m -> {
             m.customName(Component.text(name));
             m.setCustomNameVisible(true);
-            m.setDescription(Component.text(status));
+            m.setDescription(statusLine());
             m.setProfile(ResolvableProfile.resolvableProfile().skinPatch(p -> p
                     .body(Key.key("entity/player/" + (slim ? "slim/" : "wide/") + skinName))
                     .model(slim ? SkinModel.SLIM : SkinModel.CLASSIC)).build());
