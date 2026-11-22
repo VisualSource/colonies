@@ -44,7 +44,7 @@ import java.util.function.Consumer;
 /**
  * The build tool (our Build Tool item stands in for Structurize's): right-click a block and browse the colony's style
  * by its categories, as the mod's build tool does ({@link Catalog}): huts in any of their versions (from a hut item you
- * carry) and builds without a hut (decorations, infrastructure, walls). A preview of the level 1 build stays in view,
+ * carry) and builds without a hut (decorations, infrastructure, walls). A preview of the level 1 build (or its highest) stays in view,
  * only for you, until you confirm or cancel; right-click again for the mod's controls: move relative to where you face,
  * up/down, rotate, mirror, confirm, cancel. A hut is placed at once; a build without a hut is queued for the builder.
  */
@@ -66,6 +66,7 @@ public final class Placement implements Listener {
         Block anchor; // where the hut block goes; for a build without a hut, its corner
         int turn;     // index into TURNS
         boolean mirror;
+        boolean showMax; // preview its highest level instead of level 1 (the mod's build tool toggle)
         final List<BlockDisplay> shown = new ArrayList<>();
 
         Session(Catalog.Entry entry, String style, Block anchor) {
@@ -307,11 +308,25 @@ public final class Placement implements Listener {
         return BuildOrder.create(s.entry.structure(s.style), s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.entry.hut() != null ? s.anchor : null);
     }
 
+    /** Its highest level's structure, or null if it has no levels. */
+    private static String maxStructure(Session s) {
+        if (!s.entry.leveled()) return null;
+        for (int level = MAX_LEVEL; level > 1; level--) {
+            String path = s.style + "/" + s.entry.path() + level;
+            if (BuildOrder.exists(path)) return path;
+        }
+        return null;
+    }
+
+    private static final int MAX_LEVEL = 5; // the mod's buildings go up to level 5
+
     /** Replaces the preview. @return false (and ends placement) if the structure is missing. */
     private boolean draw(Player p, Session s) {
         s.shown.forEach(org.bukkit.entity.Entity::remove);
         s.shown.clear();
-        BuildOrder o = order(s);
+        String max = s.showMax ? maxStructure(s) : null;
+        BuildOrder o = max == null ? order(s)
+                : BuildOrder.create(max, s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.entry.hut() != null ? s.anchor : null);
         if (o == null) {
             p.sendMessage(Component.text("No structure for the " + s.entry.name() + " in the " + s.style + " style.", NamedTextColor.RED));
             end(p);
@@ -345,7 +360,7 @@ public final class Placement implements Listener {
     /** The mod's build tool window, as a dialog: each button closes it, so the preview can be seen to change. */
     private void controls(Player p, Session s) {
         BlockFace facing = p.getFacing();
-        List<ActionButton> buttons = List.of(
+        List<ActionButton> buttons = new ArrayList<>(List.of(
                 button("Forward", p, s, x -> move(x, s, facing)),
                 button("Back", p, s, x -> move(x, s, facing.getOppositeFace())),
                 button("Left", p, s, x -> move(x, s, turn(facing, -1))),
@@ -354,9 +369,11 @@ public final class Placement implements Listener {
                 button("Down", p, s, x -> move(x, s, BlockFace.DOWN)),
                 button("Rotate left", p, s, x -> { s.turn = (s.turn + 3) % 4; draw(x, s); }),
                 button("Rotate right", p, s, x -> { s.turn = (s.turn + 1) % 4; draw(x, s); }),
-                button("Mirror: " + (s.mirror ? "on" : "off"), p, s, x -> { s.mirror = !s.mirror; draw(x, s); }),
-                button("Cancel", p, s, this::end),
-                button("Confirm", p, s, x -> confirm(x, s)));
+                button("Mirror: " + (s.mirror ? "on" : "off"), p, s, x -> { s.mirror = !s.mirror; draw(x, s); })));
+        if (maxStructure(s) != null)
+            buttons.add(button("Preview: " + (s.showMax ? "max level" : "level 1"), p, s, x -> { s.showMax = !s.showMax; draw(x, s); }));
+        buttons.add(button("Cancel", p, s, this::end));
+        buttons.add(button("Confirm", p, s, x -> confirm(x, s)));
         show(p, s.entry.name(), List.of(text("Placing the " + s.entry.name() + ". Directions are from where you face.")), buttons);
     }
 
