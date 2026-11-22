@@ -38,6 +38,8 @@ public final class Meal {
         this.colonist = colonist;
     }
 
+    private boolean fromOwn; // eating from its own inventory: leftovers go back there
+
     public boolean isWaiting() {
         return state == State.WAITING;
     }
@@ -64,6 +66,15 @@ public final class Meal {
         Colonist c = colonist;
         switch (state) {
             case FIND -> {
+                Inventory own = c.inventory();
+                if (Food.hasMeal(own)) { // its own food first, as the mod's citizens eat from their inventory
+                    fromOwn = true;
+                    food.addAll(Food.take(own, hunger(colony)));
+                    c.setStatus("Eating");
+                    state = State.EAT;
+                    timer = 0;
+                    return false;
+                }
                 for (Block chest : new Block[]{job == null ? null : job.hut.block, c.home == null ? null : c.home.block}) {
                     if (chest != null && Food.hasMeal(inventory(chest))) {
                         source = chest;
@@ -129,7 +140,8 @@ public final class Meal {
     private boolean finish() {
         colonist.hold(null);
         Block back = source != null ? source : restaurant != null ? restaurant.hut.block : null;
-        Inventory inv = back == null ? null : inventory(back);
+        Inventory inv = fromOwn ? colonist.inventory() : back == null ? null : inventory(back);
+        if (back == null) back = colonist.location().getBlock(); // where what doesn't fit is dropped
         if (inv != null) for (ItemStack over : inv.addItem(food.toArray(ItemStack[]::new)).values())
             back.getWorld().dropItemNaturally(back.getLocation().toCenterLocation(), over);
         food.clear();

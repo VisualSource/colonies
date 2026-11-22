@@ -9,6 +9,7 @@ import dev.minecp.job.Crafter;
 import dev.minecp.job.Crusher;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Fisherman;
+import dev.minecp.job.Healer;
 import dev.minecp.job.Herder;
 import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
@@ -117,6 +118,9 @@ public final class Hut {
         GRAVEYARD("Graveyard", Material.CHEST, "mystic/graveyard", "graveyard", "An undertaker buries the colony's dead, and may bring one back",
                 () -> new RecipeChoice.MaterialChoice(Material.BONE), () -> new RecipeChoice.MaterialChoice(Material.STONE), "Undertaker",
                 Undertaker::new, false),
+        // Unlocked by research; the mod's recipe: a carrot in the middle
+        HOSPITAL("Hospital", Material.CHEST, "fundamentals/hospital", "hospital", "A healer cures the colony's sick and heals the hurt",
+                () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
         // The mod's research building; its recipe is its own (books under the Build Tool: Items)

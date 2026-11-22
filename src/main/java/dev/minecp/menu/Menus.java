@@ -435,10 +435,17 @@ public final class Menus {
         body.add(text(Component.text("Health " + (int) Math.ceil(x.health) + "/" + (int) c.health.max(x)
                 + ", food " + (int) Math.ceil(x.saturation) + "/" + (int) Food.MAX_SATURATION)));
         if (x.hungerNote != null && x.saturation < Food.LOW_SATURATION) body.add(text(Component.text(x.hungerNote, NamedTextColor.YELLOW)));
+        if (x.disease != null) body.add(text(Component.text("Sick with " + x.disease.label + ": it gets well with " + x.disease.cureLabel()
+                + " in its inventory" + (c.sickness.hospital(x) == null ? " (no Hospital to see to it)." : "; the Hospital's healer brings them."), NamedTextColor.RED)));
         body.add(text(Component.text(String.format("Happiness: %.1f of 10", c.happiness.of(x)), NamedTextColor.GOLD)));
         for (Happiness.Factor f : c.happiness.factors(x)) if (f.value() != 1) body.add(text(factor(f.name(), f.value())));
         if (job != null) for (Requests.Request r : c.requests.of(job)) body.add(text(request(r, false)));
-        Dialogs.show(p, x.name, body, List.of(), List.of(), 1);
+        // the mod's citizen inventory (OpenInventoryMessage: MANAGE_HUTS): give it cures, food or anything else
+        List<ActionButton> buttons = List.of(Dialogs.button(plugin, "Inventory", 200, p, () -> c.colonists.contains(x), (player, view) -> {
+            if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
+            player.openInventory(x.inventory(27 + (int) c.research.effect(dev.minecp.research.Effects.INVENTORY_SLOTS)));
+        }));
+        Dialogs.show(p, x.name, body, List.of(), buttons, 1);
     }
 
     /** A visitor's offer to join, on right-click (the mod's recruitment interaction). */

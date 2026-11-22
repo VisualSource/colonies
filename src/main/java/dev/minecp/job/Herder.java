@@ -83,6 +83,11 @@ public final class Herder extends Job {
     // The mod's cowhand counters: milkings and stews since the last reset, which comes every "days between milkings".
     private int milked, stewed, milkDays, countedDay = -1;
 
+    @Override
+    public double diseaseModifier() {
+        return kind == Kind.PIG ? 2 : 1; // the mod's JobSwineHerder
+    }
+
     public Herder(Hut hut, Colony colony, Kind kind) {
         super(hut, colony);
         this.kind = kind;

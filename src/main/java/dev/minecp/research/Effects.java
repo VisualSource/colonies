@@ -35,6 +35,7 @@ public final class Effects {
     public static final String WORK_IN_RAIN = "workinginrainunlock";
     public static final String SOFT_SHOES = "softshoesunlock";
     public static final String MORE_ORES = "moreoresmultiplier";
+    public static final String MASKS = "masks", VACCINES = "vaccines";
     public static final String SIFTER_STRING = "sifterstringunlock", SIFTER_FLINT = "sifterflintunlock",
             SIFTER_IRON = "sifterironunlock", SIFTER_DIAMOND = "sifterdiamondunlock";
     public static final String CRUSHING_ONE_TO_ONE = "crushing11unlock";
@@ -57,7 +58,7 @@ public final class Effects {
     /** Every id above, for the test. */
     static final String[] ALL = {HEALTH, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
             WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
-            MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES, MORE_ORES, SIFTER_STRING, SIFTER_FLINT, SIFTER_IRON, SIFTER_DIAMOND, CRUSHING_ONE_TO_ONE, DEPTH_KNOWLEDGE,
+            MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES, MORE_ORES, MASKS, VACCINES, SIFTER_STRING, SIFTER_FLINT, SIFTER_IRON, SIFTER_DIAMOND, CRUSHING_ONE_TO_ONE, DEPTH_KNOWLEDGE,
             MELEE_DAMAGE, MELEE_ARMOR, BLOCK_ATTACKS, GUARD_CRIT, KNIGHT_TAUNT, SHIELD_USAGE, RETREAT, FLEEING_DAMAGE, FLEEING_SPEED, WHIRLWIND,
             SLEEP_LESS, ARMOR_DURABILITY};
 }

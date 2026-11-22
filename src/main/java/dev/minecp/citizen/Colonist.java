@@ -20,6 +20,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Pose;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.potion.PotionEffect;
@@ -83,6 +84,21 @@ public final class Colonist {
         if (diet.size() > DIET_SIZE) diet.removeFirst();
     }
 
+    /** Its inventory, at least {@code size} slots (27, more with research): grown, it keeps what it held. */
+    public Inventory inventory(int size) {
+        if (inventory == null || inventory.getSize() < size) {
+            Inventory bigger = Bukkit.createInventory(null, size, net.kyori.adventure.text.Component.text(name));
+            if (inventory != null) bigger.setContents(java.util.Arrays.copyOf(inventory.getContents(), size));
+            inventory = bigger;
+        }
+        return inventory;
+    }
+
+    /** Its inventory as it is, or null if it never had one. */
+    public Inventory inventory() {
+        return inventory;
+    }
+
     /** Makes it a child (half size) or grown. */
     public void setChild(boolean child) {
         this.child = child;
@@ -103,6 +119,14 @@ public final class Colonist {
     public Meal meal;              // while it is getting something to eat
     public String hungerNote;      // why its last meal failed, for the menus
     public int foodRetry, hungerTicks;
+    // Sickness (colony.Sickness): saved with the colony but for the cure under way
+    public Disease disease;        // null when well
+    public int immunity;           // ticks it can't fall sick again
+    public int sickDays;           // nightfalls it has been sick, for happiness
+    public int cureTicks;          // applying its cure (not saved)
+    public int interactCooldown;   // after a player's golden apple or poison (not saved)
+    /** Its own inventory (the mod's citizen inventory), which players open from its menu: cures and gifts. Saved. */
+    private Inventory inventory;
     private Location last; // where the colonist is, kept while despawned
     private Mannequin body;
     private WanderingTrader legs;

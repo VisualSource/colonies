@@ -429,6 +429,8 @@ public final class MineCP extends JavaPlugin implements Listener {
             if (e.getHand() != EquipmentSlot.HAND) return;
             Player p = e.getPlayer();
             if (!mayAccess(p, c)) return;
+            // a golden apple or poisonous food is given instead of opening the menu (sneak to open it anyway), as the mod's
+            if (w != null && !p.isSneaking() && c.sickness.interact(p, w, p.getInventory().getItemInMainHand())) return;
             (w != null ? w : v.colonist).talkTo(p);
             if (w != null) menus.citizen(p, c, w);
             else menus.visitor(p, c, v);

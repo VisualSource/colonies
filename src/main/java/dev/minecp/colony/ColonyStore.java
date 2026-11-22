@@ -75,6 +75,16 @@ public final class ColonyStore {
             if (c.child) cs.set("child-time", c.childTime);
             cs.set("diet", c.diet.stream().map(Material::name).toList());
             cs.set("mood-days", List.of(c.homelessDays, c.joblessDays, c.sleeplessDays, c.hurtDays, c.griefDays, c.defendedDays));
+            if (c.disease != null) cs.set("disease", c.disease.name());
+            cs.set("immunity", c.immunity);
+            cs.set("sick-days", c.sickDays);
+            var inv = c.inventory();
+            if (inv != null) {
+                cs.set("inventory-size", inv.getSize());
+                List<String> items = new java.util.ArrayList<>();
+                for (int i = 0; i < inv.getSize(); i++) { var it = inv.getItem(i); if (it != null && !it.isEmpty()) items.add(i + ":" + java.util.Base64.getEncoder().encodeToString(it.serializeAsBytes())); }
+                cs.set("inventory", items);
+            }
             if (!c.mourns.isEmpty()) cs.set("mourns", c.mourns);
             if (c.mourning > 0) cs.set("mourning", c.mourning);
         }
@@ -151,6 +161,17 @@ public final class ColonyStore {
                 c.hurtDays = days.get(3);
                 c.griefDays = days.get(4);
                 c.defendedDays = days.get(5);
+            }
+            String disease = cs.getString("disease");
+            if (disease != null) c.disease = dev.minecp.citizen.Disease.valueOf(disease);
+            c.immunity = cs.getInt("immunity");
+            c.sickDays = cs.getInt("sick-days");
+            if (cs.contains("inventory-size")) {
+                var inv = c.inventory(cs.getInt("inventory-size"));
+                for (String it : cs.getStringList("inventory")) {
+                    int colon = it.indexOf(':');
+                    inv.setItem(Integer.parseInt(it.substring(0, colon)), org.bukkit.inventory.ItemStack.deserializeBytes(java.util.Base64.getDecoder().decode(it.substring(colon + 1))));
+                }
             }
             c.mourns.addAll(cs.getStringList("mourns"));
             c.mourning = Math.min(cs.getInt("mourning"), c.mourns.size());

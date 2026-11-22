@@ -43,7 +43,8 @@ public final class Health {
         double regen = 1 + colony.research.effect(Effects.REGENERATION);
         double amount = c.saturation >= Food.MAX_SATURATION + colony.research.effect(Effects.HEALING_SATURATION) ? 2 * regen
                 : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : regen;
-        c.health = Math.min(max(c), c.health + amount);
+        double upTo = c.disease != null ? max(c) / 3 : max(c); // the mod's: the sick heal only to a third
+        if (c.health < upTo) c.health = Math.min(upTo, c.health + amount);
     }
 
     /** Most health it can have: its job's (a knight has more), plus research's for every citizen. */
@@ -88,7 +89,9 @@ public final class Health {
     void die(Colonist c, DamageCause cause, Entity source) {
         Job job = colony.jobOf(c);
         if (c.meal != null) { c.meal.abandon(); c.meal = null; }
-        List<ItemStack> items = job != null ? job.takeCarried() : List.of();
+        List<ItemStack> items = new java.util.ArrayList<>(job != null ? job.takeCarried() : List.of());
+        if (c.inventory() != null) for (ItemStack i : c.inventory().getContents()) if (i != null && !i.isEmpty()) items.add(i); // its own inventory too
+        colony.sickness.forget(c);
         Location at = c.location();
         c.despawn();
         colony.colonists.remove(c);

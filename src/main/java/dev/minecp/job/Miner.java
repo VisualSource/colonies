@@ -115,6 +115,11 @@ public final class Miner extends Job {
     private Tool neededTool;
     private boolean delivering;
 
+    @Override
+    public double diseaseModifier() {
+        return 2; // the mod's JobMiner
+    }
+
     public Miner(Hut hut, Colony colony) {
         super(hut, colony);
     }

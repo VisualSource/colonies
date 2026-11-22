@@ -85,6 +85,7 @@ public final class Colony {
     int childPool; // saved
     public int day; // colony days passed (saved)
     public final Health health = new Health(this);
+    public final Sickness sickness = new Sickness(this);
     final Routine routine = new Routine(this);
     public final Permissions permissions;
     public final Requests requests = new Requests(this);
@@ -563,6 +564,7 @@ public final class Colony {
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         visitors.tick();
         raids.tick();
+        sickness.tick();
         double walking = 1 + research.effect(Effects.WALKING);
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             if (!c.tick()) continue;
@@ -572,6 +574,7 @@ public final class Colony {
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
             if (c.talkTicks > 0) { c.talkTicks--; continue; } // a player clicked it: it stands still for a moment
+            if (sickness.inHospital(c) && sickness.tend(c, job)) continue; // in a hospital bed: before a raid or the night, as the mod
             boolean hide = raids.underway() && !(job instanceof dev.minecp.job.Guard); // the mod: citizens shelter at home during a raid
             if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
@@ -580,6 +583,7 @@ public final class Colony {
                 continue;
             }
             if (c.bedtime) { c.bedtime = false; c.wake(); }
+            if ((c.disease != null || sickness.hurt(c, job)) && sickness.tend(c, job)) continue; // sick or hurt: before meals and work, as the mod
             if (c.meal != null) { // eating comes before work
                 if (c.meal.tick(this, job)) {
                     c.hungerNote = c.meal.why;

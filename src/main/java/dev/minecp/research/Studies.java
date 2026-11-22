@@ -36,7 +36,7 @@ public final class Studies {
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("hospital", "Hospital"), Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
+            Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
             Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
             Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"),
             Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
@@ -168,6 +168,8 @@ public final class Studies {
             case Effects.SIFTER_FLINT -> "The Stonemason makes flint sifter meshes";
             case Effects.SIFTER_IRON -> "The Blacksmith makes iron sifter meshes";
             case Effects.SIFTER_DIAMOND -> "The Mechanic makes diamond sifter meshes";
+            case Effects.MASKS -> "Citizens catch diseases from the sick half as often";
+            case Effects.VACCINES -> "Citizens cured in a hospital bed stay immune ten times as long";
             case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";

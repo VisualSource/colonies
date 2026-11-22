@@ -79,6 +79,7 @@ class ResearchTreeTest {
         assertEquals("technology/rockingroll", Studies.unlockOf(Hut.Type.CRUSHER).id());
         assertEquals("technology/pavetheroad", Studies.unlockOf(Hut.Type.CONCRETE_MIXER).id());
         assertEquals("technology/sieving", Studies.unlockOf(Hut.Type.SIFTER).id());
+        assertEquals("civilian/stamina", Studies.unlockOf(Hut.Type.HOSPITAL).id());
         for (Hut.Type t : new Hut.Type[]{Hut.Type.BUILDER, Hut.Type.HOUSE, Hut.Type.UNIVERSITY, Hut.Type.WAREHOUSE, Hut.Type.BAKER})
             assertNull(Studies.unlockOf(t), t + " needs no research");
     }

@@ -56,6 +56,11 @@ public final class Crusher extends Crafter {
         know("tuff_1", Material.TUFF, 1, Material.COBBLED_DEEPSLATE, 1, DEPTHS.and(ONE_TO_ONE));
     }
 
+    @Override
+    public double diseaseModifier() {
+        return 4; // the mod's JobCrusher: (100 - skill) / 25, no skills
+    }
+
     private void know(String id, Material result, int count, Material from, int amount, Predicate<Studies> when) {
         learn(own("crusher_" + id, result, count, Map.of(from, amount)), 1, when);
     }

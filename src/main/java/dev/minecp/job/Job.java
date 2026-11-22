@@ -193,6 +193,16 @@ public abstract class Job {
         return false;
     }
 
+    /** How likely its worker is to fall sick, against others' 1 (the mod's getDiseaseModifier: miners and swineherds 2). */
+    public double diseaseModifier() {
+        return 1;
+    }
+
+    /** Whether its worker may leave the job now to be treated (the mod's canAIBeInterrupted: not a knight in a fight). */
+    public boolean interruptible() {
+        return true;
+    }
+
     /** Walking speed multiplier for what it is doing now (1: walking; an undertaker may run to a grave). */
     public double pace() {
         return 1;

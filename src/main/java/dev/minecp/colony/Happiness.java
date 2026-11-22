@@ -42,6 +42,7 @@ public final class Happiness {
         f.add(new Factor("Housing", 3, timed(housing(c), c.homelessDays, 0.75, 0.5)));
         f.add(new Factor("Work", 2, timed(work(c, job), c.joblessDays, 0.75, 0.5)));
         f.add(new Factor("Sleep", 1.5, sleep(c, job)));
+        f.add(new Factor("Health", 2, c.disease == null ? 1 : timed(0.5, c.sickDays, 0.5, 0.1))); // the mod's health: sick 0.5
         f.add(new Factor("Got hurt", 2, c.hurtDays > 0 ? 0 : 1)); // neutral once it wears off, so colony averages count everyone
         f.add(new Factor("A citizen died", 3, c.griefDays > 0 ? 0 : 1));
         f.add(new Factor("Beat a raid", 1, c.defendedDays > 0 ? 2 : 1));
@@ -75,6 +76,7 @@ public final class Happiness {
             c.homelessDays = housing(c) < 1 ? c.homelessDays + 1 : 0;
             c.joblessDays = work(c, job) < 1 ? c.joblessDays + 1 : 0;
             c.sleeplessDays++; // back to 0 when it lies down in bed
+            c.sickDays = c.disease != null ? c.sickDays + 1 : 0;
             c.hurtDays = Math.max(0, c.hurtDays - 1);
             c.griefDays = Math.max(0, c.griefDays - 1);
             c.defendedDays = Math.max(0, c.defendedDays - 1);
@@ -83,6 +85,8 @@ public final class Happiness {
                 colony.tell(c.name + (c.homelessDays == 8 ? " is unhappy without a home." : " demands a home!"));
             if (!c.child && job == null && (c.joblessDays == 8 || c.joblessDays == 15))
                 colony.tell(c.name + (c.joblessDays == 8 ? " is unhappy without a job." : " demands a job!"));
+            if (c.disease != null && (c.sickDays == 8 || c.sickDays == 15))
+                colony.tell(c.name + (c.sickDays == 8 ? " is unhappy to be sick so long." : " demands a cure!"));
         }
     }
 

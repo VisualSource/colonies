@@ -157,6 +157,11 @@ public final class Guard extends Job {
     }
 
     @Override
+    public boolean interruptible() {
+        return target == null && !fleeing && !resting;
+    }
+
+    @Override
     public boolean sleepsAtNight() {
         return false; // on duty (it naps now and then instead, as the mod's guards)
     }
@@ -308,7 +313,7 @@ public final class Guard extends Job {
         if (toWake != null && wake(w)) return;
         if (--napCheckIn <= 0) {
             napCheckIn = NAP_CHECK;
-            if (w.hurtTicks == 0 && startNap(w)) return; // walking or not, as the mod's: sitting down stops it
+            if (w.hurtTicks == 0 && w.disease == null && startNap(w)) return; // walking or not, not sick, as the mod's: sitting down stops it
         }
         if (w.isMoving() || --cooldown > 0) return;
 
