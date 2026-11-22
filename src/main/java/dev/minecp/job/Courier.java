@@ -187,7 +187,7 @@ public final class Courier extends Job {
         for (ItemStack i : chest.getContents()) {
             if (i == null || i.isEmpty()) continue;
             int total = seen.merge(i.getType(), i.getAmount(), Integer::sum);
-            if (total > j.keep(i)) return true;
+            if (total > j.keptHere(i)) return true;
         }
         return false;
     }
@@ -201,7 +201,7 @@ public final class Courier extends Job {
         for (int slot = 0; slot < chest.getSize(); slot++) {
             ItemStack i = chest.getItem(slot);
             if (i == null || i.isEmpty()) continue;
-            int keep = j.keep(i), already = kept.getOrDefault(i.getType(), 0);
+            int keep = j.keptHere(i), already = kept.getOrDefault(i.getType(), 0);
             int stays = (int) Math.min(i.getAmount(), Math.max(0L, (long) keep - already));
             kept.put(i.getType(), already + stays);
             int n = Math.min(Warehouse.room(taken, i, maxStacks), i.getAmount() - stays);

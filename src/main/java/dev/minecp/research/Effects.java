@@ -55,10 +55,17 @@ public final class Effects {
     public static final String SLEEP_LESS = "sleeplessmultiplier";
     public static final String ARMOR_DURABILITY = "armordurabilitymultiplier";
 
+    // rangers
+    public static final String ARCHER_DAMAGE = "archerdamageaddition";
+    public static final String ARCHER_ARMOR = "archerarmormultiplier";
+    public static final String DOUBLE_ARROWS = "doublearrowsmultiplier";
+    public static final String ARROW_PIERCE = "piercingarrowsunlock";
+    public static final String USE_ARROWS = "consumearrowsunlock";
+
     /** Every id above, for the test. */
     static final String[] ALL = {HEALTH, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
             WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
             MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES, MORE_ORES, MASKS, VACCINES, SIFTER_STRING, SIFTER_FLINT, SIFTER_IRON, SIFTER_DIAMOND, CRUSHING_ONE_TO_ONE, DEPTH_KNOWLEDGE,
             MELEE_DAMAGE, MELEE_ARMOR, BLOCK_ATTACKS, GUARD_CRIT, KNIGHT_TAUNT, SHIELD_USAGE, RETREAT, FLEEING_DAMAGE, FLEEING_SPEED, WHIRLWIND,
-            SLEEP_LESS, ARMOR_DURABILITY};
+            SLEEP_LESS, ARMOR_DURABILITY, ARCHER_DAMAGE, ARCHER_ARMOR, DOUBLE_ARROWS, ARROW_PIERCE, USE_ARROWS};
 }

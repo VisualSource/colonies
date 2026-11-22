@@ -12,6 +12,7 @@ public enum Tool {
     SHOVEL("a shovel", Tag.ITEMS_SHOVELS, Tag.MINEABLE_SHOVEL),
     HOE("a hoe", Tag.ITEMS_HOES, Tag.MINEABLE_HOE),
     SWORD("a sword", Tag.ITEMS_SWORDS, null), // a guard's weapon: mines nothing
+    BOW("a bow", m -> m == Material.BOW), // a ranger's (the mod's bow equipment: wood level, plus enchantments)
     ROD("a fishing rod", m -> m == Material.FISHING_ROD),
     SHEARS("shears", m -> m == Material.SHEARS);
 

@@ -89,6 +89,10 @@ public final class Advancements {
         add("military/army_8", MILITARY, "stone_sword", "A Watch", "Have 8 guards", "task");
         add("military/army_30", "military/army_8", "iron_sword", "A Garrison", "Have 30 guards", "task");
         add("military/army_80", "military/army_30", "diamond_sword", "A Standing Army", "Have 80 guards", "challenge");
+        add("military/build_barracks", MILITARY, "iron_block", "Quartered", "Finish a Barracks", "task");
+        add("military/build_barracks_tower", "military/build_barracks", "stone_bricks", "Lookout Post", "Finish a Barracks Tower", "task");
+        add("military/build_all_barracks_towers", "military/build_barracks_tower", "stone_brick_wall", "Fully Manned",
+                "Upgrade every tower of a Barracks to level 5", "goal");
     }
 
     /** The advancement for a hut finished at a level, as the mod's complete_build_request triggers; null if none. */
@@ -113,6 +117,8 @@ public final class Advancements {
             case BLACKSMITH -> level == 1 ? "production/build_blacksmith" : null;
             case CRUSHER -> level == 1 ? "production/build_crusher" : null;
             case SIFTER -> level == 1 ? "production/build_sifter" : null;
+            case BARRACKS -> level == 1 ? "military/build_barracks" : null;
+            case BARRACKS_TOWER -> level == 1 ? "military/build_barracks_tower" : null;
             case SMELTERY -> level == 1 ? "production/build_smeltery" : level == 3 ? "production/build_smeltery_3" : level == 5 ? "production/build_smeltery_5" : null;
             default -> null;
         };
@@ -203,6 +209,9 @@ public final class Advancements {
                 var herders = java.util.EnumSet.of(Hut.Type.CHICKEN_HERDER, Hut.Type.COWBOY, Hut.Type.SHEPHERD, Hut.Type.SWINEHERD, Hut.Type.RABBIT_HUTCH);
                 if (herders.contains(type) && herders.stream().allMatch(t -> c.huts.stream().anyMatch(h -> h.type == t && h.level >= 1)))
                     award(c, "production/build_all_herders");
+                if (type == Hut.Type.BARRACKS_TOWER && level == Hut.MAX_LEVEL && c.huts.stream().anyMatch(b -> b.type == Hut.Type.BARRACKS
+                        && !c.towers(b).isEmpty() && c.towers(b).stream().allMatch(t -> t.level == Hut.MAX_LEVEL)))
+                    award(c, "military/build_all_barracks_towers"); // the mod's all_barracks_towers
             }
 
             @Override

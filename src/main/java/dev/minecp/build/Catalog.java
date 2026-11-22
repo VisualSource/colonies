@@ -83,6 +83,7 @@ public final class Catalog {
             String typeFolder = t.path.substring(0, s), typeName = t.path.substring(s + 1);
             boolean alt = base.equals("alt" + typeName);
             if (!(base.equals(typeName) || alt) || !(folder.equals(typeFolder) || folder.startsWith(typeFolder + "/"))) continue;
+            if (t == Hut.Type.BARRACKS_TOWER) return null; // comes with its barracks
             String variant = folder.substring(typeFolder.length()).replace("/", " ").trim(); // cavern: alternative, megahall
             if (variant.equals("default")) variant = "";
             if (alt) variant = (variant + " alternative").trim();

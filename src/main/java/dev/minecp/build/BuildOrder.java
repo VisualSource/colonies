@@ -26,6 +26,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import org.bukkit.persistence.PersistentDataType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,10 @@ public final class BuildOrder {
     /** Tag on the chest that marks a structure's hut block, written by tools/convert_blueprints.py. */
     static final NamespacedKey HUT_MARKER = NamespacedKey.fromString("minecp:hut");
     private final Map<Block, Step> byBlock = new HashMap<>();
+    /** Tag on other buildings' hut blocks inside a structure (a barracks' towers), with the mod's id: "barrackstower". */
+    static final NamespacedKey SUBHUT_MARKER = NamespacedKey.fromString("minecp:subhut");
+    /** Where the structure has other buildings' hut blocks, and which (their mod ids). */
+    public final Map<Block, String> subHuts = new java.util.LinkedHashMap<>();
     /** Tag on the chests that stand in for the mod's storage racks (written by the converter), for a custom model later. */
     public static final NamespacedKey RACK_MARKER = NamespacedKey.fromString("minecp:rack");
 
@@ -171,6 +176,7 @@ public final class BuildOrder {
         }
         if (rotation == null) rotation = StructureRotation.NONE;
         List<Step> clears = new ArrayList<>(), places = new ArrayList<>();
+        Map<Block, String> subHuts = new java.util.LinkedHashMap<>();
         for (var state : blocks) {
             BlockVector at = transform(state.getX(), state.getY(), state.getZ(), rotation, mirror);
             BlockData data = state.getBlockData().clone();
@@ -181,6 +187,8 @@ public final class BuildOrder {
             if (block.getY() < world.getMinHeight() || block.getY() >= world.getMaxHeight()) continue; // can't build there
             boolean fill = data.getMaterial() == Material.BARRIER;
             boolean rack = state instanceof TileState ts && ts.getPersistentDataContainer().has(RACK_MARKER);
+            if (state instanceof TileState ts && ts.getPersistentDataContainer().has(SUBHUT_MARKER, PersistentDataType.STRING))
+                subHuts.put(block, ts.getPersistentDataContainer().get(SUBHUT_MARKER, PersistentDataType.STRING));
             Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill, rack);
             (step.isClear() ? clears : places).add(step);
         }
@@ -189,6 +197,7 @@ public final class BuildOrder {
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
         BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, mirror, clears);
+        order.subHuts.putAll(subHuts);
         for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows and named graves
             var tags = e.getScoreboardTags();
             if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG)) continue;

@@ -121,8 +121,14 @@ public final class Hut {
         // Unlocked by research; the mod's recipe: a carrot in the middle
         HOSPITAL("Hospital", Material.CHEST, "fundamentals/hospital", "hospital", "A healer cures the colony's sick and heals the hurt",
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
-        GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A knight patrols the colony and fights monsters",
-                () -> new RecipeChoice.MaterialChoice(Material.BOW), "Knight", Guard::new, false),
+        GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A guard (knight or ranger) patrols the colony and fights monsters",
+                () -> new RecipeChoice.MaterialChoice(Material.BOW), "Guard", Guard::new, false),
+        // Unlocked by research; the mod's recipe: an iron block in the middle. Its blueprint holds its towers' hut blocks.
+        BARRACKS("Barracks", Material.CHEST, "military/barracks", "barracks", "Its towers house the colony's guards, one per tower level",
+                () -> new RecipeChoice.MaterialChoice(Material.IRON_BLOCK), false),
+        // Comes with a barracks (no recipe, as in the mod): as many guards as its level, never above the barracks' level
+        BARRACKS_TOWER("Barracks Tower", Material.CHEST, "military/barrackstower", "barrackstower", "Part of a barracks: one guard per level",
+                null, "Guard", Guard::new, false),
         // The mod's research building; its recipe is its own (books under the Build Tool: Items)
         UNIVERSITY("University", Material.CHEST, "education/university", "university", "A researcher studies here: research unlocks huts and improvements",
                 null, "Researcher", Researcher::new, false),
@@ -220,7 +226,7 @@ public final class Hut {
             return switch (this) {
                 case TOWN_HALL -> new int[]{0, 1, 1, 2, 3, 5}[level];
                 case GUARD_TOWER -> new int[]{0, 2, 3, 3, 4, 5}[level]; // BuildingGuardTower.getClaimRadius
-                case FIELD -> 0;
+                case FIELD, BARRACKS_TOWER -> 0; // the barracks' depends on its towers (Colony.claimRadius)
                 default -> level == 0 ? 0 : level <= 3 ? 1 : 2;
             };
         }
@@ -245,9 +251,14 @@ public final class Hut {
             return path != null;
         }
 
-        /** Whether a removal work order can take it down; the Town Hall and Builder's Hut go only by breaking the hut block. */
+        /** Whether a removal work order can take it down; the Town Hall and Builder's Hut go only by breaking the hut block, a barracks tower with its barracks. */
         public boolean removable() {
-            return isBuilding() && this != TOWN_HALL && this != BUILDER;
+            return isBuilding() && this != TOWN_HALL && this != BUILDER && this != BARRACKS_TOWER;
+        }
+
+        /** How many work here at {@code level}: a barracks tower's guards, one per level (the mod's); one elsewhere. */
+        int workers(int level) {
+            return this == BARRACKS_TOWER ? level : 1;
         }
 
         private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
@@ -315,6 +326,7 @@ public final class Hut {
     public final int[] extent = {4, 4, 4, 4}; // north, east, south, west; 0..Farmer.MAX_EXTENT
     public int stage;            // what the farmer does here next: till, plant, harvest (Farmer.Kind order)
     public int workedDay = -1;   // colony day the farmer last worked it (one action a day, as in the mod)
+    public Hut barracks;         // a barracks tower's barracks; saved
 
     Hut(Type type, Block block, int level) {
         this.type = type;

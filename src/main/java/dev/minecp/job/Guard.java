@@ -31,10 +31,12 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * A knight at a Guard Tower (the mod's JobKnight, EntityAIMelee, MeleeCombatAI and AbstractEntityAIGuard): it patrols
- * between the colony's built huts, attacks the hostile mobs it sees with a sword, and wears the armor its tower level
- * allows. It doesn't sleep at night or shelter from rain, but naps on duty now and then; it doesn't run when hurt (unless research lets it
- * retreat to its tower). Research adds damage, critical hits, armor, parrying, a shield, taunting and a whirlwind.
+ * A guard at a Guard Tower or a barracks tower: a knight (the mod's JobKnight, EntityAIMelee, MeleeCombatAI), a ranger
+ * (JobRanger, EntityAIRange, RangeCombatAI) or a druid (JobDruid, EntityAIDruid, DruidCombatAI), by the tower's
+ * setting for its slot, with the mod's AbstractEntityAIGuard: it patrols between the colony's built huts, attacks the
+ * hostile mobs it sees with a sword, a bow or splash potions, and wears the armor its tower level allows. It doesn't sleep at night or shelter from rain, but naps on duty now and then; it doesn't run when hurt (unless research lets it
+ * retreat to its tower). Research adds damage, critical hits and armor; knights also parrying, a shield, taunting and a
+ * whirlwind; rangers double shots, piercing arrows and arrows from the tower.
  */
 public final class Guard extends Job {
     // The mod's numbers (GuardConstants, AbstractBuildingGuards, BuildingGuardTower):
@@ -44,7 +46,7 @@ public final class Guard extends Job {
     private static final int VISION_BASE = 15, VISION_PER_LEVEL = 3; // BASE_VISION_RANGE + VISION_RANGE_PER_LEVEL x level
     private static final int Y_VISION = 3;
     private static final int CHASE = 80;               // MAX_PATROL_DERIVATION: how far from the tower it chases
-    private static final int HP_KNIGHT = 15, HP_TOWER = 20, HP_PER_LEVEL = 2; // KNIGHT_HP_BONUS, BONUS_HP_SINGLE_GUARD, per level
+    private static final int HP_TOWER = 20, HP_PER_LEVEL = 2; // BONUS_HP_SINGLE_GUARD, BONUS_HEALTH_PER_LEVEL
     private static final int PATROL_WAIT = 100;        // GUARD_TASK_INTERVAL: ticks at a patrol point
     private static final int SEARCH_TICKS = 20;        // ours: how often it looks for a target
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
@@ -62,6 +64,31 @@ public final class Guard extends Job {
     private static final int REST_CHECK = 40;          // GUARD_REGEN_INTERVAL
     private static final int REST_HEAL = 50;           // vanilla Regeneration I, which the mod gives it: 1 health every 50 ticks
     private static final double SPEED_PER_LEVEL = 0.2; // vanilla Speed: +20% a level
+    // Rangers (the mod's GuardConstants, RangeCombatAI, CombatUtils, EntityAIRange):
+    private static final int RANGED_DELAY = 60;        // RANGED_ATTACK_DELAY_BASE: ticks between shots
+    private static final int RANGE_BASE = 10, RANGE_MAX = 24; // BASE_ and MAX_DISTANCE_FOR_RANGED_ATTACK, +1 a tower level
+    private static final double RANGED_BASE_DAMAGE = 2; // RANGER_BASE_DMG
+    private static final double ARROW_DAMAGE = 2;      // ARROW_EXTRA_DAMAGE: with arrows (research)
+    private static final int FLEE_DISTANCE_SQ = 7, FLEE_ODDS = 3; // RANGED_FLEE_SQDIST: this close, 1 in 3 shots it steps back
+    private static final double ARROW_SPEED = 1.4, SPEED_FOR_DISTANCE = 35, AIM_HIGHER = 0.18; // CombatUtils.shootArrow
+    private static final double INACCURACY = 15.0 / (5 + 1); // HIT_CHANCE_DIVIDER / (adaptability + 1); ours: an average new citizen's 5
+    private static final int ARROWS_TAKEN = 64, ARROWS_LOW = 16, ARROWS_KEPT = 128; // it takes 64, asks below 16; the tower keeps 128
+    private static final int FLAME_TICKS = 100;        // a Flame bow's arrows burn 5 s
+    // Druids (the mod's GuardConstants, DruidCombatAI, DruidPotionEntity, EntityAIDruid, JobDruid):
+    private static final int DRUID_DELAY = 40;         // AttackMoveAI's attack delay, doubled after an instant effect
+    private static final int DRUID_RANGE = 3;          // BASE_DISTANCE_FOR_POTION_ATTACK, +1 a tower level
+    private static final int EFFECT_TICKS = 5 * 20;    // its mana skill x 20; ours: an average new citizen's 5
+    private static final double POTION_INACCURACY = 99.0 / 5; // 99 / its focus skill; ours: 5
+    private static final double POTION_SPEED = 0.5, POTION_AIM_HIGHER = 0.2, POTION_DROP = 1.1;
+    private static final int HUNTED_RANGE = 16, HUNTED_HEIGHT = 8; // ours: how near a monster after a player must be
+    private static final int POTIONS_TAKEN = 32, POTIONS_LOW = 8, POTIONS_ASKED = 16, POTIONS_KEPT = 32; // ours: the kept amount
+    private static final org.bukkit.potion.PotionEffectType[] ADVERSE = {org.bukkit.potion.PotionEffectType.SLOWNESS,
+            org.bukkit.potion.PotionEffectType.WEAKNESS};
+    private static final org.bukkit.potion.PotionEffectType[] SUPPORT = {org.bukkit.potion.PotionEffectType.STRENGTH,
+            org.bukkit.potion.PotionEffectType.SATURATION, org.bukkit.potion.PotionEffectType.INSTANT_HEALTH,
+            org.bukkit.potion.PotionEffectType.RESISTANCE};
+    /** Tags on a druid's thrown potions: harmful ones touch only monsters, helpful ones everyone else (MineCP.onDruidPotion). */
+    public static final String ADVERSE_POTION = "minecp_druid_adverse", SUPPORT_POTION = "minecp_druid_support";
     // Naps on duty (the mod's AbstractEntityAIGuard.shouldSleep, sleep and wakeUpGuard):
     private static final int NAP_CHECK = 200;          // SHOULD_SLEEP_INTERVAL: a chance to nap every 10 s with no target
     private static final int NAP_ODDS = 20;            // 1 in (adaptability / 2 + 20): no skills, 1 in 20
@@ -87,10 +114,63 @@ public final class Guard extends Job {
         super(hut, colony);
     }
 
-    /** Health with the knight's and the tower's bonuses (the mod adds them as max health modifiers). */
+    /** The guard types (the setting's values), with the mod's numbers: weapon, health bonus, armor research. */
+    private enum Type {
+        KNIGHT(Tool.SWORD, 15, Effects.MELEE_ARMOR),  // KNIGHT_HP_BONUS
+        RANGER(Tool.BOW, 0, Effects.ARCHER_ARMOR),
+        DRUID(null, 12, null);                        // DRUID_HP_BONUS (no skills: no mana share); it throws potions
+
+        final Tool weapon;
+        final int health;
+        final String armorResearch;
+
+        Type(Tool weapon, int health, String armorResearch) {
+            this.weapon = weapon;
+            this.health = health;
+            this.armorResearch = armorResearch;
+        }
+    }
+
+    private int slot = -1; // which of its tower's guards it is, for its type setting
+
+    /** Its type, from its tower's setting for its slot. */
+    private Type type() {
+        if (slot < 0) slot = colony.jobsAt(hut).indexOf(this); // stays -1 until it is one of the colony's jobs
+        return Type.valueOf(hut.setting(dev.minecp.colony.Settings.guardTypeKey(Math.max(slot, 0))));
+    }
+
+    private boolean knight() {
+        return type() == Type.KNIGHT;
+    }
+
+    private boolean ranger() {
+        return type() == Type.RANGER;
+    }
+
+    private boolean druid() {
+        return type() == Type.DRUID;
+    }
+
+    /** "Knight", "Ranger" or "Druid". */
+    @Override
+    public String title() {
+        String t = type().name();
+        return t.charAt(0) + t.substring(1).toLowerCase();
+    }
+
+    /** Its weapon: a sword, a bow, or none (a druid throws potions). */
+    private Tool weapon() {
+        return type().weapon;
+    }
+
+    /**
+     * Health with its type's bonus (knight 15, druid 12, ranger none) and its tower's: 2 a level, and 20 more for a
+     * Guard Tower's single guard (the mod adds them as max health modifiers).
+     */
     @Override
     public double maxHealth() {
-        return Colonist.MAX_HEALTH + HP_KNIGHT + (hut.level >= 1 ? HP_TOWER + HP_PER_LEVEL * hut.level : 0);
+        double tower = hut.level < 1 ? 0 : HP_PER_LEVEL * hut.level + (hut.type == Hut.Type.GUARD_TOWER ? HP_TOWER : 0);
+        return Colonist.MAX_HEALTH + type().health + tower;
     }
 
     /**
@@ -101,7 +181,7 @@ public final class Guard extends Job {
     @Override
     public double reaching(double damage, DamageType type, Entity source, Colonist w) {
         double parry = colony.research.effect(Effects.BLOCK_ATTACKS);
-        if (parry > 0 && ThreadLocalRandom.current().nextDouble() < parry) return 0;
+        if (knight() && parry > 0 && ThreadLocalRandom.current().nextDouble() < parry) return 0; // the mod's knights only
         if (lowHealth(w)) damage *= 1 - colony.research.effect(Effects.FLEEING_DAMAGE);
         if (shieldUp() && source != null && source == target) {
             int wear = (int) (damage * SHIELD_HIT);
@@ -132,7 +212,8 @@ public final class Guard extends Job {
     private double afterArmor(double damage) {
         double points = 0, toughness = 0;
         for (ItemStack piece : armor.values()) { points += stat(piece, Attribute.ARMOR); toughness += stat(piece, Attribute.ARMOR_TOUGHNESS); }
-        points = (int) (points * (1 + colony.research.effect(Effects.MELEE_ARMOR)));
+        String research = type().armorResearch;
+        points = (int) (points * (1 + (research == null ? 0 : colony.research.effect(research))));
         double cut = Math.min(20, Math.max(points / 5, points - damage / (2 + toughness / 4)));
         return damage * (1 - cut / 25);
     }
@@ -149,11 +230,17 @@ public final class Guard extends Job {
         return fleeing && speed > 0 ? 1 + SPEED_PER_LEVEL * ((int) speed + 1) : 1;
     }
 
-    /** Something hurt it: it fights back (a mob; players are left to permissions) instead of running. */
+    /** Something hurt it: it fights back (a mob; players are left to permissions) instead of running; a ranger needs its bow. */
     @Override
     public boolean fightsBack(Entity source) {
+        if (!canFight()) return false;
         if (source instanceof LivingEntity l && !(source instanceof org.bukkit.entity.Player) && colony.colonistOf(source) == null && valid(l)) target = l;
         return true;
+    }
+
+    /** A knight fights with its fists if it must; a ranger without a bow can't attack (the mod's canAttack). */
+    private boolean canFight() {
+        return !ranger() || hasTool(Tool.BOW, null);
     }
 
     @Override
@@ -173,10 +260,13 @@ public final class Guard extends Job {
 
     @Override
     public List<Component> info(Colony c) {
-        if (hut.level == 0) return List.of(Component.text("The knight starts once level 1 is built.", NamedTextColor.GRAY));
+        if (hut.level == 0) return List.of(Component.text("Guards start once level 1 is built.", NamedTextColor.GRAY));
         int[] tier = ARMOR[Math.min(hut.level, Hut.MAX_LEVEL) - 1];
-        return List.of(Component.text("Patrols the colony and fights the monsters it sees within " + vision() + " blocks. Wears "
-                + armorName(tier[0]) + " to " + armorName(tier[1]) + " armor and " + toolLabel(Tool.SWORD) + ".", NamedTextColor.GRAY));
+        return List.of(Component.text("Guards patrol the colony and fight the monsters they see within " + vision() + " blocks: knights with "
+                + toolLabel(Tool.SWORD) + ", rangers with " + toolLabel(Tool.BOW) + " from up to " + range() + " blocks"
+                + (hut.type == Hut.Type.BARRACKS_TOWER ? ", druids with splash potions from " + druidRange()
+                        + " (slowing monsters, strengthening players they fight)" : "") + ". They wear " + armorName(tier[0]) + " to "
+                + armorName(tier[1]) + " armor. Pick each guard's type in Settings.", NamedTextColor.GRAY));
     }
 
     // ---- gear ---------------------------------------------------------------------------------------------------
@@ -185,7 +275,10 @@ public final class Guard extends Job {
     public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
-        wantTool(wants, Tool.SWORD);
+        if (weapon() != null) wantTool(wants, weapon());
+        if (wantsPotions() && inChest(Guard::isSplashPotion) == 0)
+            wants.add(new Want("splash potions", Guard::isSplashPotion, POTIONS_ASKED, POTIONS_LOW));
+        if (wantsArrows() && inChest(Guard::isArrow) == 0) wants.add(new Want("arrows", Guard::isArrow, ARROWS_TAKEN, ARROWS_LOW));
         for (EquipmentSlot slot : SLOTS) // the mod's guards ask for each missing piece; one the tower no longer allows counts as missing
             if (!fitsArmor(armor.get(slot), slot) && inChest(i -> fitsArmor(i, slot)) == 0)
                 wants.add(new Want(slotName(slot) + " (" + armorName(tier()[0]) + " to " + armorName(tier()[1]) + ")", i -> fitsArmor(i, slot), 1));
@@ -195,7 +288,9 @@ public final class Guard extends Job {
 
     @Override
     int keep(ItemStack item) {
-        if (fits(Tool.SWORD, item, null) || isShield(item)) return 1;
+        if (weapon() != null && fits(weapon(), item, null) || isShield(item)) return 1;
+        if (isArrow(item) && arrowsResearched()) return ARROWS_KEPT;
+        if (isSplashPotion(item) && druid()) return POTIONS_KEPT;
         for (EquipmentSlot slot : SLOTS) if (fitsArmor(item, slot)) return 1;
         return 0;
     }
@@ -206,7 +301,38 @@ public final class Guard extends Job {
     }
 
     private boolean shieldResearched() {
-        return colony.research.effect(Effects.SHIELD_USAGE) > 0;
+        return knight() && colony.research.effect(Effects.SHIELD_USAGE) > 0; // the mod's knights only
+    }
+
+    private boolean arrowsResearched() {
+        return ranger() && colony.research.effect(Effects.USE_ARROWS) > 0;
+    }
+
+    /** A ranger with the arrows research and under 16 arrows (the mod's EntityAIRange). */
+    private boolean wantsArrows() {
+        return arrowsResearched() && has(Guard::isArrow) < ARROWS_LOW;
+    }
+
+    private static boolean isArrow(ItemStack i) {
+        return i != null && i.getType() == Material.ARROW;
+    }
+
+    /**
+     * A druid under 8 splash potions. Ours: the mod's druid uses its magic potions (mistletoe and water, from the
+     * alchemist, with the Druid's Potion research, which costs mistletoe); MineCP's uses any vanilla splash potion, no research.
+     */
+    private boolean wantsPotions() {
+        return druid() && has(Guard::isSplashPotion) < POTIONS_LOW;
+    }
+
+    private static boolean isSplashPotion(ItemStack i) {
+        return i != null && i.getType() == Material.SPLASH_POTION;
+    }
+
+    /** Its arrows and potions stay with it when it hands things in. */
+    @Override
+    boolean keepsOnHand(ItemStack i) {
+        return isArrow(i) && arrowsResearched() || isSplashPotion(i) && druid();
     }
 
     private static boolean isShield(ItemStack i) {
@@ -228,7 +354,9 @@ public final class Guard extends Job {
      * longer allows, or a better piece the tower allows in the chest.
      */
     private boolean gearWaiting() {
-        if (!hasTool(Tool.SWORD, null) && inChest(i -> fits(Tool.SWORD, i, null)) > 0) return true;
+        if (weapon() != null && !hasTool(weapon(), null) && inChest(i -> fits(weapon(), i, null)) > 0) return true;
+        if (wantsArrows() && inChest(Guard::isArrow) > 0) return true;
+        if (wantsPotions() && inChest(Guard::isSplashPotion) > 0) return true;
         if (wantsShield() && inChest(Guard::isShield) > 0) return true;
         for (EquipmentSlot slot : SLOTS) {
             ItemStack worn = armor.get(slot);
@@ -244,7 +372,9 @@ public final class Guard extends Job {
 
     /** At the tower: takes a sword it lacks, puts back armor the tower no longer allows, and wears the best pieces allowed. */
     private void gearUp() {
-        if (!hasTool(Tool.SWORD, null)) fetchTool(Tool.SWORD, null);
+        if (weapon() != null && !hasTool(weapon(), null)) fetchTool(weapon(), null);
+        if (wantsArrows()) fetch(Guard::isArrow, ARROWS_TAKEN - has(Guard::isArrow));
+        if (wantsPotions()) fetch(Guard::isSplashPotion, POTIONS_TAKEN - has(Guard::isSplashPotion));
         Inventory chest = chest();
         if (chest == null) return;
         if (wantsShield()) for (int i = 0; i < chest.getSize() && shield == null; i++) {
@@ -283,9 +413,10 @@ public final class Guard extends Job {
             ItemStack want = armor.get(slot);
             if (!java.util.Objects.equals(e.getItem(slot).isEmpty() ? null : e.getItem(slot), want)) e.setItem(slot, want);
         }
-        ItemStack sword = tool(Tool.SWORD);
-        if (!java.util.Objects.equals(e.getItemInMainHand().isEmpty() ? null : e.getItemInMainHand(), sword)) w.hold(sword);
-        if (!java.util.Objects.equals(e.getItemInOffHand().isEmpty() ? null : e.getItemInOffHand(), shield)) e.setItemInOffHand(shield);
+        ItemStack weapon = weapon() == null ? null : tool(weapon());
+        if (!java.util.Objects.equals(e.getItemInMainHand().isEmpty() ? null : e.getItemInMainHand(), weapon)) w.hold(weapon);
+        ItemStack off = shieldResearched() ? shield : null; // a ranger keeps a knight's shield but doesn't carry it
+        if (!java.util.Objects.equals(e.getItemInOffHand().isEmpty() ? null : e.getItemInOffHand(), off)) e.setItemInOffHand(off);
     }
 
     // ---- work ---------------------------------------------------------------------------------------------------
@@ -294,7 +425,7 @@ public final class Guard extends Job {
     public void tick(Colonist w) {
         dress(w);
         if (hut.level < 1) {
-            w.setStatus("Knight: idle");
+            w.setStatus(title() + ": idle");
             w.wander(hut.block.getLocation().toCenterLocation());
             return;
         }
@@ -304,12 +435,14 @@ public final class Guard extends Job {
         if (fleeing) { retreat(w); return; }
         if (resting && rest(w)) return;
         if (napTicks > 0 && nap(w)) return;
-        if (target == null && --searchIn <= 0) {
+        if (target != null && !canFight()) target = null;
+        if (target == null && --searchIn <= 0 && canFight()) {
             searchIn = SEARCH_TICKS;
-            target = nearestEnemy(w);
+            target = druid() ? druidTarget(w) : nearestEnemy(w);
             if (target == null && toWake == null) toWake = napper(w);
         }
-        if (target != null) { fight(w); return; }
+        if (target != null && druid() && affected(target)) target = null; // the mod's druid moves on once its potion took
+        if (target != null) { if (ranger()) shoot(w); else if (druid()) throwPotion(w); else fight(w); return; }
         if (toWake != null && wake(w)) return;
         if (--napCheckIn <= 0) {
             napCheckIn = NAP_CHECK;
@@ -318,16 +451,17 @@ public final class Guard extends Job {
         if (w.isMoving() || --cooldown > 0) return;
 
         if (gearWaiting()) {
-            if (!atHut(w)) { w.setStatus("Knight: getting gear"); goToHut(w); return; }
+            if (!atHut(w)) { w.setStatus(title() + ": getting gear"); goToHut(w); return; }
             gearUp();
         }
-        note = hasTool(Tool.SWORD, null) ? null : "No sword: it fights with its fists. Put " + toolLabel(Tool.SWORD) + " in the tower's chest.";
+        note = weapon() == null || hasTool(weapon(), null) ? null : ranger() ? "No bow: it can't fight. Put " + toolLabel(Tool.BOW) + " in the tower's chest."
+                : "No sword: it fights with its fists. Put " + toolLabel(Tool.SWORD) + " in the tower's chest.";
         patrol(w);
     }
 
     /** Walks between the colony's built huts at random (the mod's automatic patrol), waiting a while at each. */
     private void patrol(Colonist w) {
-        w.setStatus("Knight: patrolling");
+        w.setStatus(title() + ": patrolling");
         if (patrolTo == null || !colony.huts.contains(patrolTo)) patrolTo = nextPatrolPoint();
         if (patrolTo == null) { w.wander(hut.block.getLocation().toCenterLocation()); return; }
         if (!w.isBeside(patrolTo.block)) { w.goBeside(patrolTo.block); return; }
@@ -342,7 +476,7 @@ public final class Guard extends Job {
     }
 
     private void fight(Colonist w) {
-        w.setStatus("Knight: fighting");
+        w.setStatus(title() + ": fighting");
         Location at = w.location(), there = target.getLocation();
         if (at.distance(there) > REACH) {
             // A new route only when it stopped or the target has moved away from where it was heading: each search costs time.
@@ -374,6 +508,160 @@ public final class Guard extends Job {
         ItemStack sword = tool(Tool.SWORD);
         double d = BASE_DAMAGE + (sword == null ? 0 : stat(sword, Attribute.ATTACK_DAMAGE)) + colony.research.effect(Effects.MELEE_DAMAGE);
         return w.health <= colony.health.max(w) * LOW_HEALTH ? d * 2 : d;
+    }
+
+    /**
+     * A ranger's fight (the mod's RangeCombatAI): it closes in until it sees the target within its range, then shoots
+     * every 3 s; one shot in 3 with the target very close, it steps back half its range first.
+     */
+    private void shoot(Colonist w) {
+        if (!readyFrom(w, range())) return;
+        attackIn = RANGED_DELAY;
+        var rnd = ThreadLocalRandom.current();
+        w.swing();
+        int shots = rnd.nextDouble() < colony.research.effect(Effects.DOUBLE_ARROWS) ? 2 : 1; // research: a second arrow
+        for (int i = 0; i < shots; i++) arrow(w);
+        wear(Tool.BOW, w);
+    }
+
+    /** One arrow at the target, aimed and sped up with distance as the mod's CombatUtils.shootArrow. */
+    private void arrow(Colonist w) {
+        LivingEntity body = w.living();
+        ItemStack bow = tool(Tool.BOW);
+        org.bukkit.entity.Arrow a = body.launchProjectile(org.bukkit.entity.Arrow.class);
+        Location from = a.getLocation();
+        double dx = target.getX() - from.getX(), dz = target.getZ() - from.getZ();
+        double dy = target.getBoundingBox().getMinY() + target.getHeight() / 2 - from.getY();
+        double flat = Math.sqrt(dx * dx + dz * dz), dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        var rnd = ThreadLocalRandom.current();
+        a.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + flat * AIM_HIGHER, dz), INACCURACY).multiply(ARROW_SPEED + dist / SPEED_FOR_DISTANCE));
+        a.setDamage(arrowDamage(w, bow));
+        a.setPickupStatus(org.bukkit.entity.AbstractArrow.PickupStatus.DISALLOWED);
+        a.addScoreboardTag(GUARD_ARROW);
+        if (bow != null) {
+            a.setWeapon(bow); // Punch knocks back, as the mod's
+            if (bow.containsEnchantment(org.bukkit.enchantments.Enchantment.FLAME)) a.setFireTicks(FLAME_TICKS);
+        }
+        if (colony.research.effect(Effects.ARROW_PIERCE) > 0) a.setPierceLevel(2);
+        body.getWorld().playSound(body.getLocation(), Sound.ENTITY_SKELETON_SHOOT, SoundCategory.NEUTRAL, 1, 1 / (rnd.nextFloat() * 0.4f + 0.8f));
+    }
+
+    /**
+     * A druid's fight (the mod's DruidCombatAI): it closes in to 3 blocks plus its tower level and throws a splash
+     * potion every 2 s (4 after an instant one): at a monster slowness, at a player in a fight strength, both for 5 s.
+     * With a splash potion of its own used up, the potion is level III and may be weakness, or saturation, healing or
+     * resistance (ours: any vanilla splash potion stands in for the mod's magic potion).
+     */
+    private void throwPotion(Colonist w) {
+        if (!readyFrom(w, druidRange())) return;
+        var rnd = ThreadLocalRandom.current();
+        boolean hostile = target instanceof Enemy, strong = use(Guard::isSplashPotion, 1) > 0;
+        var effect = hostile ? ADVERSE[rnd.nextInt(strong ? ADVERSE.length : 1)] : SUPPORT[rnd.nextInt(strong ? SUPPORT.length : 1)];
+        attackIn = effect.isInstant() ? DRUID_DELAY * 2 : DRUID_DELAY;
+        w.swing();
+        ItemStack potion = new ItemStack(Material.SPLASH_POTION);
+        potion.editMeta(org.bukkit.inventory.meta.PotionMeta.class, m -> {
+            m.addCustomEffect(new org.bukkit.potion.PotionEffect(effect, EFFECT_TICKS, strong ? 2 : 0), true);
+            m.setColor(effect.getColor());
+        });
+        LivingEntity body = w.living();
+        org.bukkit.entity.ThrownPotion thrown = body.launchProjectile(org.bukkit.entity.ThrownPotion.class);
+        thrown.setItem(potion);
+        thrown.addScoreboardTag(hostile ? ADVERSE_POTION : SUPPORT_POTION);
+        Location from = thrown.getLocation();
+        org.bukkit.util.Vector moving = target.getVelocity(); // it leads a moving target, as the mod's throwPotionAt
+        double dx = target.getX() + moving.getX() - from.getX(), dz = target.getZ() + moving.getZ() - from.getZ();
+        double dy = target.getEyeLocation().getY() - POTION_DROP - from.getY();
+        thrown.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + Math.sqrt(dx * dx + dz * dz) * POTION_AIM_HIGHER, dz), POTION_INACCURACY)
+                .multiply(POTION_SPEED));
+        body.getWorld().playSound(body.getLocation(), Sound.ENTITY_WITCH_THROW, SoundCategory.NEUTRAL, 1, 0.8f + rnd.nextFloat() * 0.4f);
+    }
+
+    private int druidRange() {
+        return DRUID_RANGE + hut.level;
+    }
+
+    /** Already under one of a druid's effects (the mod's wasAffectedByDruid). */
+    private static boolean affected(LivingEntity e) {
+        for (var t : ADVERSE) if (e.hasPotionEffect(t)) return true;
+        for (var t : SUPPORT) if (e.hasPotionEffect(t)) return true;
+        return false;
+    }
+
+    /**
+     * The nearest monster, or player a monster is after, that it sees and no druid's effect is on yet; none once more
+     * than 2 a tower level around it are under one (the mod's druid searchNearbyTarget).
+     */
+    private LivingEntity druidTarget(Colonist w) {
+        int r = vision(), under = 0;
+        LivingEntity best = null;
+        double bestD = Double.MAX_VALUE;
+        for (Entity e : w.location().getNearbyEntities(r, Y_VISION, r)) {
+            if (!(e instanceof LivingEntity l) || !valid(l)) continue;
+            boolean fighting = e instanceof org.bukkit.entity.Player p && p.getGameMode() == org.bukkit.GameMode.SURVIVAL && hunted(p);
+            if (!(e instanceof Enemy) && !fighting) continue;
+            if (affected(l)) { under++; continue; }
+            if (!w.living().hasLineOfSight(e)) continue;
+            double d = e.getLocation().distanceSquared(w.location());
+            if (d < bestD) { bestD = d; best = l; }
+        }
+        return under <= hut.level * 2 ? best : null;
+    }
+
+    /** A monster nearby is after this player (ours: the mod helps players a monster hurt in the last 30 s). */
+    private boolean hunted(org.bukkit.entity.Player p) {
+        for (Entity e : p.getNearbyEntities(HUNTED_RANGE, HUNTED_HEIGHT, HUNTED_RANGE)) if (e instanceof Mob m && e instanceof Enemy && m.getTarget() == p) return true;
+        return false;
+    }
+
+    /** Tag on a guard's arrows: they pass through citizens, players and tame animals (MineCP). */
+    public static final String GUARD_ARROW = "minecp_guard_arrow";
+
+    /**
+     * A ranged guard's approach (the mod's AttackMoveAI and its ranged doAttack): it walks until it sees the target
+     * within {@code range} (plus how far above it it stands); then, ready to attack, one time in 3 with the target
+     * very close it first steps back half its range. @return true to attack now.
+     */
+    private boolean readyFrom(Colonist w, int range) {
+        w.setStatus(title() + ": fighting");
+        Location at = w.location(), there = target.getLocation();
+        if (at.distance(there) > range + (at.getY() - there.getY()) || !w.living().hasLineOfSight(target)) {
+            if (!w.isMoving() || chasing == null || chasing.distance(there) > 2) { w.walk(there); chasing = there.clone(); }
+            return false;
+        }
+        chasing = null;
+        if (attackIn > 0) return false;
+        if (at.distanceSquared(there) < FLEE_DISTANCE_SQ && ThreadLocalRandom.current().nextInt(FLEE_ODDS) == 0) {
+            org.bukkit.util.Vector away = at.toVector().subtract(there.toVector()).setY(0);
+            if (away.lengthSquared() > 0) w.walk(at.clone().add(away.normalize().multiply(range / 2.0)));
+        } else w.stopWalking();
+        return true;
+    }
+
+    /** {@code aim} made a unit vector, with vanilla Projectile.shoot's triangular wobble per axis for this inaccuracy. */
+    private static org.bukkit.util.Vector wobble(org.bukkit.util.Vector aim, double inaccuracy) {
+        var rnd = ThreadLocalRandom.current();
+        double spread = 0.0172275 * inaccuracy;
+        return aim.normalize().add(new org.bukkit.util.Vector(spread * (rnd.nextDouble() - rnd.nextDouble()),
+                spread * (rnd.nextDouble() - rnd.nextDouble()), spread * (rnd.nextDouble() - rnd.nextDouble())));
+    }
+
+    /**
+     * The mod's calculateDamage: Power's level, research's, and 2 with an arrow from its stock (research), doubled at
+     * 20% health or less and 1.5x on a critical hit; then its base 2. (No skills: the mod's agility share is 0.)
+     */
+    private double arrowDamage(Colonist w, ItemStack bow) {
+        double d = colony.research.effect(Effects.ARCHER_DAMAGE);
+        if (bow != null) d += bow.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.POWER);
+        if (arrowsResearched() && use(Guard::isArrow, 1) > 0) d += ARROW_DAMAGE; // ours: used up on the shot, the mod's on a hit
+        if (w.health <= colony.health.max(w) * LOW_HEALTH) d *= 2;
+        if (ThreadLocalRandom.current().nextDouble() > 1 / (1 + colony.research.effect(Effects.GUARD_CRIT))) d *= CRIT;
+        return RANGED_BASE_DAMAGE + d;
+    }
+
+    /** How far a ranger shoots: 10 blocks and one a tower level, at most 24 (the mod's getAttackDistance; no skills). */
+    private int range() {
+        return Math.min(RANGE_BASE + hut.level, RANGE_MAX);
     }
 
     /**
@@ -413,7 +701,7 @@ public final class Guard extends Job {
         if (rnd.nextInt(NAP_ODDS) != 1 || rnd.nextDouble() >= 1 / (1 + colony.research.effect(Effects.SLEEP_LESS))) return false;
         napTicks = NAP_MIN + rnd.nextInt(NAP_SPREAD);
         w.sitOn(w.location().getBlock());
-        w.setStatus("Knight: napping");
+        w.setStatus(title() + ": napping");
         return true;
     }
 
@@ -444,7 +732,7 @@ public final class Guard extends Job {
     /** Walks to the napping knight and wakes it (ours: with a shake; the mod's poke takes 1 health). @return true while at it. */
     private boolean wake(Colonist w) {
         if (!(colony.jobOf(toWake) instanceof Guard g) || g.napTicks == 0 || ++wakeFor > WAKE_GIVE_UP) { toWake = null; wakeFor = 0; return false; }
-        w.setStatus("Knight: waking a guard");
+        w.setStatus(title() + ": waking a guard");
         if (w.location().distanceSquared(toWake.location()) > WAKE_REACH) {
             if (!w.isMoving()) w.walk(toWake.location());
             return true;
@@ -470,7 +758,7 @@ public final class Guard extends Job {
     }
 
     private void retreat(Colonist w) {
-        w.setStatus("Knight: retreating");
+        w.setStatus(title() + ": retreating");
         if (w.isMoving()) return;
         if (!atHut(w)) { goToHut(w); return; }
         fleeing = false;
@@ -489,7 +777,7 @@ public final class Guard extends Job {
             resting = false;
             return false;
         }
-        w.setStatus("Knight: resting");
+        w.setStatus(title() + ": resting");
         if (restTicks % REST_HEAL == 0) w.health = Math.min(max, w.health + 1);
         return true;
     }

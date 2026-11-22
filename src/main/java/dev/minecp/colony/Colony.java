@@ -57,7 +57,7 @@ public final class Colony {
     public record Decoration(String structure, String name, Location origin, StructureRotation rotation, boolean mirror) {}
     public final List<Decoration> decorations = new ArrayList<>(); // waiting for the builder, after the huts' work orders
     public Decoration building; // the build without a hut the builder works on; saved
-    public final List<Job> jobs = new ArrayList<>(); // one per worker hut
+    public final List<Job> jobs = new ArrayList<>(); // one per worker (a barracks tower has one a level)
     public final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
     public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     public static final String DEFAULT_STYLE = "medievaloak";
@@ -347,11 +347,14 @@ public final class Colony {
         return hut;
     }
 
+    /** Gives the hut as many jobs as its level allows (at least one), keeping those it has. */
     void addJob(Hut hut) {
         if (hut.type.job == null) return;
-        Job job = hut.type.job.apply(hut, this);
-        if (job instanceof Builder b) wire(builder = b);
-        jobs.add(job);
+        for (int n = jobsAt(hut).size(); n < Math.max(1, hut.type.workers(hut.level)); n++) {
+            Job job = hut.type.job.apply(hut, this);
+            if (job instanceof Builder b) wire(builder = b);
+            jobs.add(job);
+        }
     }
 
     /** The fields a farmer works: farmers, oldest hut first, each take the oldest fields left, one per hut level. */
@@ -373,9 +376,15 @@ public final class Colony {
         return null;
     }
 
+    /** The hut's (first) job, or null. */
     public Job jobAt(Hut hut) {
         for (Job j : jobs) if (j.hut == hut) return j;
         return null;
+    }
+
+    /** Every job at the hut, in hiring order. */
+    public List<Job> jobsAt(Hut hut) {
+        return jobs.stream().filter(j -> j.hut == hut).toList();
     }
 
     public Job jobOf(Colonist c) {
@@ -402,14 +411,22 @@ public final class Colony {
     public void removeHut(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
         if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
-        Job job = jobAt(hut);
-        if (job != null) {
+        for (Job job : jobsAt(hut)) {
             job.dropCarried();
             jobs.remove(job);
             if (job == builder) {
                 builder = null;
                 if (building != null) { decorations.addFirst(building); building = null; } // built again by the next builder
             }
+        }
+        for (Hut tower : towers(hut)) { // the mod clears its towers' hut blocks
+            removeHut(tower);
+            if (tower.block.getState(false) instanceof org.bukkit.block.Container ct) { // ours: what is in them drops
+                Location at = tower.block.getLocation().toCenterLocation();
+                for (ItemStack i : ct.getInventory().getContents()) if (i != null) at.getWorld().dropItemNaturally(at, i);
+                ct.getInventory().clear();
+            }
+            tower.block.setType(Material.AIR);
         }
         for (Colonist c : colonists) if (c.home == hut) c.home = null;
         if (hut.type == Hut.Type.TAVERN) visitors.tavernRemoved(hut);
@@ -442,6 +459,8 @@ public final class Colony {
                 return;
             }
             done.hut().level = done.level();
+            addJob(done.hut()); // a barracks tower takes another guard each level
+            if (done.hut().type == Hut.Type.BARRACKS) addTowers(done.hut(), order);
             assignHomes();
             assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
@@ -450,6 +469,34 @@ public final class Colony {
             milestones.built(done.hut().type, done.level());
         });
         b.protect = this::isHutBlock;
+    }
+
+    /**
+     * The towers that came with the barracks (its blueprint's barracks tower hut blocks: one more each level), as
+     * huts turned and mirrored as the barracks and in its version (the mod's registerBlockPosition).
+     */
+    private void addTowers(Hut barracks, BuildOrder order) {
+        for (var e : order.subHuts.entrySet()) {
+            Block b = e.getKey();
+            if (!e.getValue().equals(Hut.Type.BARRACKS_TOWER.modId()) || hutAt(b) != null || b.getType() != Hut.Type.BARRACKS_TOWER.block) continue;
+            Hut tower = addHut(Hut.Type.BARRACKS_TOWER, b);
+            tower.barracks = barracks;
+            tower.rotation = order.rotation;
+            tower.mirror = order.mirror;
+            tower.blueprint = barracks.blueprint == null ? null : barracks.blueprint + "tower"; // altbarracks: altbarrackstower
+            dev.minecp.ChestNames.name(b, tower.type.title);
+        }
+    }
+
+    /** Chunks claimed around the hut's chunk: a barracks 3 once all its towers are level 4, else 2 (the mod's); others by type. */
+    int claimRadius(Hut h) {
+        if (h.type != Hut.Type.BARRACKS || h.level == 0) return h.type.claimRadius(h.level);
+        return towers(h).stream().anyMatch(t -> t.level < 4) ? 2 : 3;
+    }
+
+    /** A barracks' towers. */
+    public List<Hut> towers(Hut barracks) {
+        return huts.stream().filter(t -> t.barracks == barracks).toList();
     }
 
     private boolean isHutBlock(Block block) {
@@ -509,6 +556,8 @@ public final class Colony {
         // Ours: refused here with one builder, where the mod queues it for a builder that can take it.
         if (hut != builder.hut && builder.hut.level < Hut.MAX_LEVEL && next > builder.hut.level)
             return "The builder builds only up to its own hut's level: upgrade the Builder's Hut to level " + next + " first.";
+        if (hut.type == Hut.Type.BARRACKS_TOWER && (hut.barracks == null || next > hut.barracks.level)) // the mod's
+            return "Upgrade the Barracks first: its towers go no higher than it.";
         if (!BuildOrder.exists(hut.structure(style, next))) return "Structure " + hut.structure(style, next) + " not found.";
         int[] box = hut.type.isBuilding() ? BuildOrder.footprint(hut.structure(style, next), hut.block, hut.rotation, hut.mirror) : null;
         if (box != null) for (long k : Claims.chunks(box)) { // unclaimed land is fine: the building claims it, as in the mod

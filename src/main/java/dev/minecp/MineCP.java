@@ -470,6 +470,23 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getEntity().getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) e.setCancelled(true);
     }
 
+    /** A guard's arrows hit only monsters: they fly on through citizens, players, pets and other animals (ours). */
+    @EventHandler(ignoreCancelled = true)
+    public void onGuardArrow(org.bukkit.event.entity.ProjectileHitEvent e) {
+        if (e.getHitEntity() != null && !(e.getHitEntity() instanceof org.bukkit.entity.Enemy)
+                && e.getEntity().getScoreboardTags().contains(dev.minecp.job.Guard.GUARD_ARROW)) e.setCancelled(true);
+    }
+
+    /** A druid's potions: harmful ones touch only monsters, helpful ones only the rest (the mod's DruidPotionEntity predicate). */
+    @EventHandler(ignoreCancelled = true)
+    public void onDruidPotion(org.bukkit.event.entity.PotionSplashEvent e) {
+        var tags = e.getEntity().getScoreboardTags();
+        boolean adverse = tags.contains(dev.minecp.job.Guard.ADVERSE_POTION);
+        if (!adverse && !tags.contains(dev.minecp.job.Guard.SUPPORT_POTION)) return;
+        for (var hit : e.getAffectedEntities())
+            if (hit instanceof org.bukkit.entity.Enemy != adverse) e.setIntensity(hit, 0);
+    }
+
     /** Hits on a citizen's body or legs hurt the citizen instead (Colony.hurt). */
     @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
     public void onDamage(org.bukkit.event.entity.EntityDamageEvent e) {

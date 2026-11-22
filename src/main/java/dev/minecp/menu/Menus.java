@@ -108,19 +108,26 @@ public final class Menus {
             }
             default -> {}
         }
-        Job job = c.jobAt(h);
+        List<Job> jobs = c.jobsAt(h); // a barracks tower has a guard a level
+        Job job = jobs.isEmpty() ? null : jobs.getFirst();
         if (job != null) { // every worker hut: who works it and what it is doing, then what that job shows
-            Colonist worker = c.worker(job);
-            if (h.type.worker != null) body.add(text(Component.text(worker == null ? "No " + h.type.worker.toLowerCase() + (h.level < 1 && job != c.builder
-                    ? " until level 1 is built." : ": every citizen has a job.")
-                    : worker.name + " — " + worker.status())));
+            for (Job j : jobs) {
+                Colonist worker = c.worker(j);
+                String who = jobs.size() > 1 ? j.title() + ": " : "";
+                if (h.type.worker != null) body.add(text(Component.text(who + (worker == null ? "No " + h.type.worker.toLowerCase()
+                        + (h.level < 1 && j != c.builder ? " until level 1 is built." : ": every citizen has a job.")
+                        : worker.name + " — " + worker.status()))));
+                if (j.note != null) body.add(text(Component.text(j.note, NamedTextColor.YELLOW)));
+            }
             job.info(c).forEach(line -> body.add(text(line)));
-            if (job.note != null) body.add(text(Component.text(job.note, NamedTextColor.YELLOW)));
         }
 
         List<ActionButton> buttons = new ArrayList<>();
-        if (job != null && !c.requests.of(job).isEmpty()) // a list of its own: the builder can wait for dozens of things
-            buttons.add(button("Requests (" + c.requests.of(job).size() + ")", p, c, h, player -> requests(player, c, h, job)));
+        for (Job j : jobs) if (!c.requests.of(j).isEmpty()) { // a list of its own: the builder can wait for dozens of things
+            Colonist worker = c.worker(j);
+            String whose = jobs.size() > 1 && worker != null ? ": " + worker.name : "";
+            buttons.add(button("Requests" + whose + " (" + c.requests.of(j).size() + ")", p, c, h, player -> requests(player, c, h, j)));
+        }
         if (h.type.isBuilding() && up == null && h.level < h.type.maxLevel())
             buttons.add(order(h.level == 0 ? "Build level 1" : "Upgrade to level " + (h.level + 1), p, c, h, () -> c.requestUpgrade(h, plugin.claims)));
         if (h.type.removable() && up == null && h.level > 0)
@@ -148,13 +155,19 @@ public final class Menus {
                     player -> teachSmelting(player, c, h, cr)));
         }
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
-            Colonist worker = job == null ? null : c.worker(job);
-            if (worker != null) buttons.add(button("Fire " + worker.name, p, c, h, Action.MANAGE_HUTS, player -> {
-                if (c.worker(job) != null) c.fire(job);
-                plugin.save(c);
-                hut(player, c, h);
-            }));
-            else if (job != null && c.canHire(job)) buttons.add(button("Hire a " + h.type.worker.toLowerCase(), p, c, h, player -> hire(player, c, h, job)));
+            boolean offered = false; // one Hire button, for the first open job
+            for (Job j : jobs) {
+                Colonist worker = c.worker(j);
+                if (worker != null) buttons.add(button("Fire " + worker.name, p, c, h, Action.MANAGE_HUTS, player -> {
+                    if (c.worker(j) != null) c.fire(j);
+                    plugin.save(c);
+                    hut(player, c, h);
+                }));
+                else if (!offered && c.canHire(j)) {
+                    offered = true;
+                    buttons.add(button("Hire a " + h.type.worker.toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
+                }
+            }
             if (h.type.isHome()) {
                 if (c.residents(h).size() < h.type.rooms(h.level)) buttons.add(button("Move someone in", p, c, h, player -> moveIn(player, c, h)));
                 for (Colonist x : c.residents(h)) buttons.add(button("Move out " + x.name, p, c, h, Action.MANAGE_HUTS, player -> {
@@ -205,7 +218,7 @@ public final class Menus {
             case CHOICE -> {
                 List<SingleOptionDialogInput.OptionEntry> options = new ArrayList<>();
                 for (String o : s.options())
-                    options.add(SingleOptionDialogInput.OptionEntry.create(o, Component.text(Job.name(Material.valueOf(o))), o.equals(h.setting(s.key()))));
+                    options.add(SingleOptionDialogInput.OptionEntry.create(o, Component.text(choiceLabel(o)), o.equals(h.setting(s.key()))));
                 inputs.add(DialogInput.singleOption(s.key(), Component.text(s.label()), options).width(250).build());
             }
             case BLOCK -> {
@@ -801,5 +814,11 @@ public final class Menus {
 
     private ActionButton button(String label, Player shownTo, Colony c, Hut h, BiConsumer<Player, DialogResponseView> action) {
         return Dialogs.button(plugin, label, 200, shownTo, () -> c.huts.contains(h), action);
+    }
+
+    /** An item's name, or a word option's ("RANGER": "Ranger"). */
+    private static String choiceLabel(String option) {
+        Material m = Material.matchMaterial(option);
+        return m != null ? Job.name(m) : option.charAt(0) + option.substring(1).toLowerCase();
     }
 }

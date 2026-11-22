@@ -49,6 +49,11 @@ public abstract class Job {
 
     // ---- what a kind of job adds: the hut menu, saving, shutting down ----------------------------------------
 
+    /** What its worker is called in the hut menu ("Cook"; a guard by its type). */
+    public String title() {
+        return hut.type.worker;
+    }
+
     /** Lines for the hut menu, under the worker and its status (the note is added after them). */
     public List<Component> info(Colony c) {
         return List.of();
@@ -101,6 +106,13 @@ public abstract class Job {
     /** What this hut wants delivered from the warehouse. */
     public List<Want> wants() {
         return List.of();
+    }
+
+    /** What the hut chest keeps of {@code item} for every job at the hut (a barracks tower's guards share it). */
+    int keptHere(ItemStack item) {
+        long n = 0;
+        for (Job j : colony.jobsAt(hut)) n += j.keep(item);
+        return (int) Math.min(n, Integer.MAX_VALUE); // most keep everything: MAX_VALUE
     }
 
     /** How many of this item the hut keeps in its chest; a courier takes the rest to the warehouse. */

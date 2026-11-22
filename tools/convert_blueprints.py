@@ -182,6 +182,12 @@ def sit_spots(root):
     return spots
 
 
+def primary_offset(root):
+    """Structurize's primary offset (optional_data.structurize.primary_offset) as (x, y, z), or None."""
+    off = nbt.plain((nbt.COMPOUND, root.get("optional_data", (nbt.COMPOUND, {}))[1])).get("structurize", {}).get("primary_offset")
+    return (off["x"], off["y"], off["z"]) if off else None
+
+
 def convert(path, blocks, siblings=()):
     """siblings: the same blueprint in other style packs, to borrow seats from when this one has no tags."""
     root = nbt.load(path)
@@ -194,6 +200,9 @@ def convert(path, blocks, siblings=()):
             pos = tuple(t_typed[k][1] for k in ("x", "y", "z"))
             tes[pos] = t_typed
     out_palette, out_index, out_blocks, out_entities = [], {}, [], []
+    # Structurize's primary offset is the building's own hut block; other hut blocks in it are other buildings' (a
+    # barracks' towers). Without one, every hut block counts as the building's.
+    primary = primary_offset(root)
     notes = collections.defaultdict(list)
     stairs = set()
     for pos, idx in read_blocks(root["blocks"][1], sx, sy, sz):
@@ -230,12 +239,19 @@ def convert(path, blocks, siblings=()):
             # plugin reads to register the field.
             out_entities.append(marker(pos, [FIELD_TAG]))
         elif state["Name"].startswith("minecolonies:blockhut"):  # Paper data tag the plugin anchors builds on
-            block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
-                                           "PublicBukkitValues": (nbt.COMPOUND, {"minecp:hut": (nbt.BYTE, 1)})})
+            tag = {"minecp:hut": (nbt.BYTE, 1)} if primary is None or tuple(pos) == primary \
+                else {"minecp:subhut": (nbt.STRING, state["Name"].split(":", 1)[1].removeprefix("blockhut"))}
+            block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"), "PublicBukkitValues": (nbt.COMPOUND, tag)})
         elif state["Name"] == RACK:  # a chest standing in for the mod's storage rack, tagged for a custom model later
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {RACK_TAG: (nbt.BYTE, 1)})})
         out_blocks.append(block)
+    tagged = [b["nbt"][1]["PublicBukkitValues"][1] for b in out_blocks
+              if "nbt" in b and "PublicBukkitValues" in b["nbt"][1]]
+    if not any("minecp:hut" in t for t in tagged):  # the primary offset isn't on a hut block: every hut block counts
+        for t in tagged:
+            if t.pop("minecp:subhut", None) is not None:
+                t["minecp:hut"] = (nbt.BYTE, 1)
     seats = sit_spots(root)
     for other in siblings:  # some packs' blueprints lost their tags (medieval birch's taverns 2 and 3): the same
         if seats:           # building in another style, where each of its seats is a stair here too

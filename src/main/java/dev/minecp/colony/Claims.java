@@ -50,7 +50,7 @@ public final class Claims {
         Set<Long> out = core(c);
         int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4;
         for (Hut h : c.huts) {
-            square(out, h.block.getX() >> 4, h.block.getZ() >> 4, h.type.claimRadius(h.level), cx, cz);
+            square(out, h.block.getX() >> 4, h.block.getZ() >> 4, c.claimRadius(h), cx, cz);
             int[] box = c.footprint(h); // the building as built, or null
             if (box != null) for (long k : chunks(box)) if (near(x(k), z(k), cx, cz)) out.add(k);
         }

@@ -54,13 +54,22 @@ public final class Settings {
     public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
-            CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit";
+            CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
     private static final Setting BREED = bool(BREEDING, "Breed animals");
 
     private Settings() {}
+
+    /** The guard type of a hut's {@code slot}th guard (from 0): knight by default. */
+    public static String guardTypeKey(int slot) {
+        return slot == 0 ? GUARD_TYPE : GUARD_TYPE + "_" + (slot + 1);
+    }
+
+    private static Setting guardType(int slot, String label, String... types) {
+        return new Setting(guardTypeKey(slot), label, Kind.CHOICE, types[0], 0, 0, List.of(types));
+    }
 
     /** The settings a hut of this type has, in menu order. */
     public static List<Setting> of(Hut.Type t) {
@@ -82,6 +91,10 @@ public final class Settings {
                             org.bukkit.Material.CLAY, org.bukkit.Material.CLAY_BALL, org.bukkit.Material.BONE_MEAL,
                             org.bukkit.Material.COBBLESTONE, org.bukkit.Material.TUFF),
                     number(DAILY_LIMIT, "How many a day (0: only what huts ask for)", 0, 0, 4096));
+            // ours: the mod picks the guard type with its hiring modules (knight, ranger, druid), here a choice
+            case GUARD_TOWER -> List.of(guardType(0, "Guard type", "KNIGHT", "RANGER")); // the mod's: druids only in barracks towers
+            case BARRACKS_TOWER -> java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
+                    .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")).toList();
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));
             case COWBOY -> List.of(BREED, number(MILKING, "Buckets of milk each time", 1, 0, 64),

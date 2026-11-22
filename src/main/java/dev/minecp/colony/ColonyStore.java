@@ -22,6 +22,11 @@ import java.util.UUID;
 public final class ColonyStore {
     private ColonyStore() {}
 
+    /** A job's section: its hut's index, and which of the hut's jobs it is (a barracks tower has several). */
+    private static String jobKey(Colony colony, Job j) {
+        return "jobs." + colony.huts.indexOf(j.hut) + "_" + colony.jobsAt(j.hut).indexOf(j);
+    }
+
     public static void save(Colony colony, ConfigurationSection s) {
         s.set("name", colony.name);
         s.set("style", colony.style);
@@ -48,6 +53,7 @@ public final class ColonyStore {
             if (h.rotation != null) hs.set("rotation", h.rotation.name());
             hs.set("mirror", h.mirror);
             if (h.blueprint != null) hs.set("blueprint", h.blueprint);
+            if (h.barracks != null) hs.set("barracks", colony.huts.indexOf(h.barracks));
             if (h.hiring != Settings.Hiring.DEFAULT) hs.set("hiring", h.hiring.name());
             h.settings.forEach((k, v) -> hs.set("settings." + k, v));
             if (h.type == Hut.Type.FIELD) {
@@ -64,7 +70,7 @@ public final class ColonyStore {
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
             if (colony.workOrders.get(i).remove()) s.set("work-orders." + i + ".remove", true);
         }
-        for (Job j : colony.jobs) j.save(s.createSection("jobs." + colony.huts.indexOf(j.hut)), colony);
+        for (Job j : colony.jobs) j.save(s.createSection(jobKey(colony, j)), colony);
         colony.requests.save(s.createSection("requests")); // crafters keep the requests they took
         for (Colonist c : colony.colonists) {
             var cs = s.createSection("citizens." + c.id);
@@ -124,6 +130,11 @@ public final class ColonyStore {
         }
         Colony colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
         colony.huts.addAll(huts.subList(1, huts.size()));
+        for (String i : hutSections.getKeys(false)) { // a barracks tower's barracks, by its index
+            int b = hutSections.getInt(i + ".barracks", -1);
+            Hut tower = colony.hutByIndex(Integer.parseInt(i));
+            if (b >= 0 && tower != null) tower.barracks = colony.hutByIndex(b);
+        }
         colony.style = s.getString("style", colony.style);
         colony.day = s.getInt("day");
         colony.founded = s.getLong("founded");
@@ -198,7 +209,7 @@ public final class ColonyStore {
 
         for (Hut h : colony.huts) colony.addJob(h);
         for (Job j : colony.jobs) {
-            var js = s.getConfigurationSection("jobs." + colony.huts.indexOf(j.hut));
+            var js = s.getConfigurationSection(jobKey(colony, j));
             if (js != null) j.load(js, colony);
         }
         // The builder carries on with the build it saved; without one (or its order), the build waits in the queue again.
