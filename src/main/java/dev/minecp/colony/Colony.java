@@ -682,6 +682,7 @@ public final class Colony {
                 c.pace = walking * job.pace(); // only while working: an undertaker runs to a grave, not to bed or a meal
                 job.tick(c);
             }
+            else if (c.child && dev.minecp.job.Teacher.schoolOf(this, c) instanceof dev.minecp.job.Teacher school) school.pupilTick(c); // to school
             else {
                 c.setStatus(c.child ? "Playing" : "Unemployed");
                 c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());

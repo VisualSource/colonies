@@ -51,7 +51,8 @@ public final class Items implements Listener {
             RecipeChoice centre = type == Hut.Type.TOWN_HALL ? tool : type.centre == null ? null : type.centre.get();
             if (centre == null) continue;
             ShapedRecipe r = new ShapedRecipe(key(type.name().toLowerCase()), hutItem(type));
-            r.shape("PTP", type.sides != null ? "SXS" : "PXP", "PPP");
+            // the School's recipe has its feather in the middle twice over (the mod's)
+            r.shape("PTP", type.sides != null ? "SXS" : "PXP", type == Hut.Type.SCHOOL ? "PXP" : "PPP");
             r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
             if (type.sides != null) r.setIngredient('S', type.sides.get());
             r.setIngredient('T', tool);

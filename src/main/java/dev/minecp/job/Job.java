@@ -105,7 +105,8 @@ public abstract class Job {
             case RABBIT_HUTCH -> sk(AGILITY, ATHLETICS);
             case GRAVEYARD -> sk(STRENGTH, MANA);
             case HOSPITAL -> sk(MANA, KNOWLEDGE);
-            case UNIVERSITY -> sk(KNOWLEDGE, MANA);
+            case UNIVERSITY, SCHOOL -> sk(KNOWLEDGE, MANA);
+            case LIBRARY -> sk(INTELLIGENCE, INTELLIGENCE);
             case PLANTATION -> sk(AGILITY, DEXTERITY);
             case BEEKEEPER -> sk(DEXTERITY, ADAPTABILITY);
             case GUARD_TOWER, BARRACKS_TOWER -> sk(ADAPTABILITY, STAMINA); // a knight's; Guard picks by its type

@@ -356,7 +356,7 @@ public final class Colonist {
      */
     public void gainExperience(double xp, Skills.Skill primary, Skills.Skill secondary, int workLevel, double research) {
         if (saturation <= 0) return;
-        int homeLevel = home == null ? 0 : home.level, homeMax = home == null ? Hut.MAX_LEVEL : home.type.maxLevel();
+        int homeLevel = homeLevel(), homeMax = homeMax();
         double local = xp * (1 + (workLevel + homeLevel) / 10.0);
         local += local * skills.level(Skills.Skill.INTELLIGENCE) / 100.0;
         local *= 1 + research;
@@ -366,11 +366,7 @@ public final class Colonist {
         up |= skills.add(secondary, local / 2, homeLevel, homeMax);
         if (secondary.complementary() != null) up |= skills.add(secondary.complementary(), local * SECONDARY_SHARE / 100, homeLevel, homeMax);
         if (secondary.adverse() != null) skills.remove(secondary.adverse(), local * SECONDARY_SHARE / 100);
-        if (up && body != null && body.isValid()) { // the mod's levelUp: its success sound and happy villager sparkles
-            Location at = body.getLocation();
-            at.getWorld().playSound(at, Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.NEUTRAL, 0.5f, 1.5f);
-            at.getWorld().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, at.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
-        }
+        if (up) levelUp();
     }
 
     private static final int MAX_XP_PULLS = 5; // MAX_XP_PICKUP_ATTEMPTS
@@ -427,6 +423,28 @@ public final class Colonist {
     private static int orbSize(int xp) {
         for (int size : new int[]{2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3}) if (xp >= size) return size;
         return 1;
+    }
+
+    /** Experience straight into one skill (a lesson, a study), within its home's limit; a level up shows. */
+    public void learn(Skills.Skill s, double xp) {
+        if (skills.add(s, xp, homeLevel(), homeMax())) levelUp();
+    }
+
+    private int homeLevel() {
+        return home == null ? 0 : home.level;
+    }
+
+    /** Its home's top level (homeless: the mod's MAX_BUILDING_LEVEL), for the skill limit. */
+    private int homeMax() {
+        return home == null ? Hut.MAX_LEVEL : home.type.maxLevel();
+    }
+
+    /** The mod's levelUp: its success sound and happy villager sparkles. */
+    private void levelUp() {
+        if (body == null || !body.isValid()) return;
+        Location at = body.getLocation();
+        at.getWorld().playSound(at, Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.NEUTRAL, 0.5f, 1.5f);
+        at.getWorld().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, at.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
     }
 
     public String status() {

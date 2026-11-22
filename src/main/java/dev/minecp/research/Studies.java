@@ -36,11 +36,9 @@ public final class Studies {
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
-            Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
-            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"),
-            Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
-            Map.entry("netherworker", "Nether Mine"), Map.entry("beekeeper", "Apiary"), Map.entry("florist", "Flower Shop"),
+            Map.entry("archery", "Archery"), Map.entry("combatacademy", "Combat Academy"),
+            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("stable", "Stable"),
+            Map.entry("netherworker", "Nether Mine"), Map.entry("florist", "Flower Shop"),
             Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
@@ -140,6 +138,7 @@ public final class Studies {
             case Effects.WORK_LONGER -> "Citizens work " + n + (v == 1 ? " hour" : " hours") + " later into the evening";
             case Effects.GRAVE_DECAY -> "Graves last " + n + " minutes longer";
             case Effects.RESURRECT_CHANCE -> "The undertaker is " + pct + " likelier to bring someone back (at most 2.5% in all)";
+            case Effects.TEACHING -> "Pupils learn " + pct + " more from their lessons and their paper";
             case Effects.LEVELING -> "Citizens learn " + pct + " faster from their work";
             case Effects.UNDERTAKER_RUN -> "The undertaker runs to graves";
             case Effects.BREAK_SPEED -> v >= 1 ? "Workers break blocks with no wait" : "Workers break blocks in " + pct + " less time";

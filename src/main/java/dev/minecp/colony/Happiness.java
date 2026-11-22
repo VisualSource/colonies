@@ -35,7 +35,8 @@ public final class Happiness {
     public List<Factor> factors(Colonist c) {
         Job job = colony.jobOf(c);
         List<Factor> f = new ArrayList<>();
-        f.add(new Factor("School", 1, c.child ? 0 : 1)); // no school yet: a child is never a pupil
+        // the mod's: a pupil 2, a child with no school place 0, adults 1
+        f.add(new Factor("School", 1, !c.child ? 1 : dev.minecp.job.Teacher.schoolOf(colony, c) != null ? 2 : 0));
         f.add(new Factor("Security", 4, security()));
         f.add(new Factor("Social life", 2, social()));
         f.add(new Factor("Food", 3, food(c)));

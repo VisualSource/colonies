@@ -66,6 +66,7 @@ public final class Advancements {
         add("production/build_all_herders", "production/build_farmer", "shears", "The Whole Herd",
                 "Finish a chicken farmer's, cowhand's, shepherd's and swineherd's hut and a rabbit hutch", "goal");
         add("production/build_composter", "production/build_farmer", "composter", "Rich Soil", "Finish a Composter's Hut", "task");
+        add("production/build_library", PRODUCTION, "bookshelf", "Bookworms", "Finish a Library", "task");
         add("production/build_cook", PRODUCTION, "cooked_beef", "Soup's On", "Finish a Cook's Hut", "task");
         add("production/build_baker", "production/build_cook", "bread", "Fresh From the Oven", "Finish a Bakery", "task");
         add("production/build_warehouse", PRODUCTION, "chest", "A Place for Everything", "Finish the Warehouse", "task");
@@ -110,6 +111,7 @@ public final class Advancements {
             case BAKER -> level == 1 ? "production/build_baker" : null;
             case FISHERMAN -> level == 1 ? "production/build_fisherman" : null;
             case COMPOSTER -> level == 1 ? "production/build_composter" : null;
+            case LIBRARY -> level == 1 ? "production/build_library" : null;
             case TAVERN -> level == 1 ? "minecolonies/build_tavern" : null;
             case WAREHOUSE -> level == 1 ? "production/build_warehouse" : null;
             case COURIER -> level == 1 ? "production/build_delivery_person" : null;

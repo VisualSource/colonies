@@ -23,6 +23,8 @@ import dev.minecp.job.PostBox;
 import dev.minecp.job.Researcher;
 import dev.minecp.job.Sifter;
 import dev.minecp.job.Stash;
+import dev.minecp.job.Student;
+import dev.minecp.job.Teacher;
 import dev.minecp.job.Undertaker;
 
 import org.bukkit.Material;
@@ -141,6 +143,11 @@ public final class Hut {
         // Comes with a barracks (no recipe, as in the mod): as many guards as its level, never above the barracks' level
         BARRACKS_TOWER("Barracks Tower", Material.CHEST, "military/barrackstower", "barrackstower", "Part of a barracks: one guard per level",
                 null, "Guard", Guard::new, false),
+        // Unlocked by research; the mod's recipes: a feather in the middle and below it, a book in the middle
+        SCHOOL("School", Material.CHEST, "education/school", "school", "A teacher teaches the colony's children, who learn from paper",
+                () -> new RecipeChoice.MaterialChoice(Material.FEATHER), "Teacher", Teacher::new, false),
+        LIBRARY("Library", Material.CHEST, "education/library", "library", "Citizens study here with paper and books, growing their intelligence",
+                () -> new RecipeChoice.MaterialChoice(Material.BOOK), "Student", Student::new, false),
         // The mod's research building; its recipe is its own (books under the Build Tool: Items)
         UNIVERSITY("University", Material.CHEST, "education/university", "university", "A researcher studies here: research unlocks huts and improvements",
                 null, "Researcher", Researcher::new, false),
@@ -270,7 +277,7 @@ public final class Hut {
 
         /** How many work here at {@code level}: a barracks tower's guards, one per level (the mod's); one elsewhere. */
         int workers(int level) {
-            return this == BARRACKS_TOWER ? level : 1;
+            return this == BARRACKS_TOWER ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
         }
 
         private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
