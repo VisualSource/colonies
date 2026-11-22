@@ -36,7 +36,7 @@ import java.util.function.Predicate;
  * asks for the ingredients like any hut; what it makes waits in its chest until a courier takes it straight to the hut
  * that asked, as the mod's delivery requests do. Smelters (the mod's AbstractEntityAIRequestSmelter) learn furnace
  * recipes and smelt in the furnaces of their building, with fuel they ask for; the Smeltery knows every ore and also
- * smelts whatever ore it is brought.
+ * smelts whatever ore it is brought. The Dyer and Glassblower do both, as the mod's crafting and smelting modules.
  */
 public final class Crafter extends Job {
     private static final int HITS = 3;       // the mod's HITTING_TIME at a typical skill (it is 30 with no skill at all)
@@ -46,10 +46,15 @@ public final class Crafter extends Job {
     private static final int FUEL = 16; // ours, as the cook: fuel it keeps on hand, asked for once below this
     private static final int ORES = 32; // ours: ores the Smeltery asks the warehouse for at a time
 
+    /** What it works at: a crafting table, furnaces, both, or (the Smeltery) furnaces with every ore recipe known. */
+    public enum Kind { TABLE, FURNACE, BOTH, ORES }
+
     private final Predicate<Recipe> accepts;
     /** What this crafter makes, for the menus. */
     public final String makes;
-    /** It smelts furnace recipes rather than crafting at a table. */
+    /** It learns crafting table recipes. */
+    public final boolean crafts;
+    /** It learns furnace recipes and smelts in its building's furnaces. */
     public final boolean smelts;
     /** The Smeltery: knows every ore recipe without being taught, and asks for and smelts any ore. */
     public final boolean oreSmelter;
@@ -61,15 +66,16 @@ public final class Crafter extends Job {
     private int scan;
 
     public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes) {
-        this(hut, colony, accepts, makes, false, false);
+        this(hut, colony, accepts, makes, Kind.TABLE);
     }
 
-    public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes, boolean smelts, boolean oreSmelter) {
+    public Crafter(Hut hut, Colony colony, Predicate<Recipe> accepts, String makes, Kind kind) {
         super(hut, colony);
         this.accepts = accepts;
         this.makes = makes;
-        this.smelts = smelts;
-        this.oreSmelter = oreSmelter;
+        this.crafts = kind == Kind.TABLE || kind == Kind.BOTH;
+        this.smelts = kind != Kind.TABLE;
+        this.oreSmelter = kind == Kind.ORES;
         if (oreSmelter) for (Recipe r : teachable()) recipes.add(((Keyed) r).getKey());
     }
 
@@ -93,8 +99,10 @@ public final class Crafter extends Job {
     /** Teaches it a recipe. @return why not, or null when learnt. */
     public String teach(Recipe r) {
         if (oreSmelter) return "It already knows every recipe it can use.";
-        if (!(smelts ? r instanceof CookingRecipe<?> : r instanceof ShapedRecipe || r instanceof ShapelessRecipe) || !(r instanceof Keyed k))
-            return smelts ? "Only furnace recipes can be taught." : "Only crafting table recipes can be taught.";
+        boolean table = r instanceof ShapedRecipe || r instanceof ShapelessRecipe;
+        if (!(table ? crafts : smelts && r instanceof CookingRecipe<?>) || !(r instanceof Keyed k))
+            return !crafts ? "Only furnace recipes can be taught." : !smelts ? "Only crafting table recipes can be taught."
+                    : "Only crafting table and furnace recipes can be taught.";
         if (k.getKey().getNamespace().equals("minecp")) return "Huts, racks and goggles can't be taught: they need the Build Tool."; // the mod's blocks aren't crafter recipes either
         if (recipes.contains(k.getKey())) return "It already knows that recipe.";
         if (!accepts.test(r)) return "The " + hut.type.worker + " can't make that: " + makes + ".";
@@ -110,18 +118,18 @@ public final class Crafter extends Job {
 
     /**
      * Recipes it knows without being taught, each from a hut level (the mod's crafterrecipes, like the baker's bread);
-     * they don't count against {@link #maxRecipes()}.
+     * they don't count against {@link #maxRecipes()}. A vanilla recipe, or one of the mod's own that the server never
+     * registers, so players can't use it.
      */
-    public final Map<NamespacedKey, Integer> builtIn = new LinkedHashMap<>();
+    public final Map<Recipe, Integer> builtIn = new LinkedHashMap<>();
 
     /** A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null. */
     public Recipe recipeFor(Predicate<ItemStack> want) {
-        List<NamespacedKey> known = new ArrayList<>(recipes);
-        builtIn.forEach((key, level) -> { if (hut.level >= level) known.add(key); });
-        for (NamespacedKey key : known) {
+        for (NamespacedKey key : recipes) {
             Recipe r = Bukkit.getRecipe(key);
             if (r != null && want.test(r.getResult())) return r;
         }
+        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && want.test(e.getKey().getResult())) return e.getKey();
         return null;
     }
 
@@ -200,9 +208,15 @@ public final class Crafter extends Job {
         });
         if (oreSmelter && hut.level >= 1 && inChest(Crafter::isOre) < ORES / 2) // the mod's smelter asks for any ore, minimum 1
             wants.add(new Want("ores to smelt", Crafter::isOre, ORES - inChest(Crafter::isOre), Math.max(1, hut.number(Settings.MIN_ORE))));
-        if (smelts && !furnaces.isEmpty() && (!need.isEmpty() || oreSmelter) && inChest(this::isFuel) < FUEL / 2)
+        if (smelts && !furnaces.isEmpty() && (toSmelt(true) || oreSmelter) && inChest(this::isFuel) < FUEL / 2)
             wants.add(new Want("fuel", this::isFuel, FUEL - inChest(this::isFuel), 1)); // as the mod's fuel request: minimum 1
         return wants;
+    }
+
+    /** Whether a task still needs something smelted ({@code raw}: as {@link #craftsLeft}). */
+    private boolean toSmelt(boolean raw) {
+        for (Requests.Request t : tasks) if (recipeFor(t.test()) instanceof CookingRecipe<?> r && craftsLeft(t, r, raw) > 0) return true;
+        return false;
     }
 
     /** Ingredients for every craft its tasks still need. */
@@ -259,18 +273,18 @@ public final class Crafter extends Job {
         if (w.isMoving() || --cooldown > 0) return;
         Inventory chest = chest();
         if (chest == null) return;
-        if (smelts) { smelt(w, chest); return; }
+        if (smelts && smelt(w, chest)) return;
         Recipe ready = null;
         boolean anyWork = false;
         for (Requests.Request t : tasks) {
             Recipe r = recipeFor(t.test());
-            if (r == null || craftsLeft(t, r, false) == 0) continue;
+            if (r == null || r instanceof CookingRecipe<?> || craftsLeft(t, r, false) == 0) continue;
             anyWork = true;
             if (hasIngredients(chest, r)) { ready = r; break; }
         }
         if (ready == null) {
             hits = 0;
-            idle(w, anyWork ? "Waiting for ingredients in the hut chest." : null, 40, hut.block);
+            idle(w, anyWork ? "Waiting for ingredients in the hut chest." : smeltNote(), 40, hut.block);
             return;
         }
         if (!atHut(w)) { w.setStatus(hut.type.worker + ": working"); goToHut(w); return; }
@@ -284,14 +298,20 @@ public final class Crafter extends Job {
         craft(chest, ready);
     }
 
-    /** Fills its furnaces from the chest, keeps them fuelled, and empties what they made into the chest. */
-    private void smelt(Colonist w, Inventory chest) {
+    /**
+     * Fills its furnaces from the chest, keeps them fuelled, and empties what they made into the chest.
+     * @return true if it did something with them this time.
+     */
+    private boolean smelt(Colonist w, Inventory chest) {
         if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE); scan = 200; }
-        if (furnaces.isEmpty()) { idle(w, "No furnace in the building to smelt in.", 40, hut.block); return; }
-        if (Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel)) return;
-        boolean waiting = false;
-        for (Requests.Request t : tasks) { Recipe r = recipeFor(t.test()); waiting |= r != null && craftsLeft(t, r, false) > 0; }
-        idle(w, waiting ? "Waiting for something to smelt, or fuel, in the hut chest." : null, 40, hut.block);
+        return !furnaces.isEmpty() && Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel);
+    }
+
+    /** Why its furnaces stand idle, for the hut menu, or null. */
+    private String smeltNote() {
+        if (!smelts) return null;
+        if (furnaces.isEmpty()) return toSmelt(true) || oreSmelter ? "No furnace in the building to smelt in." : null;
+        return toSmelt(false) ? "Waiting for something to smelt, or fuel, in the hut chest." : null;
     }
 
     /**
@@ -351,14 +371,12 @@ public final class Crafter extends Job {
             return lines;
         }
         lines.add(Component.text(oreSmelter ? "Smelts the ores couriers bring from the warehouse, and the ingots huts ask for. Needs fuel and furnaces in its building."
-                : (smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
+                : (crafts && smelts ? "Crafts and smelts" : smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
                 + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));
         if (!builtIn.isEmpty()) {
             List<String> now = new ArrayList<>(), later = new ArrayList<>();
-            builtIn.forEach((key, level) -> {
-                ItemStack result = resultOf(key);
-                if (result != null) (hut.level >= level ? now : later).add(name(result.getType()) + (hut.level >= level ? "" : " (level " + level + ")"));
-            });
+            builtIn.forEach((r, level) -> (hut.level >= level ? now : later)
+                    .add(name(r.getResult().getType()) + (hut.level >= level ? "" : " (level " + level + ")")));
             lines.add(Component.text("Knows without teaching: " + String.join(", ", now) + (later.isEmpty() ? "" : "; later " + String.join(", ", later)) + ".",
                     NamedTextColor.GRAY));
         }

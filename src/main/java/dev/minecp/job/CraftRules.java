@@ -96,6 +96,9 @@ public final class CraftRules {
     };
     static final Predicate<Material> GLAZED_TERRACOTTA = named("_GLAZED_TERRACOTTA");
     static final Predicate<Material> CONCRETE = named("_CONCRETE");
+    static final Predicate<Material> CONCRETE_POWDER = named("_CONCRETE_POWDER"); // minecolonies:concrete_powder
+    static final Predicate<Material> GLASS = any(of(Material.GLASS, Material.TINTED_GLASS), named("_STAINED_GLASS")); // forge:glass
+    static final Predicate<Material> GLASS_PANES = any(of(Material.GLASS_PANE), named("_STAINED_GLASS_PANE")); // forge:glass_panes
 
     static final Predicate<Material> MECHANIC_PRODUCT = any(STORAGE_BLOCKS, tagged(Tag.RAILS, Tag.BUTTONS, Tag.WOODEN_PRESSURE_PLATES),
             of(Material.HEAVY_WEIGHTED_PRESSURE_PLATE, Material.LIGHT_WEIGHTED_PRESSURE_PLATE, Material.POLISHED_BLACKSTONE_PRESSURE_PLATE,
@@ -157,6 +160,15 @@ public final class CraftRules {
     static final Rule BAKER_TAGS = new Rule(NONE, of(Material.BREAD, Material.CAKE, Material.COOKIE, Material.PUMPKIN_PIE,
             Material.PACKED_MUD), of(Material.WHEAT), NONE);
 
+    static final Rule FLETCHER_TAGS = new Rule(of(Material.STRING, Material.MOSS_CARPET), of(Material.BOOK, Material.ITEM_FRAME),
+            any(tagged(Tag.LEAVES, Tag.WOOL), of(Material.STRING, Material.RABBIT_HIDE, Material.LEATHER, Material.FISHING_ROD)), DYES);
+
+    static final Rule DYER_TAGS = new Rule(DYER_PRODUCT, CONCRETE_POWDER, DYES, NONE);
+    static final Rule DYER_SMELTING_TAGS = new Rule(DYES, NONE, NONE, NONE);
+
+    static final Rule GLASSBLOWER_TAGS = new Rule(NONE, NONE, any(GLASS, GLASS_PANES), DYES);
+    static final Rule GLASSBLOWER_SMELTING_TAGS = new Rule(GLASS, NONE, NONE, NONE);
+
     /** Tools, weapons and armor (the mod's equipment types, without the fishing rod and flint and steel). */
     static boolean equipment(Material m) {
         String n = m.name();
@@ -198,6 +210,25 @@ public final class CraftRules {
 
     /** The Bakery (BuildingBaker): crafting recipes its tags allow (anything else made from wheat). */
     public static final Predicate<Recipe> BAKER = r -> crafting(r) && Boolean.TRUE.equals(BAKER_TAGS.decide(r));
+
+    /** The Fletcher (BuildingFletcher): its tags, else arrows and leather armor. */
+    public static final Predicate<Recipe> FLETCHER = r -> {
+        if (!crafting(r)) return false;
+        Boolean tags = FLETCHER_TAGS.decide(r);
+        Material out = r.getResult().getType();
+        return tags != null ? tags : Tag.ITEMS_ARROWS.isTagged(out) || out.name().startsWith("LEATHER_") && equipment(out);
+    };
+
+    /** Crafting recipes by one set of tags and furnace recipes by another, the tags alone deciding (the mod's crafting and smelting modules). */
+    private static Predicate<Recipe> craftOrSmelt(Rule crafting, Rule smelting) {
+        return r -> crafting(r) ? Boolean.TRUE.equals(crafting.decide(r)) : r instanceof FurnaceRecipe && Boolean.TRUE.equals(smelting.decide(r));
+    }
+
+    /** The Dyer (BuildingDyer). */
+    public static final Predicate<Recipe> DYER = craftOrSmelt(DYER_TAGS, DYER_SMELTING_TAGS);
+
+    /** The Glassblower (BuildingGlassblower). */
+    public static final Predicate<Recipe> GLASSBLOWER = craftOrSmelt(GLASSBLOWER_TAGS, GLASSBLOWER_SMELTING_TAGS);
 
     /** The Smeltery (BuildingSmeltery): every furnace recipe that smelts an ore or raw metal. */
     public static final Predicate<Recipe> SMELTERY = r -> r instanceof FurnaceRecipe f && ore(f);

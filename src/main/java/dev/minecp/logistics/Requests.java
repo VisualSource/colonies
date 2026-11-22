@@ -152,11 +152,11 @@ public final class Requests {
 
     /**
      * A built crafter with a worker and a recipe for it that doesn't, through any chain of crafters, need what it makes.
-     * A crafter may make its own ingredients (the Sawmill: planks for the stairs it was asked for), but a smelter never
-     * takes its own requests (ours: it would smelt its own fuel, needing fuel to do it).
+     * A crafter may make its own ingredients, as the mod's (the Sawmill: planks for the stairs it was asked for; the
+     * Glassblower: glass for its panes). Never its own fuel: a smelter's fuel excludes what its recipes make.
      */
     private boolean canCraft(Crafter c, Request r, Map<Crafter, List<Request>> tasks) {
-        if (c == r.job && c.smelts || c.hut.level < 1 || colony.worker(c) == null) return false;
+        if (c.hut.level < 1 || colony.worker(c) == null) return false;
         Recipe recipe = c.recipeFor(r.test());
         return recipe != null && !Crafter.uses(recipe, r.test()) && !cycle(recipe, r, tasks, new java.util.HashSet<>());
     }

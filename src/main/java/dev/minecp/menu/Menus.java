@@ -142,10 +142,10 @@ public final class Menus {
         }
         if (job instanceof Crafter cr && h.level > 0 && !cr.oreSmelter) { // the Smeltery knows every ore by itself
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
-            buttons.add(button("Teach a recipe", p, c, h, Action.MANAGE_HUTS, player -> {
-                if (cr.smelts) teachSmelting(player, c, h, cr);
-                else plugin.teaching.start(player, c, cr);
-            }));
+            if (cr.crafts) buttons.add(button(cr.smelts ? "Teach a crafting recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
+                    player -> plugin.teaching.start(player, c, cr)));
+            if (cr.smelts) buttons.add(button(cr.crafts ? "Teach a furnace recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
+                    player -> teachSmelting(player, c, h, cr)));
         }
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
             Colonist worker = job == null ? null : c.worker(job);
@@ -658,7 +658,8 @@ public final class Menus {
     void teachSmelting(Player p, Colony c, Hut h, Crafter cr) {
         List<ActionButton> buttons = new ArrayList<>();
         for (var r : cr.teachable()) {
-            var in = ((org.bukkit.inventory.CookingRecipe<?>) r).getInputChoice().getItemStack();
+            if (!(r instanceof org.bukkit.inventory.CookingRecipe<?> cooking)) continue; // a crafter that also crafts: table recipes are taught at a table
+            var in = cooking.getInputChoice().getItemStack();
             String label = Job.name(in.getType()) + " → " + Job.name(r.getResult().getType());
             buttons.add(button(label, p, c, h, Action.MANAGE_HUTS, player -> {
                 String problem = cr.teach(r);

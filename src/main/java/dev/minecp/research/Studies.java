@@ -40,8 +40,7 @@ public final class Studies {
             Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
             Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"), Map.entry("crusher", "Crusher"),
             Map.entry("sifter", "Sifter"), Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
-            Map.entry("netherworker", "Nether Mine"), Map.entry("fletcher", "Fletcher's Hut"), Map.entry("beekeeper", "Apiary"),
-            Map.entry("florist", "Flower Shop"), Map.entry("dyer", "Dyer's Hut"), Map.entry("glassblower", "Glassblower's Hut"),
+            Map.entry("netherworker", "Nether Mine"), Map.entry("beekeeper", "Apiary"), Map.entry("florist", "Flower Shop"),
             Map.entry("concretemixer", "Concrete Mixer"), Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;

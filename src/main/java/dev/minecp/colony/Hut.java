@@ -62,16 +62,24 @@ public final class Hut {
                 (h, c) -> new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"), false),
         STONE_SMELTERY("Stone Smeltery", Material.CHEST, "craftsmanship/masonry/stonesmeltery", "stonesmeltery", "A stone smelter fires stone, bricks and terracotta",
                 () -> new RecipeChoice.MaterialChoice(Material.FURNACE), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stone Smelter",
-                (h, c) -> new Crafter(h, c, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", true, false), false),
+                (h, c) -> new Crafter(h, c, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", Crafter.Kind.FURNACE), false),
         BLACKSMITH("Blacksmith's Hut", Material.CHEST, "craftsmanship/metallurgy/blacksmith", "blacksmith", "A blacksmith makes tools, weapons and armor",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), "Blacksmith",
                 (h, c) -> new Crafter(h, c, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)"), false),
         SMELTERY("Smeltery", Material.CHEST, "craftsmanship/metallurgy/smeltery", "smeltery", "A smelter turns the miner's ores into ingots",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), null, "Smelter",
-                (h, c) -> new Crafter(h, c, CraftRules.SMELTERY, "ingots from ores", true, true), false),
+                (h, c) -> new Crafter(h, c, CraftRules.SMELTERY, "ingots from ores", Crafter.Kind.ORES), false),
         MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
                 () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
                 (h, c) -> new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
+        // Unlocked by research; the mod's recipes: planks, the Build Tool on top, and string, a red dye or glass in the middle
+        FLETCHER("Fletcher's Hut", Material.CHEST, "craftsmanship/carpentry/fletcher", "fletcher", "A fletcher makes arrows, string, leather armor and wool things",
+                () -> new RecipeChoice.MaterialChoice(Material.STRING), "Fletcher", Type::fletcher, false),
+        DYER("Dyer's Hut", Material.CHEST, "craftsmanship/luxury/dyer", "dyer", "A dyer makes dyes and dyes things",
+                () -> new RecipeChoice.MaterialChoice(Material.RED_DYE), "Dyer", Type::dyer, false),
+        GLASSBLOWER("Glassblower's Hut", Material.CHEST, "craftsmanship/luxury/glassblower", "glassblower", "A glassblower smelts glass and makes glass things",
+                () -> new RecipeChoice.MaterialChoice(Material.GLASS), "Glassblower",
+                (h, c) -> new Crafter(h, c, CraftRules.GLASSBLOWER, "glass from sand, and things made of glass (no dyes)", Crafter.Kind.BOTH), false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
@@ -155,11 +163,45 @@ public final class Hut {
          */
         private static Job baker(Hut h, Colony c) {
             Crafter b = new Crafter(h, c, CraftRules.BAKER, "bread, cookies, pumpkin pie, cake, and other things made from wheat");
-            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("bread"), 1);
-            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("cookie"), 2);
-            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("pumpkin_pie"), 3);
-            b.builtIn.put(org.bukkit.NamespacedKey.minecraft("cake"), 4);
+            vanilla(b, "bread", 1);
+            vanilla(b, "cookie", 2);
+            vanilla(b, "pumpkin_pie", 3);
+            vanilla(b, "cake", 4);
             return b;
+        }
+
+        /** A vanilla recipe a crafter knows from a hut level, unless a data pack removed it. */
+        private static void vanilla(Crafter c, String recipe, int level) {
+            var r = org.bukkit.Bukkit.getRecipe(org.bukkit.NamespacedKey.minecraft(recipe));
+            if (r != null) c.builtIn.put(r, level);
+        }
+
+        /** The fletcher's built-in recipes (the mod's crafterrecipes/fletcher): flint from gravel, string from wool. */
+        private static Job fletcher(Hut h, Colony c) {
+            Crafter f = new Crafter(h, c, CraftRules.FLETCHER, "arrows, string, leather armor, and things made with string, wool, leather or leaves (no dyes)");
+            f.builtIn.put(own("fletcher_flint", Material.FLINT, 1, java.util.Map.of(Material.GRAVEL, 3)), 1);
+            f.builtIn.put(own("fletcher_string", Material.STRING, 4, java.util.Map.of(Material.WHITE_WOOL, 1)), 1);
+            return f;
+        }
+
+        /**
+         * The dyer's built-in recipes (the mod's crafterrecipes/dyer): red sand, black dye from charcoal (level 2), dark
+         * prismarine (3); and white wool from dyed wool, which the mod's dyer knows too (as vanilla's recipe: any wool).
+         */
+        private static Job dyer(Hut h, Colony c) {
+            Crafter d = new Crafter(h, c, CraftRules.DYER, "dyes, and dyed things (no concrete powder)", Crafter.Kind.BOTH);
+            vanilla(d, "dye_white_wool", 1);
+            d.builtIn.put(own("dyer_red_sand", Material.RED_SAND, 4, java.util.Map.of(Material.SAND, 4, Material.RED_DYE, 1)), 1);
+            d.builtIn.put(own("dyer_black_dye", Material.BLACK_DYE, 1, java.util.Map.of(Material.CHARCOAL, 1)), 2);
+            d.builtIn.put(own("dyer_dark_prismarine", Material.DARK_PRISMARINE, 4, java.util.Map.of(Material.PRISMARINE, 4, Material.BLACK_DYE, 1)), 3);
+            return d;
+        }
+
+        /** One of the mod's own crafter recipes, never registered with the server (players can't use it): {@code count} x {@code result}. */
+        private static org.bukkit.inventory.Recipe own(String id, Material result, int count, java.util.Map<Material, Integer> ingredients) {
+            var r = new org.bukkit.inventory.ShapelessRecipe(new org.bukkit.NamespacedKey("minecp", id), new org.bukkit.inventory.ItemStack(result, count));
+            ingredients.forEach((m, n) -> r.addIngredient(n, m));
+            return r;
         }
 
         /** Chunks claimed around the hut's chunk at this level (the mod's getClaimRadius). */
