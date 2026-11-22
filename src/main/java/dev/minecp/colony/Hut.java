@@ -1,5 +1,6 @@
 package dev.minecp.colony;
 
+import dev.minecp.job.Beekeeper;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Composter;
 import dev.minecp.job.Cook;
@@ -111,6 +112,9 @@ public final class Hut {
         // Fisherman and herders: the mod's recipe middles (a rod, an egg, beef, shears, a porkchop, a rabbit)
         FISHERMAN("Fisherman's Hut", Material.CHEST, "agriculture/husbandry/fisherman", "fisherman", "A fisherman fishes in ponds nearby",
                 () -> new RecipeChoice.MaterialChoice(Material.FISHING_ROD), "Fisherman", Fisherman::new, false),
+        // The mod's recipe: a beehive in the middle
+        BEEKEEPER("Beekeeper's Hut", Material.CHEST, "agriculture/husbandry/beekeeper", "beekeeper", "A beekeeper takes honey from its hives and breeds bees",
+                () -> new RecipeChoice.MaterialChoice(Material.BEEHIVE), "Beekeeper", Beekeeper::new, false),
         CHICKEN_HERDER("Chicken Farmer's Hut", Material.CHEST, "agriculture/husbandry/chickenherder", "chickenherder",
                 "A chicken herder breeds and butchers the chickens in its building",
                 () -> new RecipeChoice.MaterialChoice(Material.EGG), "Chicken Herder", (h, c) -> new Herder(h, c, Herder.Kind.CHICKEN), false),

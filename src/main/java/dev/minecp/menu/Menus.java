@@ -151,7 +151,14 @@ public final class Menus {
         }));
         if (h.type == Hut.Type.UNIVERSITY && h.level > 0) buttons.add(button("Research", p, c, h, player -> research.branches(player, c, h)));
         if (job instanceof dev.minecp.job.Composter cp && h.level > 0)
-            buttons.add(button("Compost list (" + cp.list.size() + ")", p, c, h, player -> compostList(player, c, h, cp)));
+            buttons.add(button("Compost list (" + cp.list.size() + ")", p, c, h, player -> itemList(player, c, h, "compost list",
+                    "It asks for these and composts them. How much one fills a barrel of 64: rich foods 8, most plants and foods 4, "
+                            + "seeds, saplings and poor foods 2.", cp.list, m -> dev.minecp.job.Compost.strength(m) > 0,
+                    m -> Job.name(m) + " (" + dev.minecp.job.Compost.strength(m) + ")", "doesn't compost.")));
+        if (job instanceof dev.minecp.job.Beekeeper bk && h.level > 0)
+            buttons.add(button("Flower list (" + bk.flowers.size() + ")", p, c, h, player -> itemList(player, c, h, "flower list",
+                    "It asks for these and feeds them to its bees to breed them.", bk.flowers, dev.minecp.job.Beekeeper::flower, Job::name,
+                    "isn't a flower bees breed with.")));
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));
@@ -638,31 +645,33 @@ public final class Menus {
         Dialogs.show(p, h.type.title + ": minimum stock", body, inputs, buttons, 1);
     }
 
-    /** What the composter composts (the mod's compostables item list): add by name or the item in hand, or take off. */
-    void compostList(Player p, Colony c, Hut h, dev.minecp.job.Composter cp) {
+    /**
+     * A hut's item list (the mod's ItemListModule: the composter's compostables, the beekeeper's flowers): add by name
+     * or the item in hand, if {@code fits} allows it, or take off (MANAGE_HUTS).
+     */
+    void itemList(Player p, Colony c, Hut h, String title, String hint, java.util.Set<Material> list,
+                  java.util.function.Predicate<Material> fits, java.util.function.Function<Material, String> label, String refused) {
         List<DialogBody> body = new ArrayList<>();
-        body.add(text(Component.text("It asks for these and composts them. How much one fills a barrel of 64: rich foods 8, "
-                + "most plants and foods 4, seeds, saplings and poor foods 2.", NamedTextColor.GRAY)));
+        body.add(text(Component.text(hint, NamedTextColor.GRAY)));
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(button("Add", p, c, h, (player, view) -> {
             if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
             ItemStack item = itemFrom(player, view.getText("item"));
-            if (item != null && dev.minecp.job.Compost.strength(item.getType()) == 0)
-                player.sendMessage(Component.text(Job.name(item.getType()) + " doesn't compost.", NamedTextColor.RED));
-            else if (item != null && cp.list.add(item.getType())) plugin.save(c);
-            compostList(player, c, h, cp);
+            if (item != null && !fits.test(item.getType())) player.sendMessage(Component.text(Job.name(item.getType()) + " " + refused, NamedTextColor.RED));
+            else if (item != null && list.add(item.getType())) plugin.save(c);
+            itemList(player, c, h, title, hint, list, fits, label, refused);
         }));
-        for (Material m : List.copyOf(cp.list)) {
-            body.add(text(Component.text(Job.name(m) + " (" + dev.minecp.job.Compost.strength(m) + ")")));
+        for (Material m : List.copyOf(list)) {
+            body.add(text(Component.text(label.apply(m))));
             buttons.add(button("Take off " + Job.name(m), p, c, h, Action.MANAGE_HUTS, player -> {
-                cp.list.remove(m);
+                list.remove(m);
                 plugin.save(c);
-                compostList(player, c, h, cp);
+                itemList(player, c, h, title, hint, list, fits, label, refused);
             }));
         }
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
-        List<DialogInput> inputs = List.of(DialogInput.text("item", Component.text("Item, like wheat_seeds (blank: the one in your hand)")).width(250).build());
-        Dialogs.show(p, h.type.title + ": compost list", body, inputs, buttons, 1);
+        List<DialogInput> inputs = List.of(DialogInput.text("item", Component.text("Item, like poppy (blank: the one in your hand)")).width(250).build());
+        Dialogs.show(p, h.type.title + ": " + title, body, inputs, buttons, 1);
     }
 
     /**

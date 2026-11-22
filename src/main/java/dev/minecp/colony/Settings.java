@@ -60,7 +60,7 @@ public final class Settings {
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize",
-            GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
+            BEE_MODE = "beekeeper_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
@@ -107,6 +107,7 @@ public final class Settings {
             case BARRACKS_TOWER -> java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
                     .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")).toList();
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
+            case BEEKEEPER -> List.of(BREED, new Setting(BEE_MODE, "Take from full hives", Kind.CHOICE, "HONEYCOMB", 0, 0, List.of("HONEYCOMB", "HONEY", "BOTH")));
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));
             case COWBOY -> List.of(BREED, number(MILKING, "Buckets of milk each time", 1, 0, 64),
                     number(STEWING, "Bowls of mushroom stew each time", 1, 0, 64),
