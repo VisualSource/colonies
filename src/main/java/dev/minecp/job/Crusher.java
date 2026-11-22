@@ -16,7 +16,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,7 +35,6 @@ public final class Crusher extends Crafter {
     private static final Predicate<Studies> TWO_TO_ONE = s -> s.effect(Effects.CRUSHING_ONE_TO_ONE) <= 0, ONE_TO_ONE = TWO_TO_ONE.negate(),
             DEPTHS = s -> s.effect(Effects.DEPTH_KNOWLEDGE) > 0, ALWAYS = s -> true;
 
-    private final Map<Recipe, Predicate<Studies>> needs = new HashMap<>(); // the research each recipe needs
     private int crushedToday; // saved
     private int today = -1;    // the colony day it counts (saved)
 
@@ -59,14 +57,7 @@ public final class Crusher extends Crafter {
     }
 
     private void know(String id, Material result, int count, Material from, int amount, Predicate<Studies> when) {
-        Recipe r = own("crusher_" + id, result, count, Map.of(from, amount));
-        builtIn.put(r, 1);
-        needs.put(r, when);
-    }
-
-    @Override
-    boolean knows(Recipe builtIn) {
-        return needs.getOrDefault(builtIn, ALWAYS).test(colony.research);
+        learn(own("crusher_" + id, result, count, Map.of(from, amount)), 1, when);
     }
 
     @Override

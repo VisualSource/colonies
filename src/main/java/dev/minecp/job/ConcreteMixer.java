@@ -59,7 +59,7 @@ public final class ConcreteMixer extends Crafter {
     /** Concrete only while it has water to set it in; otherwise its orders go elsewhere (the warehouse, a player). */
     @Override
     boolean knows(Recipe builtIn) {
-        return !concrete(builtIn.getResult().getType()) || !spots().isEmpty();
+        return super.knows(builtIn) && (!concrete(builtIn.getResult().getType()) || !spots().isEmpty());
     }
 
     /** Concrete is set in the water, not made at the hut. */

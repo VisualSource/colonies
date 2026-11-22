@@ -49,6 +49,11 @@ MODELS = {
     "hut/glassblower": "minecolonies:item/blockhutglassblower",
     "hut/crusher": "minecolonies:item/blockhutcrusher",
     "hut/concrete_mixer": "minecolonies:item/blockhutconcretemixer",
+    "hut/sifter": "minecolonies:item/blockhutsifter",
+    "mesh/string": "minecolonies:item/sifter_mesh_string",
+    "mesh/flint": "minecolonies:item/sifter_mesh_flint",
+    "mesh/iron": "minecolonies:item/sifter_mesh_iron",
+    "mesh/diamond": "minecolonies:item/sifter_mesh_diamond",
     "hut/tavern": "minecolonies:item/blockhuttavern",
     "hut/baker": "minecolonies:item/blockhutbaker",
     "hut/guard_tower": "minecolonies:item/blockhutguardtower",
@@ -73,7 +78,8 @@ MODELS = {
 }
 # The vanilla item each MineCP item is made from (Hut.Type.block, Rack, Items): its definition gets the override.
 BASE = {"hut/town_hall": "bell", "hut/field": "hay_block", "build_goggles": "leather_helmet", "build_tool": "stick",
-        "clipboard": "paper", "resource_scroll": "paper", "supply_camp": "paper", "supply_ship": "paper"}  # the rest: chest
+        "clipboard": "paper", "resource_scroll": "paper", "supply_camp": "paper", "supply_ship": "paper",
+        "mesh/string": "paper", "mesh/flint": "paper", "mesh/iron": "paper", "mesh/diamond": "paper"}  # the rest: chest
 # Vanilla's own definitions of those items (Minecraft 26.3's assets/minecraft/items), the fallback without --client.
 VANILLA = json.loads(r'''{"bell":{"type":"minecraft:model","model":"minecraft:item/bell"},"chest":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:christmas"}},"when":["12-24","12-25","12-26"]}],"fallback":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:normal"}},"pattern":"MM-dd","property":"minecraft:local_time"},"hay_block":{"type":"minecraft:model","model":"minecraft:block/hay_block"},"stick":{"type":"minecraft:model","model":"minecraft:item/stick"},"paper":{"type":"minecraft:model","model":"minecraft:item/paper"},"leather_helmet":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_quartz_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:quartz"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_iron_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:iron"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_netherite_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:netherite"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_redstone_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:redstone"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_copper_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:copper"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_gold_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:gold"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_emerald_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:emerald"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_diamond_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:diamond"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_lapis_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:lapis"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_amethyst_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:amethyst"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_resin_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:resin"}],"fallback":{"type":"minecraft:model","model":"minecraft:item/leather_helmet","tints":[{"type":"minecraft:dye","default":-6265536}]},"property":"minecraft:trim_material"}}''')
 # The name MineCP gives each placed hut chest (Hut.Type titles) and rack (Rack.tag) -> its MODELS entry: keep in step.
@@ -82,7 +88,7 @@ CHEST_NAMES = {
     "Cook's Hut": "hut/cook", "Warehouse": "hut/warehouse", "Courier's Hut": "hut/courier", "Miner's Hut": "hut/miner",
     "Sawmill": "hut/sawmill", "Stonemason's Hut": "hut/stonemason", "Stone Smeltery": "hut/stone_smeltery",
     "Blacksmith's Hut": "hut/blacksmith", "Smeltery": "hut/smeltery", "Mechanic's Hut": "hut/mechanic",
-    "Fletcher's Hut": "hut/fletcher", "Dyer's Hut": "hut/dyer", "Glassblower's Hut": "hut/glassblower", "Crusher": "hut/crusher", "Concrete Mixer": "hut/concrete_mixer",
+    "Fletcher's Hut": "hut/fletcher", "Dyer's Hut": "hut/dyer", "Glassblower's Hut": "hut/glassblower", "Crusher": "hut/crusher", "Sifter": "hut/sifter", "Concrete Mixer": "hut/concrete_mixer",
     "Guard Tower": "hut/guard_tower", "Tavern": "hut/tavern", "Bakery": "hut/baker", "Storage Rack": "rack",
     "Graveyard": "hut/graveyard", "Fisherman's Hut": "hut/fisherman", "Chicken Farmer's Hut": "hut/chicken_herder",
     "Cowhand's Hut": "hut/cowboy", "Shepherd's Hut": "hut/shepherd", "Swineherd's Hut": "hut/swineherd",

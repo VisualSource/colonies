@@ -39,7 +39,7 @@ public final class Studies {
             Map.entry("hospital", "Hospital"), Map.entry("barracks", "Barracks"), Map.entry("archery", "Archery"),
             Map.entry("combatacademy", "Combat Academy"), Map.entry("school", "School"), Map.entry("library", "Library"),
             Map.entry("enchanter", "Enchanter's Tower"), Map.entry("composter", "Composter's Hut"),
-            Map.entry("sifter", "Sifter"), Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
+            Map.entry("stable", "Stable"), Map.entry("plantation", "Plantation"),
             Map.entry("netherworker", "Nether Mine"), Map.entry("beekeeper", "Apiary"), Map.entry("florist", "Flower Shop"),
             Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
@@ -164,6 +164,10 @@ public final class Studies {
             case Effects.WHIRLWIND -> "Knights sometimes spin, striking and knocking back every enemy around them";
             case Effects.SLEEP_LESS -> "Knights nap on duty " + Math.round(100 - 100 / (1 + v)) + "% less often";
             case Effects.ARMOR_DURABILITY -> "Knights' armor lasts " + pct + " longer";
+            case Effects.SIFTER_STRING -> "The Fletcher makes string sifter meshes";
+            case Effects.SIFTER_FLINT -> "The Stonemason makes flint sifter meshes";
+            case Effects.SIFTER_IRON -> "The Blacksmith makes iron sifter meshes";
+            case Effects.SIFTER_DIAMOND -> "The Mechanic makes diamond sifter meshes";
             case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";
@@ -309,6 +313,7 @@ public final class Studies {
 
     /** One colony tick: each built University with its researcher moves on as many researches as its level. */
     public void colonyTick() {
+        unlockables();
         for (Hut u : List.copyOf(colony.huts)) {
             if (u.type != Hut.Type.UNIVERSITY || u.level < 1) continue;
             var job = colony.jobAt(u);
@@ -319,6 +324,22 @@ public final class Studies {
                 Entry e = started.get(r.id());
                 if (++e.progress >= ResearchTree.steps(r)) finish(r, e);
             }
+        }
+    }
+
+    /**
+     * The hidden Unlockables branch (the sifter's meshes): each research there starts and finishes by itself once its
+     * parent is done and its huts are built (the mod's autostart and instant). Ours: checked each colony tick, where the
+     * mod checks when a building is upgraded.
+     */
+    private void unlockables() {
+        for (Research r : ResearchTree.all()) {
+            if (!ResearchTree.branch(r.branch()).hidden() || isStarted(r.id())) continue;
+            if (r.parent() != null && !isDone(r.parent()) || !r.requirements().stream().allMatch(this::met)) continue;
+            Entry e = new Entry();
+            e.done = true; // silent, as the mod's hidden branch: the unlocked recipes show in the crafters' menus
+            started.put(r.id(), e);
+            Colony.log.info(colony.where() + ": research " + r.id() + " finished.");
         }
     }
 

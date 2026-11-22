@@ -13,9 +13,11 @@ import dev.minecp.job.Herder;
 import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
 import dev.minecp.job.Lumberjack;
+import dev.minecp.job.Mesh;
 import dev.minecp.job.Miner;
 import dev.minecp.job.PostBox;
 import dev.minecp.job.Researcher;
+import dev.minecp.job.Sifter;
 import dev.minecp.job.Stash;
 import dev.minecp.job.Undertaker;
 
@@ -61,19 +63,19 @@ public final class Hut {
                 (h, c) -> new Crafter(h, c, CraftRules.SAWMILL, "things made mostly of wood"), false),
         STONEMASON("Stonemason's Hut", Material.CHEST, "craftsmanship/masonry/stonemason", "stonemason", "A stonemason crafts stone blocks, stairs, slabs and walls",
                 () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stonemason",
-                (h, c) -> new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"), false),
+                (h, c) -> Mesh.FLINT.teachTo(new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls")), false),
         STONE_SMELTERY("Stone Smeltery", Material.CHEST, "craftsmanship/masonry/stonesmeltery", "stonesmeltery", "A stone smelter fires stone, bricks and terracotta",
                 () -> new RecipeChoice.MaterialChoice(Material.FURNACE), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stone Smelter",
                 (h, c) -> new Crafter(h, c, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", Crafter.Kind.FURNACE), false),
         BLACKSMITH("Blacksmith's Hut", Material.CHEST, "craftsmanship/metallurgy/blacksmith", "blacksmith", "A blacksmith makes tools, weapons and armor",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), "Blacksmith",
-                (h, c) -> new Crafter(h, c, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)"), false),
+                (h, c) -> Mesh.IRON.teachTo(new Crafter(h, c, CraftRules.BLACKSMITH, "tools, weapons, armor and things of metal (nothing with leather)")), false),
         SMELTERY("Smeltery", Material.CHEST, "craftsmanship/metallurgy/smeltery", "smeltery", "A smelter turns the miner's ores into ingots",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), null, "Smelter",
                 (h, c) -> new Crafter(h, c, CraftRules.SMELTERY, "ingots from ores", Crafter.Kind.ORES), false),
         MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
                 () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
-                (h, c) -> new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks"), false),
+                (h, c) -> Mesh.DIAMOND.teachTo(new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks")), false),
         // Unlocked by research; the mod's recipes: planks, the Build Tool on top, and string, a red dye or glass in the middle
         FLETCHER("Fletcher's Hut", Material.CHEST, "craftsmanship/carpentry/fletcher", "fletcher", "A fletcher makes arrows, string, leather armor and wool things",
                 () -> new RecipeChoice.MaterialChoice(Material.STRING), "Fletcher", Type::fletcher, false),
@@ -86,6 +88,10 @@ public final class Hut {
         CRUSHER("Crusher", Material.CHEST, "craftsmanship/masonry/crusher", "crusher", "A crusher grinds cobblestone, gravel, sand and bones",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_INGOT), () -> new RecipeChoice.MaterialChoice(Material.COBBLESTONE), "Crusher",
                 Crusher::new, false),
+        // Unlocked by research; the mod's recipe: three string across the middle
+        SIFTER("Sifter", Material.CHEST, "craftsmanship/masonry/sifter", "sifter", "A sifter sifts dirt, gravel, sand and soul sand for what is in them",
+                () -> new RecipeChoice.MaterialChoice(Material.STRING), () -> new RecipeChoice.MaterialChoice(Material.STRING), "Sifter",
+                Sifter::new, false),
         CONCRETE_MIXER("Concrete Mixer", Material.CHEST, "craftsmanship/luxury/concretemixer", "concretemixer", "A concrete mixer makes concrete powder and concrete",
                 () -> new RecipeChoice.MaterialChoice(Material.WHITE_CONCRETE_POWDER), "Concrete Mixer", ConcreteMixer::new, false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
@@ -186,7 +192,7 @@ public final class Hut {
 
         /** The fletcher's built-in recipes (the mod's crafterrecipes/fletcher): flint from gravel, string from wool. */
         private static Job fletcher(Hut h, Colony c) {
-            Crafter f = new Crafter(h, c, CraftRules.FLETCHER, "arrows, string, leather armor, and things made with string, wool, leather or leaves (no dyes)");
+            Crafter f = Mesh.STRING.teachTo(new Crafter(h, c, CraftRules.FLETCHER, "arrows, string, leather armor, and things made with string, wool, leather or leaves (no dyes)"));
             f.builtIn.put(Crafter.own("fletcher_flint", Material.FLINT, 1, java.util.Map.of(Material.GRAVEL, 3)), 1);
             f.builtIn.put(Crafter.own("fletcher_string", Material.STRING, 4, java.util.Map.of(Material.WHITE_WOOL, 1)), 1);
             return f;

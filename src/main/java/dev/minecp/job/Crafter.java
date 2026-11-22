@@ -7,6 +7,7 @@ import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Requests;
 import dev.minecp.logistics.Warehouse;
 import dev.minecp.research.Effects;
+import dev.minecp.research.Studies;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -131,9 +132,23 @@ public class Crafter extends Job {
 
     /** One of the mod's own crafter recipes, never registered with the server (players can't use it): {@code count} x {@code result}. */
     public static Recipe own(String id, Material result, int count, Map<Material, Integer> ingredients) {
-        var r = new ShapelessRecipe(new NamespacedKey("minecp", id), new ItemStack(result, count));
+        return own(id, new ItemStack(result, count), ingredients);
+    }
+
+    /** The same, making {@code result} (one of Colonies' own items, like a sifter mesh). */
+    public static Recipe own(String id, ItemStack result, Map<Material, Integer> ingredients) {
+        var r = new ShapelessRecipe(new NamespacedKey("minecp", id), result);
         ingredients.forEach((m, n) -> r.addIngredient(n, m));
         return r;
+    }
+
+    /** The research each built-in recipe needs (the mod's research-id and not-research-id); none: always known. */
+    final Map<Recipe, Predicate<Studies>> needs = new java.util.HashMap<>();
+
+    /** Knows {@code r} without teaching from hut {@code level}, once {@code when} holds for the colony's research. */
+    void learn(Recipe r, int level, Predicate<Studies> when) {
+        builtIn.put(r, level);
+        needs.put(r, when);
     }
 
     /** A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null. */
@@ -142,15 +157,24 @@ public class Crafter extends Job {
             Recipe r = Bukkit.getRecipe(key);
             if (r != null && want.test(r.getResult())) return r;
         }
-        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && want.test(e.getKey().getResult())) return e.getKey();
+        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && makes(e.getKey(), want)) return e.getKey();
         return null;
+    }
+
+    /**
+     * Whether {@code r} makes what is wanted. One of Colonies' own items (a mesh is paper with a tag) only for a want a
+     * plain item of its type wouldn't do: an order for paper never gets meshes.
+     */
+    private static boolean makes(Recipe r, Predicate<ItemStack> want) {
+        ItemStack out = r.getResult();
+        return want.test(out) && (out.getPersistentDataContainer().isEmpty() || !want.test(new ItemStack(out.getType())));
     }
 
     // ---- what kinds of crafter change (the Crusher, the Concrete Mixer) ---------------------------------------------
 
     /** Whether research lets it use this built-in recipe now (the mod's research-id and not-research-id). */
     boolean knows(Recipe builtIn) {
-        return true;
+        return needs.getOrDefault(builtIn, s -> true).test(colony.research);
     }
 
     /** Whether it makes this at the hut (at its table, or in its furnaces when it smelts); the mixer's concrete is made in water. */
@@ -198,6 +222,13 @@ public class Crafter extends Job {
     static double woodRatio(int planksAndLogs, int otherWood, int rest) {
         int wood = planksAndLogs + otherWood;
         return wood > 0 ? (double) wood / (otherWood + rest) : 0; // wood / 0 is infinity, above 0.75
+    }
+
+    /** An item as players read it: its own name for Colonies' items ("String Sifter Mesh"), else its type's. */
+    private static String label(ItemStack i) {
+        var name = i.getItemMeta().itemName();
+        return i.getItemMeta().hasItemName() ? net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(name)
+                : name(i.getType());
     }
 
     private static String label(RecipeChoice c) {
@@ -419,8 +450,8 @@ public class Crafter extends Job {
                 + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));
         if (!builtIn.isEmpty()) {
             List<String> now = new ArrayList<>(), later = new ArrayList<>();
-            builtIn.forEach((r, level) -> (hut.level >= level ? now : later)
-                    .add(name(r.getResult().getType()) + (hut.level >= level ? "" : " (level " + level + ")")));
+            builtIn.forEach((r, level) -> { if (knows(r)) (hut.level >= level ? now : later)
+                    .add(label(r.getResult()) + (hut.level >= level ? "" : " (level " + level + ")")); });
             lines.add(Component.text("Knows without teaching: " + String.join(", ", now) + (later.isEmpty() ? "" : "; later " + String.join(", ", later)) + ".",
                     NamedTextColor.GRAY));
         }
