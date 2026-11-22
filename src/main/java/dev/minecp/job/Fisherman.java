@@ -37,6 +37,7 @@ public final class Fisherman extends Job {
     private static final int NEAR_POND = 7;       // a new pond must be farther than this (manhattan) from a known one
     private static final int STAND_RANGE = 10, TO_WATER = 3; // the shore spot: within 10 of the pond, within 3 of water
     private static final int MAX_CATCHES = 10;    // the mod's MAX_FISHES_IN_INV
+    private static final int XP_PER_CATCH = 2;    // NewBobberEntity.XP_PER_CATCH
     private static final double NEW_POND = 0.05;  // the mod's CHANCE_NEW_POND, after each catch
     private static final int FAIL_TIMEOUT = 100;  // the mod's FISHING_TIMEOUT: 5 AI ticks of a second
     private static final int SEARCH_STEP = 2;     // ours: every other column is checked for a pond
@@ -122,8 +123,8 @@ public final class Fisherman extends Job {
                 var rnd = ThreadLocalRandom.current();
                 Location at = pond.water.getLocation().toCenterLocation();
                 at.getWorld().playSound(w.location(), Sound.ENTITY_FISHING_BOBBER_THROW, SoundCategory.NEUTRAL, 0.5f, 0.4f);
-                // The mod's bobber: a bite after 1060..1300 ticks less 100 per lure speed (5 unskilled, no Lure), then 20..80 to bite.
-                int lure = 5 + tool(Tool.ROD).getEnchantmentLevel(Enchantment.LURE);
+                // The mod's bobber: a bite after 1060..1300 ticks less 100 per lure speed (5, its focus / 25, and Lure), then 20..80 to bite.
+                int lure = 5 + skill(0) / 25 + tool(Tool.ROD).getEnchantmentLevel(Enchantment.LURE);
                 cooldown = Math.max(5, rnd.nextInt(1060, 1301) - lure * 100) + rnd.nextInt(20, 81);
                 state = State.WAIT;
             }
@@ -135,7 +136,10 @@ public final class Fisherman extends Job {
                 act(w);
                 state = State.CAST;
                 if (failed()) { cooldown = FAIL_TIMEOUT; return; } // it got away
-                gather(catchFrom(pond.water), w);
+                var caught = catchFrom(pond.water);
+                gather(caught, w);
+                for (int i = 0; i < caught.size(); i++) // the mod's bobber: an orb of 2 for each item caught, at the fisherman
+                    w.location().getWorld().spawn(w.location().add(0, 0.5, 0), org.bukkit.entity.ExperienceOrb.class, o -> o.setExperience(XP_PER_CATCH));
                 wear(Tool.ROD, w);
                 catches++;
                 cooldown = 20;
@@ -156,9 +160,9 @@ public final class Fisherman extends Job {
         }
     }
 
-    /** The mod's roll for casting and reeling in: nextInt(10 + skill / 5) <= 2, so 3 in 10 for us (no skills). */
-    private static boolean failed() {
-        return ThreadLocalRandom.current().nextInt(10) <= 2;
+    /** The mod's roll for casting and reeling in: nextInt(10 + agility (its second skill) / 5) <= 2 fails. */
+    private boolean failed() {
+        return ThreadLocalRandom.current().nextInt(10 + skill(1) / 5) <= 2;
     }
 
     private void forget() {

@@ -38,32 +38,29 @@ import java.util.concurrent.ThreadLocalRandom;
  * adult (more likely the more there are, only while more than 3 adults are left); else it breeds two (one breeding item each, then a
  * minute's pause); the shepherd shears, and the cowhand milks a cow and fills a bowl at a mooshroom once a day. Drops
  * go to the hut after 10 actions. An axe is needed for butchering; the breeding item comes from the hut chest.
- * Ours: no skills, so butchering does an unskilled citizen's damage; feeding (which needs skill to help) is left out.
+ * Butchering hits as hard as the mod's with its skills. Feeding the young (which needs skill to help) is left out.
  */
 public final class Herder extends Job {
-    /** The five herders: their animals, breeding item and butchering hit (the mod's, unskilled). */
+    /** The five herders: their animals and breeding item; their butchering is {@link #butcherDamage} and {@link #lands}. */
     public enum Kind {
-        CHICKEN("chickens", Set.of(EntityType.CHICKEN), Material.WHEAT_SEEDS, 5, true),
-        COW("cows, mooshrooms and goats", Set.of(EntityType.COW, EntityType.MOOSHROOM, EntityType.GOAT), Material.WHEAT, 1, false),
-        SHEEP("sheep", Set.of(EntityType.SHEEP), Material.WHEAT, 1, false),
-        PIG("pigs", Set.of(EntityType.PIG), Material.CARROT, 1, false),
-        RABBIT("rabbits", Set.of(EntityType.RABBIT), Material.CARROT, 5, true);
+        CHICKEN("chickens", Set.of(EntityType.CHICKEN), Material.WHEAT_SEEDS),
+        COW("cows, mooshrooms and goats", Set.of(EntityType.COW, EntityType.MOOSHROOM, EntityType.GOAT), Material.WHEAT),
+        SHEEP("sheep", Set.of(EntityType.SHEEP), Material.WHEAT),
+        PIG("pigs", Set.of(EntityType.PIG), Material.CARROT),
+        RABBIT("rabbits", Set.of(EntityType.RABBIT), Material.CARROT);
 
         final String animals;
         final Set<EntityType> types;
         final Material food;
-        final double damage;
-        final boolean rarelyHits; // chicken and rabbit herders land a blow only if nextInt(21) <= 1 when unskilled
 
-        Kind(String animals, Set<EntityType> types, Material food, double damage, boolean rarelyHits) {
+        Kind(String animals, Set<EntityType> types, Material food) {
             this.animals = animals;
             this.types = types;
             this.food = food;
-            this.damage = damage;
-            this.rarelyHits = rarelyHits;
         }
     }
 
+    private static final double XP_PER_ACTION = 0.5, XP_PER_MILKING = 1; // AbstractEntityAIHerder; EntityAIWorkCowboy's 1.0
     private static final int DECIDE_TICKS = 80, BREED_TICKS = 40, BUTCHER_TICKS = 20, PICKUP_TICKS = 20; // the mod's delays
     private static final int ANIMAL_MULTIPLIER = 2;    // about 2 animals per hut level are kept
     private static final int MIN_ADULTS = 3;           // never butchered at or below this
@@ -239,8 +236,9 @@ public final class Herder extends Job {
             case BUTCHER -> {
                 w.hold(tool(Tool.AXE));
                 act(w);
+                experience(w, XP_PER_ACTION);
                 cooldown = BUTCHER_TICKS;
-                if (kind.rarelyHits && rnd.nextInt(21) > 1) return;
+                if (!lands()) return;
                 wear(Tool.AXE, w);
                 ItemStack axe = tool(Tool.AXE);
                 if (axe != null && colony.research.effect(Effects.LOOTING) > 0 && axe.getEnchantmentLevel(Enchantment.LOOTING) < 1) {
@@ -249,7 +247,7 @@ public final class Herder extends Job {
                     axe.addUnsafeEnchantment(Enchantment.LOOTING, 1);
                     w.hold(axe);
                 }
-                ((Animals) target).damage(kind.damage, w.living());
+                ((Animals) target).damage(butcherDamage(), w.living());
                 w.hold(tool(Tool.AXE)); // its own axe back in hand
                 if (target.isValid() && !target.isDead()) return;
                 actions++;
@@ -261,6 +259,7 @@ public final class Herder extends Job {
                 ((Animals) target).setLoveModeTicks(600);
                 use(kind.food, 1);
                 act(w);
+                experience(w, XP_PER_ACTION);
                 actions++;
                 cooldown = BREED_TICKS;
                 if (partner != null) { target = partner; partner = null; tries = 0; return; }
@@ -272,6 +271,7 @@ public final class Herder extends Job {
                 if (s.isSheared() || !hasTool(Tool.SHEARS, null)) { act = Act.NONE; return; }
                 w.hold(tool(Tool.SHEARS));
                 act(w);
+                experience(w, XP_PER_ACTION);
                 wear(Tool.SHEARS, w);
                 s.setSheared(true);
                 s.getWorld().playSound(s.getLocation(), Sound.ENTITY_SHEEP_SHEAR, SoundCategory.PLAYERS, 1, 1);
@@ -290,6 +290,7 @@ public final class Herder extends Job {
                 gather(List.of(new ItemStack(stew ? Material.MUSHROOM_STEW : Material.MILK_BUCKET)), w);
                 target.getWorld().playSound(target.getLocation(), stew ? Sound.ENTITY_MOOSHROOM_MILK : Sound.ENTITY_COW_MILK, SoundCategory.PLAYERS, 1, 1);
                 act(w);
+                experience(w, XP_PER_MILKING);
                 if (stew) stewed++; else milked++;
                 act = Act.NONE;
                 actions = ACTIONS_FOR_DUMP; // the mod takes it to the hut straight away
@@ -395,5 +396,23 @@ public final class Herder extends Job {
         stewed = s.getInt("stewed");
         milkDays = s.getInt("milk-days");
         countedDay = s.getInt("counted-day", -1);
+    }
+
+    /**
+     * A butchering blow's damage (the mod's getButcheringAttackDamage): the cowhand's and swineherd's main skill / 10,
+     * the shepherd's second / 10, at least 1; the chicken and rabbit herders' the mod's base 5.
+     */
+    private double butcherDamage() {
+        return switch (kind) {
+            case COW, PIG -> Math.max(1.0, skill(0) / 10.0);
+            case SHEEP -> Math.max(1.0, skill(1) / 10.0);
+            default -> 5;
+        };
+    }
+
+    /** Whether the blow lands: the chicken and rabbit herders' only if nextInt(1 + (100 - skill) / 5) <= 1 (agility for both). */
+    private boolean lands() {
+        int skill = switch (kind) { case CHICKEN -> skill(1); case RABBIT -> skill(0); default -> -1; };
+        return skill < 0 || ThreadLocalRandom.current().nextInt(1 + (100 - skill) / 5) <= 1;
     }
 }

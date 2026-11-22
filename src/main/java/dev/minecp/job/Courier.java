@@ -85,6 +85,7 @@ public final class Courier extends Job {
                     : into == null ? load : new ArrayList<>(into.addItem(load.toArray(ItemStack[]::new)).values());
             gather(left, w); // what didn't fit, back in its inventory
             act(w);
+            experience(w, 1.5); // the mod's, for each delivery
             if (!left.isEmpty()) { // didn't fit
                 if (toJob != null && wh != null) { toWarehouse = true; return; } // take it back to the warehouse
                 // No warehouse to take it back to, or the warehouse is full: wait for room and try again.
@@ -124,6 +125,7 @@ public final class Courier extends Job {
             if (got.isEmpty()) serving = null;
             toWarehouse = true;
             act(w);
+            experience(w, 0.05); // the mod's, for each pickup
             cooldown = 10;
         }
     }

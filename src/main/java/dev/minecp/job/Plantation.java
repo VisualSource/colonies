@@ -189,6 +189,7 @@ public final class Plantation extends Job {
                     b.setType(Material.AIR, false);
                 }
                 above.getWorld().playSound(above.getLocation(), Sound.BLOCK_GRASS_BREAK, SoundCategory.BLOCKS, 1, 1);
+                experience(w, 1); // the mod's XP_PER_HARVEST
             }
         }
         w.swing();

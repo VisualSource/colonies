@@ -69,6 +69,7 @@ public final class Colonist {
         return skin % SKINS.length < FEMALE_SKINS;
     }
     public Hut home; // the house the colonist lives in, or null
+    public final Skills skills = new Skills(); // saved with the colony
     public boolean child;   // a child: no job, half size, until it grows up (Colony)
     public int childTime;   // a child's time towards growing up (the mod's aiActiveTime)
     // Happiness (Colony's Happiness), saved: the last foods eaten, and days counted by each time-based factor.
@@ -343,6 +344,89 @@ public final class Colonist {
                     cz + (wall == null ? 0 : wall.getModZ() * 0.8), CLIMB_SPEED);
             Nms.jump(legs);
         }
+    }
+
+    private static final int PRIMARY_SHARE = 10, SECONDARY_SHARE = 5; // % of the experience its complementary and adverse skills get or lose
+
+    /**
+     * Experience from its work (the mod's CitizenExperienceHandler.addExperience): times 1 + (its work building's level
+     * + its home's) / 10, plus its Intelligence level in %, times 1 + research's; none while starving. The job's
+     * primary skill gets it all, the secondary half; the primary's complementary skill gets 10% and its adverse one
+     * loses 10%, the secondary's 5%. A skill that levels up shows it with a sound and sparkles.
+     */
+    public void gainExperience(double xp, Skills.Skill primary, Skills.Skill secondary, int workLevel, double research) {
+        if (saturation <= 0) return;
+        int homeLevel = home == null ? 0 : home.level, homeMax = home == null ? Hut.MAX_LEVEL : home.type.maxLevel();
+        double local = xp * (1 + (workLevel + homeLevel) / 10.0);
+        local += local * skills.level(Skills.Skill.INTELLIGENCE) / 100.0;
+        local *= 1 + research;
+        boolean up = skills.add(primary, local, homeLevel, homeMax);
+        if (primary.complementary() != null) up |= skills.add(primary.complementary(), local * PRIMARY_SHARE / 100, homeLevel, homeMax);
+        if (primary.adverse() != null) skills.remove(primary.adverse(), local * PRIMARY_SHARE / 100);
+        up |= skills.add(secondary, local / 2, homeLevel, homeMax);
+        if (secondary.complementary() != null) up |= skills.add(secondary.complementary(), local * SECONDARY_SHARE / 100, homeLevel, homeMax);
+        if (secondary.adverse() != null) skills.remove(secondary.adverse(), local * SECONDARY_SHARE / 100);
+        if (up && body != null && body.isValid()) { // the mod's levelUp: its success sound and happy villager sparkles
+            Location at = body.getLocation();
+            at.getWorld().playSound(at, Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.NEUTRAL, 0.5f, 1.5f);
+            at.getWorld().spawnParticle(org.bukkit.Particle.HAPPY_VILLAGER, at.clone().add(0, 1, 0), 5, 0.3, 0.5, 0.3);
+        }
+    }
+
+    private static final int MAX_XP_PULLS = 5; // MAX_XP_PICKUP_ATTEMPTS
+    // gatherXp: it looks 2 blocks out, 4 while pulling or 1 time in 5; orbs from 5 ticks old; pulled by (1 - distance / 8)² x 0.1
+    private static final int ORB_REACH = 2, ORB_REACH_PULLING = 4, ORB_WIDE_PERCENT = 20, ORB_MIN_AGE = 5;
+    private static final double PULL_RANGE = 8, PULL = 0.1;
+    private int xpPulls;                       // the mod's counterMovedXp
+    public long lastPlayerHit = -1000;         // game tick a player last hurt it (the mod's recentlyHit)
+
+    /**
+     * Experience orbs near it (the mod's gatherXp, once a second): within 2 blocks (4 while it is pulling some, or 1 time
+     * in 5), orbs at least 5 ticks old; one within a block, or after 5 pulls, is absorbed; the others are pulled towards
+     * it. @return the experience absorbed.
+     */
+    public double gatherOrbs() {
+        if (body == null || !body.isValid()) return 0;
+        Location at = body.getLocation().add(0, body.getHeight() / 2, 0);
+        int grow = xpPulls > 0 || java.util.concurrent.ThreadLocalRandom.current().nextInt(100) < ORB_WIDE_PERCENT ? ORB_REACH_PULLING : ORB_REACH;
+        double got = 0;
+        boolean pulled = false;
+        for (var e : at.getWorld().getNearbyEntities(body.getBoundingBox().expand(grow), e -> e instanceof org.bukkit.entity.ExperienceOrb)) {
+            var orb = (org.bukkit.entity.ExperienceOrb) e;
+            if (orb.getTicksLived() < ORB_MIN_AGE) continue;
+            org.bukkit.util.Vector to = at.toVector().subtract(orb.getLocation().toVector());
+            double d = to.lengthSquared();
+            if (d < 1 || xpPulls > MAX_XP_PULLS) {
+                got += orb.getExperience();
+                orb.remove();
+                boolean gaveUp = xpPulls > MAX_XP_PULLS;
+                xpPulls = 0;
+                if (gaveUp) return got;
+                continue;
+            }
+            double pull = 1 - Math.sqrt(d) / PULL_RANGE;
+            orb.setVelocity(orb.getVelocity().add(to.normalize().multiply(pull * pull * PULL)));
+            pulled = true;
+            xpPulls++;
+        }
+        if (!pulled) xpPulls = 0;
+        return got;
+    }
+
+    /** Its experience towards next levels, dropped as orbs where it died (the mod's dropExperience). */
+    public void dropExperience(Location where) {
+        int left = (int) skills.total();
+        while (left > 0) {
+            int orb = orbSize(left);
+            left -= orb;
+            where.getWorld().spawn(where, org.bukkit.entity.ExperienceOrb.class, o -> o.setExperience(orb));
+        }
+    }
+
+    /** Vanilla's orb sizes (ExperienceOrb.getExperienceValue): the largest that fits. */
+    private static int orbSize(int xp) {
+        for (int size : new int[]{2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3}) if (xp >= size) return size;
+        return 1;
     }
 
     public String status() {

@@ -31,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * building's own (ours: the mod's players assign hives with its beekeeper scepter), up to 2^(level - 1).
  */
 public final class Beekeeper extends Job {
-    private static final int DECIDE_TICKS = 40 + (99 / 1 - 1); // DECIDING_DELAY + 99 / its adaptability - 1 (no skills: the mod's least, 1)
+    private static final int DECIDE_TICKS = 40;          // DECIDING_DELAY, plus 99 / its adaptability (second skill) - 1
     private static final int NONE_TICKS = 100;           // NO_HIVES_DELAY, NO_ANIMALS_DELAY, NO_FLOWERS_DELAY
     private static final int BREEDING_TICKS = 40;        // BREEDING_DELAY
     private static final int BEES_PER_LEVEL = 3;
@@ -41,7 +41,7 @@ public final class Beekeeper extends Job {
     private static final int DUMP_AFTER = 5;             // getActionsDoneUntilDumping
     private static final int COMBS = 3, BOTTLES = 1;     // getHoneycombsPerHarvest, getHoneyBottlesPerHarvest
     private static final int FULL = 5;                   // a hive's honey level when it can be emptied
-    private static final double ANGER_CHANCE = 0.5;      // (50 - dexterity / 99 x 50) / 100; no skills: 50%
+    // the bees come out angry with chance (50 - dexterity (its main skill) / 99 x 50) / 100
     private static final double ANGER_RANGE_SQ = 16;     // released bees this near turn on it
     private static final int ANGER_TICKS = 400, ANGER_SPREAD = 400;
     private static final int BOTTLES_KEPT = 4;           // the mod's keepX
@@ -89,7 +89,7 @@ public final class Beekeeper extends Job {
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
-        cooldown = DECIDE_TICKS;
+        cooldown = DECIDE_TICKS + 99 / skill(1) - 1;
         if (actions >= DUMP_AFTER || bagFull() && loaded()) {
             if (!atHut(w)) { w.setStatus("Beekeeper: bringing in the harvest"); goToHut(w); return; }
             if (!deliver()) { idle(w, "The hut chest is full.", NONE_TICKS, hut.block); return; }
@@ -111,7 +111,7 @@ public final class Beekeeper extends Job {
         w.wander(hut.block.getLocation().toCenterLocation());
     }
 
-    /** Empties a full hive: 3 honeycomb with shears, or a honey bottle for a glass bottle; half the time the bees come out angry. */
+    /** Empties a full hive: 3 honeycomb with shears, or a honey bottle for a glass bottle; now and then the bees come out angry. */
     private void harvest(Colonist w, Block hive) {
         String mode = mode();
         boolean combs = mode.equals("HONEYCOMB") || mode.equals("BOTH") && lastBottle;
@@ -137,8 +137,9 @@ public final class Beekeeper extends Job {
             hive.getWorld().playSound(hive.getLocation(), Sound.ITEM_BOTTLE_FILL, SoundCategory.BLOCKS, 1, 1);
         }
         lastBottle = !combs;
+        experience(w, 5); // EXP_PER_HARVEST
         if (hive.getBlockData() instanceof org.bukkit.block.data.type.Beehive b) { b.setHoneyLevel(0); hive.setBlockData(b); }
-        if (ThreadLocalRandom.current().nextDouble() < ANGER_CHANCE && hive.getState(false) instanceof org.bukkit.block.Beehive state)
+        if (ThreadLocalRandom.current().nextDouble() < (50 - skill(0) / 99.0 * 50) / 100 && hive.getState(false) instanceof org.bukkit.block.Beehive state)
             for (var bee : state.releaseEntities()) // the mod's emergency release: those near it go for it
                 if (bee.getLocation().distanceSquared(w.location()) <= ANGER_RANGE_SQ && w.living() != null) {
                     bee.setAnger(ANGER_TICKS + ThreadLocalRandom.current().nextInt(ANGER_SPREAD));

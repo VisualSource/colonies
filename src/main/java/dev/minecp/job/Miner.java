@@ -499,6 +499,7 @@ public final class Miner extends Job {
         // A chest in the way spills what it holds, as when a player breaks it.
         for (ItemStack i : takeContents(b)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
         Material lucky = luckyOre(b.getType());
+        int ticks = breakTicks(b, tool, skill(0)); // before it is gone: the mod's mining time, with its strength
         gather(breakWith(tool, b, w), w);
         if (lucky != null) gather(lucky, 1, w);
         var data = b.getBlockData();
@@ -506,7 +507,7 @@ public final class Miner extends Job {
         b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().toCenterLocation(), 10, 0.3, 0.3, 0.3, data);
         b.setType(Material.AIR, false);
         act(w);
-        cooldown = faster(Math.max(4, 14 - 2 * hut.level), "blockbreakspeedmultiplier");
+        cooldown = Math.max(1, ticks);
     }
 
     private void place(Colonist w, Block b, org.bukkit.block.data.BlockData data, Material cost) {
@@ -516,7 +517,7 @@ public final class Miner extends Job {
         var sounds = data.getSoundGroup();
         b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS, sounds.getVolume(), sounds.getPitch());
         act(w);
-        cooldown = faster(8, Effects.PLACE_SPEED);
+        cooldown = Math.max(1, placeTicks(skill(1))); // the mod's place time, with its stamina
     }
 
     /** Makes sure it carries some {@code m}, restocking from the hut chest. @return true if it does. */

@@ -115,11 +115,12 @@ public final class ConcreteMixer extends Crafter {
                 if (!fetchTool(Tool.PICKAXE, b)) { idle(w, "Needs " + toolLabel(Tool.PICKAXE) + " to mine the concrete it set.", 100, hut.block); return true; }
             }
             if (!w.isBeside(b)) { w.setStatus(hut.type.worker + ": mining concrete"); w.goBeside(b); return true; }
+            int ticks = breakTicks(b, Tool.PICKAXE, skill(0)); // the mod's mining time, with its stamina
             gather(breakWith(Tool.PICKAXE, b, w), w);
             b.getWorld().playSound(b.getLocation(), Sound.BLOCK_STONE_BREAK, SoundCategory.BLOCKS, 1, 1);
             b.setType(Material.AIR); // the water flows back in
             act(w);
-            cooldown = faster(ACTION_TICKS, Effects.BREAK_SPEED);
+            cooldown = Math.max(1, ticks);
             return true;
         }
         Material want = concreteWanted(chest);

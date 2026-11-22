@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class Sifter extends Job {
     private static final int SIFT_TICKS = 10;      // the mod's TICK_DELAY: a swing every half second
-    private static final int SIFT_STEPS = 51;      // its progress past MAX_LEVEL 50 (no skills): a sift every 51 swings
+    private static final int MAX_PROGRESS = 50;    // MAX_LEVEL: a sift once its progress passes 50 less half its effective strength (second skill)
     private static final int PER_LEVEL = 64;       // BUILDING_LEVEL_MULTIPLIER: level² x 64 a day, no limit at level 5
     private static final int DUMP_CHANCE = 10;     // CHANCE_TO_DUMP_INV: 1 in 10 sifts count as a full action
     private static final int KEEP_MESHES = 4;      // the mod's keepX for meshes
@@ -148,7 +148,7 @@ public final class Sifter extends Job {
         w.swing();
         hut.block.getWorld().playSound(hut.block.getLocation(), Sound.ITEM_LEAD_BREAK, SoundCategory.BLOCKS, 0.5f, 1); // the mod's leash knot break sound, renamed since
         cooldown = SIFT_TICKS;
-        if (++progress < SIFT_STEPS) return;
+        if (++progress <= MAX_PROGRESS - effective(skill(1)) / 2) return;
         progress = 0;
         sift(w, chest, slot, block);
     }
@@ -164,6 +164,7 @@ public final class Sifter extends Job {
         if (got != null) for (ItemStack over : chest.addItem(new ItemStack(got)).values())
             hut.block.getWorld().dropItemNaturally(hut.block.getLocation().toCenterLocation(), over);
         siftedToday++;
+        experience(w, 0.2); // the mod's, each sift
         w.workedLittle(); // the mod's: a small action each sift, a full one 1 time in 10 or when the day's limit is reached
         if (leftToday() <= 0 || ThreadLocalRandom.current().nextInt(DUMP_CHANCE) == 0) w.worked();
     }

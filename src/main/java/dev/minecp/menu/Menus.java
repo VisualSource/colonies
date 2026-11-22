@@ -1,6 +1,7 @@
 package dev.minecp.menu;
 
 import dev.minecp.MineCP;
+import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Food;
 import dev.minecp.colony.Action;
@@ -468,6 +469,7 @@ public final class Menus {
                 + " in its inventory" + (c.sickness.hospital(x) == null ? " (no Hospital to see to it)." : "; the Hospital's healer brings them."), NamedTextColor.RED)));
         body.add(text(Component.text(String.format("Happiness: %.1f of 10", c.happiness.of(x)), NamedTextColor.GOLD)));
         for (Happiness.Factor f : c.happiness.factors(x)) if (f.value() != 1) body.add(text(factor(f.name(), f.value())));
+        skills(body, x, job == null ? null : job.skills());
         if (job != null) for (Requests.Request r : c.requests.of(job)) body.add(text(request(r, false)));
         // the mod's citizen inventory (OpenInventoryMessage: MANAGE_HUTS): give it cures, food or anything else
         List<ActionButton> buttons = List.of(Dialogs.button(plugin, "Inventory", 200, p, () -> c.colonists.contains(x), (player, view) -> {
@@ -475,6 +477,24 @@ public final class Menus {
             player.openInventory(x.inventory(c.inventorySlots()));
         }));
         Dialogs.show(p, x.name, body, List.of(), buttons, 1);
+    }
+
+    /**
+     * Its skills (the mod's citizen window skill tab): its job's two first, with how far each is to its next level,
+     * then the rest.
+     */
+    private static void skills(List<DialogBody> body, Colonist x, Skill[] work) {
+        var all = java.util.EnumSet.allOf(Skill.class);
+        if (work != null) {
+            for (int i = 0; i < 2; i++) {
+                var s = work[i];
+                body.add(text(Component.text((i == 0 ? "Main skill: " : "Second skill: ") + s.label() + " " + x.skills.level(s)
+                        + String.format(" (%d%% to the next level)", (int) (100 * x.skills.progress(s))), NamedTextColor.AQUA)));
+                all.remove(s);
+            }
+        }
+        body.add(text(Component.text((work == null ? "Skills: " : "Other skills: ")
+                + String.join(", ", all.stream().map(s -> s.label() + " " + x.skills.level(s)).toList()), NamedTextColor.GRAY)));
     }
 
     /** A visitor's offer to join, on right-click (the mod's recruitment interaction). */
@@ -485,6 +505,7 @@ public final class Menus {
         ItemStack price = new ItemStack(v.item, v.count);
         body.add(DialogBody.item(price).description(DialogBody.plainMessage(Component.text(v.count + " × ")
                 .append(price.effectiveName()), 250)).showTooltip(true).build());
+        skills(body, v.colonist, null); // the mod's recruit window shows its skills
         if (!c.hasRoom())
             body.add(text(Component.text("There is no room in the colony: build or upgrade a house or tavern first.", NamedTextColor.RED)));
         List<ActionButton> buttons = List.of(Dialogs.button(plugin, "Recruit", 200, p, () -> c.visitors.list.contains(v), (player, view) -> {

@@ -140,6 +140,7 @@ public final class Studies {
             case Effects.WORK_LONGER -> "Citizens work " + n + (v == 1 ? " hour" : " hours") + " later into the evening";
             case Effects.GRAVE_DECAY -> "Graves last " + n + " minutes longer";
             case Effects.RESURRECT_CHANCE -> "The undertaker is " + pct + " likelier to bring someone back (at most 2.5% in all)";
+            case Effects.LEVELING -> "Citizens learn " + pct + " faster from their work";
             case Effects.UNDERTAKER_RUN -> "The undertaker runs to graves";
             case Effects.BREAK_SPEED -> v >= 1 ? "Workers break blocks with no wait" : "Workers break blocks in " + pct + " less time";
             case Effects.PLACE_SPEED -> v >= 1 ? "Workers place blocks with no wait" : "Workers place blocks in " + pct + " less time";

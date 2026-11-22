@@ -121,6 +121,7 @@ public final class Visitors {
         boolean female = rnd.nextBoolean();
         var at = tavern.block.getLocation().toCenterLocation();
         Colonist c = new Colonist(UUID.randomUUID(), colony.uniqueName(female), Colonist.randomSkin(female), at);
+        c.skills.roll(15 + rarity * rarity / 2); // the mod's recruit level: BASE_RECRUIT_LEVEL + rarity² / 2
         list.add(new Visitor(c, tavern, item, count, STAY_TICKS));
     }
 
@@ -325,6 +326,7 @@ public final class Visitors {
             var vs = s.createSection(v.colonist.id.toString());
             vs.set("name", v.colonist.name);
             vs.set("skin", v.colonist.skin);
+            vs.set("skills", v.colonist.skills.save());
             ColonyStore.putLocation(vs, "location", v.colonist.location());
             vs.set("tavern", colony.huts.indexOf(v.tavern));
             vs.set("item", v.item.name());
@@ -341,6 +343,7 @@ public final class Visitors {
             var at = ColonyStore.getLocation(vs, "location");
             if (tavern == null || tavern.type != Hut.Type.TAVERN || item == null || at == null) continue;
             Colonist c = new Colonist(UUID.fromString(id), vs.getString("name"), vs.getInt("skin"), at);
+            c.skills.load(vs.getStringList("skills"));
             list.add(new Visitor(c, tavern, item, vs.getInt("count"), vs.getInt("stay", STAY_TICKS)));
         }
     }

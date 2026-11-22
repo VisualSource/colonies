@@ -62,6 +62,20 @@ public enum Tool {
         return tier + Math.max(enchant - 1, 0);
     }
 
+    /**
+     * How fast {@code tool} breaks blocks of {@code m} (vanilla's tool speeds, without Efficiency, as the mod's
+     * Item.getDestroySpeed): its tier's speed when it is the kind that mines it, else 1 (by hand too).
+     */
+    static float speed(ItemStack tool, Material m) {
+        Tool kind = kindOf(tool);
+        if (kind == null) return 1;
+        if (kind == SHEARS) return Tag.LEAVES.isTagged(m) || m == Material.COBWEB ? 15 : Tag.WOOL.isTagged(m) ? 5 : 1;
+        if (kind.mines == null || !kind.mines.isTagged(m)) return 1;
+        String n = tool.getType().name();
+        return n.startsWith("NETHERITE_") ? 9 : n.startsWith("DIAMOND_") ? 8 : n.startsWith("IRON_") ? 6 : n.startsWith("COPPER_") ? 5
+                : n.startsWith("STONE_") ? 4 : n.startsWith("GOLDEN_") ? 12 : 2;
+    }
+
     /** Names of the tiers a hut allows at most, for the hut menus. */
     static String tierName(int tier) {
         return switch (tier) {

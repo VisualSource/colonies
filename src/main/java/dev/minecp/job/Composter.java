@@ -41,6 +41,7 @@ public final class Composter extends Job {
     private static final int STEP_ODDS = 20 * 2;    // each tick a step with chance 1 in (rand(40) + 1) of the game time
     private static final int PODZOL_PERCENT = 5;    // with "make dirt": podzol 5 times in 100 (x (1 + research))
     private static final double REACH = 2.5;       // ours: close enough to work a barrel
+    private static final double XP = 1;            // BASE_XP_GAIN: each barrel filled or emptied
 
     /** A barrel's state (TileEntityBarrel): how full, its timer, and whether its compost is ready. */
     private static final class Barrel {
@@ -99,6 +100,8 @@ public final class Composter extends Job {
             long time = b.getWorld().getGameTime();
             var rnd = ThreadLocalRandom.current();
             for (int t = 0; t < 20; t++) if ((time + t) % (rnd.nextInt(STEP_ODDS) + 1) == 0) s.timer++;
+            // its worker speeds them up: its stamina (main skill) / 10 x 2 more tries a second (the mod's accelerateBarrels)
+            if (colony.worker(this) != null) for (int t = 0; t < skill(0) / 10 * Furnaces.SPEED_UP_PER_10; t++) if ((time + t) % (rnd.nextInt(STEP_ODDS) + 1) == 0) s.timer++;
             if (s.timer >= FERMENT_STEPS) { s.timer = 0; s.items = 0; s.done = true; show(b, s); }
         }
     }
@@ -191,10 +194,20 @@ public final class Composter extends Job {
         w.swing();
         open.getWorld().playSound(open.getLocation(), Sound.BLOCK_COMPOSTER_FILL, SoundCategory.BLOCKS, 1, 1);
         w.workedLittle(); // the mod's decreaseSaturationForContinuousAction
+        experience(w, XP);
         cooldown = AFTER_TASK;
     }
 
-    /** Empties a ready barrel into its inventory: 6 compost (1 in 100 twice that, no skills), or with "make dirt" a block of dirt or podzol. */
+    /**
+     * The mod's getLootMultiplier: with half its athletics (second skill) as L, a dice of 100 at most 2L gives twice
+     * the compost, at most 4L 1.5 times, at most 8L 1.25 times.
+     */
+    private double lootMultiplier() {
+        int l = skill(1) / 2, dice = ThreadLocalRandom.current().nextInt(100);
+        return dice <= l * 2 ? 2 : dice <= l * 4 ? 1.5 : dice <= l * 8 ? 1.25 : 1;
+    }
+
+    /** Empties a ready barrel into its inventory: 6 compost (more with skill), or with "make dirt" a block of dirt or podzol. */
     private void harvest(Colonist w, Block b) {
         w.setStatus("Composter: emptying a barrel");
         if (!near(w, b)) { w.goBeside(b); return; }
@@ -205,11 +218,12 @@ public final class Composter extends Job {
         if (hut.on(Settings.MAKE_DIRT)) {
             double podzol = PODZOL_PERCENT * (1 + colony.research.effect(Effects.PODZOL_CHANCE));
             got = new ItemStack(ThreadLocalRandom.current().nextInt(100) + 1 <= podzol ? Material.PODZOL : Material.DIRT);
-        } else got = Compost.item(ThreadLocalRandom.current().nextInt(100) == 0 ? 2 * Compost.PER_BARREL : Compost.PER_BARREL); // the mod's DOUBLE for a dice of 0
+        } else got = Compost.item((int) (Compost.PER_BARREL * lootMultiplier()));
         gather(List.of(got), w);
         w.swing();
         b.getWorld().playSound(b.getLocation(), Sound.BLOCK_COMPOSTER_EMPTY, SoundCategory.BLOCKS, 1, 1);
         act(w);
+        experience(w, XP);
         emptying = true;
         cooldown = AFTER_TASK;
     }

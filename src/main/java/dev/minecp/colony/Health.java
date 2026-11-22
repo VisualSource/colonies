@@ -53,6 +53,8 @@ public final class Health {
         return (job != null ? job.maxHealth() : Colonist.MAX_HEALTH) + colony.research.effect(Effects.HEALTH);
     }
 
+    private static final int RECENTLY_HIT = 100; // vanilla's recentlyHit: 100 ticks after a player's hit
+
     /** Damage to a citizen's body or legs: the hit itself is cancelled and the citizen's own health takes it. */
     public void hurt(Colonist c, EntityDamageEvent e) {
         e.setCancelled(true);
@@ -72,6 +74,7 @@ public final class Health {
         c.health -= damage;
         c.showHurt();
         if (direct != null) c.hitBy(direct);
+        if (source instanceof Player) c.lastPlayerHit = c.location().getWorld().getGameTime();
         if (!Job.fireOrLightning(type)) colony.happiness.hurt(c); // the mod's damage modifier skips fire (lava, magma, campfires too) and lightning
         if (c.health <= 0) { die(c, cause, source); return; }
         c.wake(); // vanilla wakes any sleeper that is hurt; it flees first, then goes back to bed
@@ -93,6 +96,9 @@ public final class Health {
         items.addAll(c.takeInventory()); // its own inventory too
         colony.sickness.forget(c);
         Location at = c.location();
+        // the mod's dropExperience: killed with a player's hit in the last 5 s (its recentlyHit), with mob loot on
+        if ((source instanceof Player || at.getWorld().getGameTime() - c.lastPlayerHit <= RECENTLY_HIT)
+                && Boolean.TRUE.equals(at.getWorld().getGameRuleValue(org.bukkit.GameRule.DO_MOB_LOOT))) c.dropExperience(at);
         c.despawn();
         colony.colonists.remove(c);
         colony.assignJobs();

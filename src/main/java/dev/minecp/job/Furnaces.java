@@ -59,14 +59,17 @@ final class Furnaces {
     /**
      * One step at the first furnace that needs it: what it made goes into the chest (what doesn't fit stays), an empty
      * furnace gets {@code input} (null: nothing to put in, at most {@link #LOAD} of it), and one with something to
-     * burn and no fuel gets fuel from the chest. Walks there first. @return false if no furnace needed anything.
+     * burn and no fuel gets fuel from the chest; but no more than {@code maxBusy} furnaces smelt at once (the mod's
+     * getMaxUsableFurnaces). Walks there first. @return false if no furnace needed anything.
      */
-    static boolean tend(Job job, Colonist w, List<Block> furnaces, Inventory chest, Supplier<ItemStack> input, Predicate<ItemStack> fuel) {
+    static boolean tend(Job job, Colonist w, List<Block> furnaces, Inventory chest, Supplier<ItemStack> input, Predicate<ItemStack> fuel, int maxBusy) {
+        int busy = 0;
+        for (Block b : furnaces) if (b.getState(false) instanceof Furnace f && !empty(f.getInventory().getSmelting())) busy++;
         for (Block b : furnaces) {
             if (!(b.getState(false) instanceof Furnace f)) continue;
             FurnaceInventory inv = f.getInventory();
             boolean collect = !empty(inv.getResult());
-            ItemStack in = empty(inv.getSmelting()) ? input.get() : null;
+            ItemStack in = empty(inv.getSmelting()) && busy < maxBusy ? input.get() : null;
             boolean burning = !empty(inv.getSmelting()) || in != null;
             ItemStack fuelItem = burning && empty(inv.getFuel()) && f.getBurnTime() <= 0 ? first(chest, fuel) : null;
             if (!collect && in == null && fuelItem == null) continue;
@@ -75,6 +78,7 @@ final class Furnaces {
             if (collect) {
                 var left = chest.addItem(inv.getResult()).values();
                 inv.setResult(left.isEmpty() ? null : left.iterator().next());
+                job.experience(w, job instanceof Crafter ? CRAFTER_XP : COOK_XP);
             }
             if (in != null) inv.setSmelting(take(chest, in));
             if (fuelItem != null) inv.setFuel(take(chest, fuelItem));
@@ -85,6 +89,25 @@ final class Furnaces {
         }
         return false;
     }
+
+    /**
+     * Its worker's skill speeds up the lit furnaces: {@code ticks} more of cooking and burning each second (the mod's
+     * accelerateFurnaces). Ours: a furnace stops one tick short of done, so vanilla finishes the item.
+     */
+    static void speedUp(List<Block> furnaces, int ticks) {
+        if (ticks <= 0) return;
+        for (Block b : furnaces) {
+            if (!b.getWorld().isChunkLoaded(b.getX() >> 4, b.getZ() >> 4) || !(b.getState(false) instanceof Furnace f)) continue;
+            if (f.getBurnTime() <= 0 || empty(f.getInventory().getSmelting())) continue;
+            f.setCookTime((short) Math.min(f.getCookTime() + ticks, Math.max(f.getCookTime(), f.getCookTimeTotal() - 1)));
+            f.setBurnTime((short) Math.max(1, f.getBurnTime() - ticks));
+        }
+    }
+
+    // the mod's BASE_XP_GAIN for taking out what a furnace made: its smelters' 5 (EntityAIWorkSmelter,
+    // AbstractEntityAIRequestSmelter), the cook's 2 (AbstractEntityAIUsesFurnace)
+    private static final double CRAFTER_XP = 5, COOK_XP = 2;
+    static final int SPEED_UP_PER_10 = 2; // accelerateFurnaces: 2 extra ticks a second per 10 skill levels
 
     private static boolean empty(ItemStack i) {
         return i == null || i.isEmpty();

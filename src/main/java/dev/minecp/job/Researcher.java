@@ -59,6 +59,7 @@ public final class Researcher extends Job {
         w.setStatus("Researcher: studying");
         w.swing();
         shelf.getWorld().playSound(shelf.getLocation().toCenterLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.25f, 1.5f);
+        experience(w, 2); // the mod's XP_PER_STUDYPOS
         shelf = null;
         studying = 0;
         cooldown = STUDY_DELAY;

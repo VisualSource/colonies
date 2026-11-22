@@ -184,11 +184,17 @@ public final class Colony {
         return colonists.size() < capacity();
     }
 
-    /** A new citizen at {@code at}. As the mod: the first is either sex, then whichever is fewer (rounding towards female). */
+    /**
+     * A new citizen at {@code at}. As the mod: the first is either sex, then whichever is fewer (rounding towards
+     * female); its skills rolled up to twice the colony's happiness, at least 5 for the starting citizens (initForNewCivilian).
+     */
     private Colonist newCitizen(Location at) {
         long females = colonists.stream().filter(Colonist::female).count();
         boolean female = colonists.isEmpty() ? ThreadLocalRandom.current().nextBoolean() : females < colonists.size() / 2.0;
-        return new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female), at);
+        Colonist c = new Colonist(UUID.randomUUID(), uniqueName(female), Colonist.randomSkin(female), at);
+        int cap = (int) happiness.overall() * 2;
+        c.skills.roll(colonists.size() < STARTING_CITIZENS ? Math.max(5, cap) : cap);
+        return c;
     }
 
     /** One of the starting citizens moves in at the town hall. */
@@ -230,6 +236,8 @@ public final class Colony {
         Hut house = spareBed();
         if (house == null) return;
         Colonist child = newCitizen(house.block.getLocation().toCenterLocation());
+        var rnd = ThreadLocalRandom.current(); // ours: two citizens at random stand in for its parents (no families yet)
+        child.skills.inherit((int) happiness.overall(), colonists.get(rnd.nextInt(colonists.size())).skills, colonists.get(rnd.nextInt(colonists.size())).skills);
         child.setChild(true);
         child.home = house;
         join(child);
@@ -633,6 +641,10 @@ public final class Colony {
             if (!c.tick()) continue;
             c.pace = walking; // for its next tick's walk; working sets its job's pace below
             Job job = jobOf(c);
+            if (colonyTick % 20 == 0) { // the mod's gatherXp, every 20 ticks: the jobless take orbs too, but learn nothing from them
+                double xp = c.gatherOrbs();
+                if (xp > 0 && job != null) job.absorb(c, xp);
+            }
             routine.hunger(c, job);
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
@@ -758,6 +770,7 @@ public final class Colony {
     /** The undertaker brought {@code g}'s citizen back: a citizen again where the grave was, mourned no more. */
     public void revive(Grave g) {
         Colonist c = new Colonist(UUID.randomUUID(), g.name, g.skin, g.block.getLocation().toCenterLocation());
+        c.skills.roll((int) happiness.overall() * 2); // ours: rolled again, as a new citizen (the mod keeps them)
         for (Colonist o : colonists) { // no more mourning for them, today or tomorrow
             int i = o.mourns.indexOf(g.name);
             if (i < 0) continue;

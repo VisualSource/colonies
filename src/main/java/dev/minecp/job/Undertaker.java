@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.build.BuildOrder;
+import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.ColonyStore;
@@ -33,13 +34,15 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * The Graveyard's undertaker (the mod's EntityAIWorkUndertaker): digs up the colony's graves one at a time, nearest
  * the hut first, taking what each held to the hut; tries to bring the citizen back; else buries them in one of the
- * graveyard's burial spots under a named grave. Its timings are the mod's effort counts for a skill of 10 (ours: we have
- * no skills): emptying a grave 2.5 s, trying to bring them back 10 s, burying 10 s.
+ * graveyard's burial spots under a named grave. Its timings are the mod's effort counts: each swing adds its skill
+ * level (strength for emptying and burying, mana for bringing back) until 100, 400 and 400; at level 10, 2.5 s, 10 s
+ * and 10 s.
  */
 public final class Undertaker extends Job {
-    private static final int EMPTY_TICKS = 50, RESURRECT_TICKS = 200, BURY_TICKS = 200, SWING_TICKS = 10;
-    // The mod's chance without skills, totems or mystical site: 0.5% a hut level plus research, at most 2.5%.
-    private static final double CHANCE_PER_LEVEL = 0.005, MAX_CHANCE = 0.025;
+    private static final int EMPTY_EFFORT = 100, RESURRECT_EFFORT = 400, BURY_EFFORT = 400; // EFFORT_EMPTY_GRAVE, _RESURRECT, _BURY
+    private static final int SWING_TICKS = 5; // ours: a swing every 5 ticks, the pace that gives the mod's timings
+    // The mod's chance without totems or mystical site: 0.5% a hut level, 0.125% a mana level, plus research, at most 2.5%.
+    private static final double CHANCE_PER_LEVEL = 0.005, CHANCE_PER_MANA = 0.00125, MAX_CHANCE = 0.025;
     private static final double SPRINT = 1.3; // vanilla's sprinting speed modifier
 
     private enum State { FIND, TO_GRAVE, EMPTY, RESURRECT, DIG, BURY, DUMP }
@@ -96,7 +99,8 @@ public final class Undertaker extends Job {
 
     /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%. */
     private double chance() {
-        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + colony.research.effect(Effects.RESURRECT_CHANCE));
+        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + CHANCE_PER_MANA * level(Skill.MANA)
+                + colony.research.effect(Effects.RESURRECT_CHANCE));
     }
 
     /** It runs to a grave once researched (the mod's undertakerrun: vanilla sprinting, +30%). */
@@ -164,7 +168,7 @@ public final class Undertaker extends Job {
             }
             case EMPTY -> {
                 if (!w.isBeside(grave.block)) { state = State.TO_GRAVE; return; } // back from bed, a meal or the rain
-                if (!work(w, EMPTY_TICKS)) return;
+                if (!work(w, EMPTY_EFFORT, skill(0))) return;
                 Inventory bag = bag();
                 for (int i = 0; i < grave.items.getSize() && bag != null; i++) { // into its inventory, as much as fits (the mod's)
                     ItemStack item = grave.items.getItem(i);
@@ -179,9 +183,9 @@ public final class Undertaker extends Job {
             case RESURRECT -> {
                 if (!w.isBeside(grave.block)) { effort = 0; state = State.TO_GRAVE; return; }
                 Location at = grave.block.getLocation().toCenterLocation();
-                if (effort < RESURRECT_TICKS) {
+                if (effort < RESURRECT_EFFORT) {
                     at.getWorld().spawnParticle(Particle.ENCHANT, at, 20, 0.5, 0.8, 0.5, 0.5);
-                    effort += SWING_TICKS;
+                    effort += skill(1);
                     cooldown = SWING_TICKS;
                     return;
                 }
@@ -215,7 +219,7 @@ public final class Undertaker extends Job {
                     return;
                 }
                 if (!w.isBeside(buryAt.block())) { w.goBeside(buryAt.block()); return; }
-                if (!work(w, BURY_TICKS)) return;
+                if (!work(w, BURY_EFFORT, skill(0))) return;
                 bury(buryAt, body, bodyJob);
                 resting.put(buryAt.block(), body);
                 colony.milestones.buried();
@@ -236,12 +240,12 @@ public final class Undertaker extends Job {
         }
     }
 
-    /** Swings the shovel, counting up effort; @return true once {@code ticks} of swinging have passed. */
-    private boolean work(Colonist w, int ticks) {
-        if (effort >= ticks) return true;
+    /** Swings the shovel, each swing adding its {@code skill} level of effort; @return true once {@code needed} is reached. */
+    private boolean work(Colonist w, int needed, int skill) {
+        if (effort >= needed) return true;
         w.hold(tool(Tool.SHOVEL));
         act(w);
-        effort += SWING_TICKS;
+        effort += skill;
         cooldown = SWING_TICKS;
         return false;
     }

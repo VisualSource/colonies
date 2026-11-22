@@ -30,7 +30,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Healer extends Job {
     private static final int DECIDE_TICKS = 20;    // the mod's: it decides once a second
     private static final int REQUEST_COUNT = 16;   // the cure items it asks for at a time (minimum 1)
-    private static final int FREE_CURE_ODDS = 60 * 60; // 1 in this each second (2 with no skills): a patient cured outright
+    private static final int FREE_CURE_ODDS = 60 * 60; // each second, a patient is cured outright on nextInt(this) <= max(1, knowledge / 20)
     private static final int FREE_CURE_STEPS = 30; // MAX_PROGRESS_TICKS, a step a second
     private static final double REMOTE_HEALTH = 10; // a citizen this hurt...
     private static final int REMOTE_RANGE = 40;    // ...within 40 blocks per hut level gets a visit
@@ -78,7 +78,7 @@ public final class Healer extends Job {
     private void decide(Colonist w) {
         var rnd = ThreadLocalRandom.current();
         for (Colonist p : colony.sickness.patients(hut)) {
-            if (rnd.nextInt(FREE_CURE_ODDS) <= 1) { act = Act.FREE_CURE; patient = p; return; }
+            if (rnd.nextInt(FREE_CURE_ODDS) <= Math.max(1, skill(1) / 20)) { act = Act.FREE_CURE; patient = p; return; }
             if (!p.disease.curedBy(p.inventory()) && (p.disease.curedBy(bag()) || p.disease.curedBy(chest()))) { act = Act.DELIVER; patient = p; return; }
         }
         if (healPlayer(w)) return;
@@ -114,6 +114,7 @@ public final class Healer extends Job {
                 break;
             }
         }
+        experience(w, 2); // BASE_XP_GAIN for a treatment
         reset();
     }
 
@@ -133,6 +134,7 @@ public final class Healer extends Job {
         hearts(patient.location(), 2);
         if (++progress < FREE_CURE_STEPS) return;
         colony.sickness.cure(patient);
+        experience(w, 2); // BASE_XP_GAIN
         reset();
     }
 
@@ -141,6 +143,7 @@ public final class Healer extends Job {
         if (!near(w, patient)) { w.setStatus("Healer: going to a hurt citizen"); w.goBeside(patient.location().getBlock()); return; }
         w.swing();
         patient.health = Math.max(patient.health, healedTo(colony.health.max(patient)));
+        experience(w, 1); // the mod's, for healing on its walks
         hearts(patient.location(), 5);
         reset();
     }
@@ -158,6 +161,7 @@ public final class Healer extends Job {
             if (w.location().distance(l) > REACH) { w.setStatus("Healer: working"); w.goBeside(l.getBlock()); return true; }
             w.swing();
             p.setHealth(Math.min(full, Math.max(p.getHealth(), healedTo(full))));
+            experience(w, 1); // the mod's, for healing a player
             p.sendMessage(Component.text("The healer patches you up.", NamedTextColor.GREEN));
             return true;
         }

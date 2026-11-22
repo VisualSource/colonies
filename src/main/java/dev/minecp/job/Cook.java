@@ -98,6 +98,7 @@ public final class Cook extends Job {
                 next.serve(new ArrayList<>(serving));
                 serving.clear();
                 act(w);
+                experience(w, 2); // the mod's BASE_XP_GAIN for each meal served
                 cooldown = 10;
                 return;
             }
@@ -105,8 +106,14 @@ public final class Cook extends Job {
 
         if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE, Material.SMOKER); scan = 200; }
         if (furnaces.isEmpty()) { idle(w, "No furnace or smoker near the hut to cook with.", 40, hut.block); return; }
-        if (Furnaces.tend(this, w, furnaces, chest, () -> Furnaces.first(chest, i -> Food.cooked().containsKey(i.getType())), Furnaces::isFuel)) return;
+        if (Furnaces.tend(this, w, furnaces, chest, () -> Furnaces.first(chest, i -> Food.cooked().containsKey(i.getType())), Furnaces::isFuel, Integer.MAX_VALUE)) return;
         idle(w, waiting.isEmpty() ? null : note, 40, hut.block);
+    }
+
+    /** Its worker speeds its furnaces up: its adaptability (main skill) / 10 x 2 ticks a second (the mod's AbstractEntityAIUsesFurnace). */
+    @Override
+    public void everySecond() {
+        if (colony.worker(this) != null) Furnaces.speedUp(furnaces, skill(0) / 10 * Furnaces.SPEED_UP_PER_10);
     }
 
     /** Food it was carrying goes back to the chest when the job ends. */

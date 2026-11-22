@@ -86,6 +86,7 @@ public final class ColonyStore {
             if (c.disease != null) cs.set("disease", c.disease.name());
             cs.set("immunity", c.immunity);
             cs.set("sick-days", c.sickDays);
+            cs.set("skills", c.skills.save());
             var inv = c.inventory();
             if (inv != null) {
                 cs.set("inventory-size", inv.getSize());
@@ -182,6 +183,7 @@ public final class ColonyStore {
             if (disease != null) c.disease = Disease.valueOf(disease);
             c.immunity = cs.getInt("immunity");
             c.sickDays = cs.getInt("sick-days");
+            c.skills.load(cs.getStringList("skills"));
             if (cs.contains("inventory-size")) {
                 var inv = c.inventory(cs.getInt("inventory-size"));
                 for (String it : cs.getStringList("inventory")) {

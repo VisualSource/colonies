@@ -1,9 +1,12 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 import dev.minecp.research.Effects;
+
+import static dev.minecp.citizen.Skills.Skill.*;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
@@ -47,7 +50,115 @@ public abstract class Job {
         return Math.max(1, (int) (ticks * (1 - colony.research.effect(speedEffect))));
     }
 
+    private static final int BLOCK_MINING_DELAY = 500;  // AbstractEntityAIInteract
+    private static final double LEVEL_MODIFIER = 0.85;
+    private static final int BUILD_BLOCK_DELAY = 15, PROGRESS_MULTIPLIER = 10; // AbstractEntityAIStructure, AbstractEntityAICrafting
+
+    /**
+     * Ticks to break {@code b} with its tool of this kind (null: by hand) at a break-speed skill {@code level} (the
+     * mod's calculateWorkerMiningDelay): 500 x 0.85^(level / 2) x the block's hardness / the tool's speed on it (1 by
+     * hand or with the wrong tool), less the break-speed research.
+     */
+    int breakTicks(Block b, Tool kind, int level) {
+        if (b.isLiquid()) return 0; // flowed over, not mined: vanilla's hardness 100 would stall a build for minutes
+        int slot = kind == null ? -1 : toolSlot(kind, b);
+        ItemStack tool = slot < 0 ? null : bag().getItem(slot);
+        double ticks = BLOCK_MINING_DELAY * Math.pow(LEVEL_MODIFIER, level / 2.0) * Math.max(0, b.getType().getHardness()) / Tool.speed(tool, b.getType());
+        return (int) (ticks * (1 - colony.research.effect(Effects.BREAK_SPEED)));
+    }
+
+    /** Ticks to place a block at a place-speed skill {@code level} (the mod's): 150 / (level / 2 + 10), less the place-speed research. */
+    int placeTicks(int level) {
+        return (int) (BUILD_BLOCK_DELAY * PROGRESS_MULTIPLIER / (level / 2 + PROGRESS_MULTIPLIER) * (1 - colony.research.effect(Effects.PLACE_SPEED)));
+    }
+
     // ---- what a kind of job adds: the hut menu, saving, shutting down ----------------------------------------
+
+    /** Its worker's main and second skill (the mod's WorkerBuildingModule skills for each building); null for huts without a worker. */
+    public Skill[] skills() {
+        return skillsOf(hut.type);
+    }
+
+    static Skill[] skillsOf(Hut.Type t) {
+        return switch (t) {
+            case BUILDER -> sk(ADAPTABILITY, ATHLETICS);
+            case LUMBERJACK -> sk(STRENGTH, FOCUS);
+            case FARMER, COMPOSTER -> sk(STAMINA, ATHLETICS);
+            case COOK -> sk(ADAPTABILITY, KNOWLEDGE);
+            case COURIER -> sk(AGILITY, ADAPTABILITY);
+            case MINER -> sk(STRENGTH, STAMINA);
+            case SAWMILL, BAKER -> sk(KNOWLEDGE, DEXTERITY);
+            case STONEMASON, DYER -> sk(CREATIVITY, DEXTERITY);
+            case STONE_SMELTERY -> sk(ATHLETICS, DEXTERITY);
+            case BLACKSMITH -> sk(STRENGTH, FOCUS);
+            case SMELTERY -> sk(ATHLETICS, STRENGTH);
+            case MECHANIC -> sk(KNOWLEDGE, AGILITY);
+            case FLETCHER -> sk(DEXTERITY, CREATIVITY);
+            case GLASSBLOWER -> sk(CREATIVITY, FOCUS);
+            case CRUSHER -> sk(STAMINA, STRENGTH);
+            case SIFTER, SHEPHERD -> sk(FOCUS, STRENGTH);
+            case CONCRETE_MIXER -> sk(STAMINA, DEXTERITY);
+            case FISHERMAN -> sk(FOCUS, AGILITY);
+            case CHICKEN_HERDER -> sk(ADAPTABILITY, AGILITY);
+            case COWBOY -> sk(ATHLETICS, STAMINA);
+            case SWINEHERD -> sk(STRENGTH, ATHLETICS);
+            case RABBIT_HUTCH -> sk(AGILITY, ATHLETICS);
+            case GRAVEYARD -> sk(STRENGTH, MANA);
+            case HOSPITAL -> sk(MANA, KNOWLEDGE);
+            case UNIVERSITY -> sk(KNOWLEDGE, MANA);
+            case PLANTATION -> sk(AGILITY, DEXTERITY);
+            case BEEKEEPER -> sk(DEXTERITY, ADAPTABILITY);
+            case GUARD_TOWER, BARRACKS_TOWER -> sk(ADAPTABILITY, STAMINA); // a knight's; Guard picks by its type
+            default -> null;
+        };
+    }
+
+    static Skill[] sk(Skill primary, Skill secondary) {
+        return new Skill[]{primary, secondary};
+    }
+
+    /** The mod's getEffectiveSkillLevel: (level + 1) x 2 - ((level + 1) / 10)². */
+    static int effective(int level) {
+        return (int) ((level + 1) * 2 - Math.pow((level + 1) / 10.0, 2));
+    }
+
+    /** Its worker's level in a skill; 1 with nobody working here. */
+    int level(Skill s) {
+        Colonist w = colony.worker(this);
+        return w == null ? 1 : w.skills.level(s);
+    }
+
+    /** Its worker's level in its main (0) or second (1) skill; 1 with nobody working here. */
+    int skill(int which) {
+        Colonist w = colony.worker(this);
+        var s = skills();
+        return w == null || s == null ? 1 : w.skills.level(s[which]);
+    }
+
+    /**
+     * Experience orbs its worker picked up: first Mending repairs (2 experience a point of durability, the mod's
+     * applyMending; ours: Mending tools and other items in its inventory, the mod's what it holds and wears), the rest
+     * into its skills.
+     */
+    public void absorb(Colonist w, double xp) {
+        Inventory bag = bag();
+        if (bag != null) for (int i = 0; i < bag.getSize() && xp > 0; i++) {
+            ItemStack item = bag.getItem(i);
+            if (item == null || !item.containsEnchantment(org.bukkit.enchantments.Enchantment.MENDING)
+                    || !(item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable d) || d.getDamage() <= 0) continue;
+            double healed = Math.min(xp / 2, d.getDamage());
+            xp -= healed * 2;
+            d.setDamage(d.getDamage() - (int) Math.ceil(healed));
+            item.setItemMeta(d);
+        }
+        if (xp > 0) experience(w, xp);
+    }
+
+    /** Work experience for its worker, into its job's skills (the mod's addExperience). */
+    void experience(Colonist w, double xp) {
+        var s = skills();
+        if (s != null) w.gainExperience(xp, s[0], s[1], hut.level, colony.research.effect(Effects.LEVELING));
+    }
 
     /** What its worker is called in the hut menu ("Cook"; a guard by its type). */
     public String title() {
@@ -491,6 +602,7 @@ public abstract class Job {
         if (kind != null && slot < 0) slot = toolSlot(kind, null);
         Collection<ItemStack> drops = drops(block, slot < 0 ? null : bag().getItem(slot));
         if (slot >= 0) wearSlot(slot, w);
+        experience(w, XP_PER_BLOCK);
         return drops;
     }
 
@@ -502,6 +614,8 @@ public abstract class Job {
         if (dev.minecp.logistics.Rack.is(b)) return List.of(dev.minecp.logistics.Rack.item());
         return tool == null ? b.getDrops() : b.getDrops(tool);
     }
+
+    static final double XP_PER_BLOCK = 0.05; // AbstractEntityAIInteract.mineBlock: each block a worker breaks
 
     /** One work action: the worker swings, and it counts towards its hunger (the mod's incrementActionsDoneAndDecSaturation). */
     void act(Colonist w) {

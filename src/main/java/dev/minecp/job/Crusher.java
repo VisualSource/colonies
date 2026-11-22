@@ -28,7 +28,7 @@ import java.util.function.Predicate;
  * warehouse for what it crushes; the count starts again each morning, as the mod's.
  */
 public final class Crusher extends Crafter {
-    private static final int CRUSH_TICKS = 80;      // the mod's: 40 progress every 40 ticks, a crush once past 49 (no skills)
+    private static final int TICK_DELAY = 40, MAX_PROGRESS = 50; // the mod's: 40 progress every 40 ticks, a crush once past 50 - (strength / 2 + 1)
     private static final int ASK_PER_CRUSH = 2;     // the mod asks for twice what is left of the day, at most a stack
     private static final double FLINT_CHANCE = 0.1; // its recipes/gravel loot table: flint 10 in 100 with each sand
 
@@ -58,7 +58,7 @@ public final class Crusher extends Crafter {
 
     @Override
     public double diseaseModifier() {
-        return 4; // the mod's JobCrusher: (100 - skill) / 25, no skills
+        return (int) ((100 - skill(0)) / 25.0); // the mod's JobCrusher: (100 - stamina) / 25
     }
 
     private void know(String id, Material result, int count, Material from, int amount, Predicate<Studies> when) {
@@ -107,10 +107,12 @@ public final class Crusher extends Crafter {
         w.hold(new ItemStack(input));
         w.swing();
         w.workedLittle(); // the mod's crusher: a small action each crush
+        experience(w, 0.1); // and 0.1 experience
         hut.block.getWorld().playSound(hut.block.getLocation(), Sound.BLOCK_GRINDSTONE_USE, SoundCategory.BLOCKS, 0.5f, 1);
         craft(chest, r);
         if (++crushedToday == hut.number(Settings.DAILY_LIMIT)) w.worked(); // the mod's full action once the day's batch is done
-        cooldown = CRUSH_TICKS;
+        int needed = MAX_PROGRESS - Math.min(skill(1) / 2 + 1, MAX_PROGRESS); // its strength (second skill)
+        cooldown = TICK_DELAY * (needed / TICK_DELAY + 1); // two steps of 40 below strength 20, then one
         return true;
     }
 

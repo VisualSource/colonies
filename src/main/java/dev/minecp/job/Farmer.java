@@ -143,6 +143,7 @@ public final class Farmer extends Job {
         return wants;
     }
 
+    private static final double XP_PER_HARVEST = 0.5; // EntityAIWorkFarmer
     private static final int FERTILIZER_STACK = 64; // the mod's STACKSIZE: asked for and taken; ours: kept in the chest too
 
     private boolean fertilizes() {
@@ -176,8 +177,9 @@ public final class Farmer extends Job {
                 NamedTextColor.GRAY));
     }
 
+    /** The mod's getLevelDelay: 40 ticks less half its stamina (main skill), at least 1. */
     private int actionTicks() {
-        return Math.max(4, 16 - 2 * hut.level);
+        return (int) Math.max(1, 40 - skill(0) / 2.0);
     }
 
     @Override
@@ -287,6 +289,7 @@ public final class Farmer extends Job {
                 for (ItemStack drop : breakWith(null, crop, w))
                     gather(List.of(drop.asQuantity(drop.getAmount() * (ThreadLocalRandom.current().nextDouble() < doubleChance ? 2 : 1))), w);
                 crop.setType(Material.AIR, false);
+                experience(w, XP_PER_HARVEST);
                 crop.getWorld().playSound(crop.getLocation(), Sound.BLOCK_CROP_BREAK, SoundCategory.BLOCKS, 1, 1);
             }
             case TILL -> {

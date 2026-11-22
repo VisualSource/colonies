@@ -1,9 +1,12 @@
 package dev.minecp.job;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
 import dev.minecp.research.Effects;
+
+import static dev.minecp.citizen.Skills.Skill.*;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -40,7 +43,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class Guard extends Job {
     // The mod's numbers (GuardConstants, AbstractBuildingGuards, BuildingGuardTower):
-    private static final int ATTACK_DELAY = 32;        // KNIGHT_ATTACK_DELAY_BASE: ticks between hits (no skills: no faster)
+    private static final int ATTACK_DELAY = 32, ATTACK_DELAY_MIN = 16; // KNIGHT_ATTACK_DELAY_BASE less adaptability / 3, at least KNIGHT_ATTACK_DELAY_MIN
     private static final double REACH = 2;             // MAX_DISTANCE_FOR_ATTACK
     private static final double BASE_DAMAGE = 3;       // BASE_PHYSICAL_DAMAGE, on top of the sword's
     private static final int VISION_BASE = 15, VISION_PER_LEVEL = 3; // BASE_VISION_RANGE + VISION_RANGE_PER_LEVEL x level
@@ -48,6 +51,7 @@ public final class Guard extends Job {
     private static final int CHASE = 80;               // MAX_PATROL_DERIVATION: how far from the tower it chases
     private static final int HP_TOWER = 20, HP_PER_LEVEL = 2; // BONUS_HP_SINGLE_GUARD, BONUS_HEALTH_PER_LEVEL
     private static final int PATROL_WAIT = 100;        // GUARD_TASK_INTERVAL: ticks at a patrol point
+    private static final double XP_PER_KILL = 15;      // EXP_PER_MOB_DEATH
     private static final int SEARCH_TICKS = 20;        // ours: how often it looks for a target
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
     private static final int[][] ARMOR = {{0, 1}, {0, 2}, {0, 3}, {2, 4}, {3, 5}};
@@ -71,14 +75,15 @@ public final class Guard extends Job {
     private static final double ARROW_DAMAGE = 2;      // ARROW_EXTRA_DAMAGE: with arrows (research)
     private static final int FLEE_DISTANCE_SQ = 7, FLEE_ODDS = 3; // RANGED_FLEE_SQDIST: this close, 1 in 3 shots it steps back
     private static final double ARROW_SPEED = 1.4, SPEED_FOR_DISTANCE = 35, AIM_HIGHER = 0.18; // CombatUtils.shootArrow
-    private static final double INACCURACY = 15.0 / (5 + 1); // HIT_CHANCE_DIVIDER / (adaptability + 1); ours: an average new citizen's 5
+    private static final double HIT_CHANCE_DIVIDER = 15; // the aim's wobble: HIT_CHANCE_DIVIDER / (adaptability + 1)
     private static final int ARROWS_TAKEN = 64, ARROWS_LOW = 16, ARROWS_KEPT = 128; // it takes 64, asks below 16; the tower keeps 128
     private static final int FLAME_TICKS = 100;        // a Flame bow's arrows burn 5 s
     // Druids (the mod's GuardConstants, DruidCombatAI, DruidPotionEntity, EntityAIDruid, JobDruid):
     private static final int DRUID_DELAY = 40;         // AttackMoveAI's attack delay, doubled after an instant effect
     private static final int DRUID_RANGE = 3;          // BASE_DISTANCE_FOR_POTION_ATTACK, +1 a tower level
-    private static final int EFFECT_TICKS = 5 * 20;    // its mana skill x 20; ours: an average new citizen's 5
-    private static final double POTION_INACCURACY = 99.0 / 5; // 99 / its focus skill; ours: 5
+    private static final int EFFECT_TICKS_PER_MANA = 20;   // a druid's potions last its mana level x 20 ticks
+    private static final double POTION_WOBBLE = 99;        // their wobble: 99 / its focus level
+    private static final double XP_PER_POTION = 0.05;      // PER_POTION_XP
     private static final double POTION_SPEED = 0.5, POTION_AIM_HIGHER = 0.2, POTION_DROP = 1.1;
     private static final int HUNTED_RANGE = 16, HUNTED_HEIGHT = 8; // ours: how near a monster after a player must be
     private static final int POTIONS_TAKEN = 32, POTIONS_LOW = 8, POTIONS_ASKED = 16, POTIONS_KEPT = 32; // ours: the kept amount
@@ -91,7 +96,7 @@ public final class Guard extends Job {
     public static final String ADVERSE_POTION = "minecp_druid_adverse", SUPPORT_POTION = "minecp_druid_support";
     // Naps on duty (the mod's AbstractEntityAIGuard.shouldSleep, sleep and wakeUpGuard):
     private static final int NAP_CHECK = 200;          // SHOULD_SLEEP_INTERVAL: a chance to nap every 10 s with no target
-    private static final int NAP_ODDS = 20;            // 1 in (adaptability / 2 + 20): no skills, 1 in 20
+    private static final int NAP_ODDS = 20;            // 1 in (adaptability / 2 + 20)
     private static final int NAP_MIN = 2500, NAP_SPREAD = 500; // it naps 2500 to 3000 ticks
     private static final int NAP_HEAL_TICKS = 30;      // PARTICLE_INTERVAL
     private static final double NAP_HEAL = 0.5;        // the mod's: health each time its sleep particles show
@@ -116,18 +121,22 @@ public final class Guard extends Job {
 
     /** The guard types (the setting's values), with the mod's numbers: weapon, health bonus, armor research. */
     private enum Type {
-        KNIGHT(Tool.SWORD, 15, Effects.MELEE_ARMOR),  // KNIGHT_HP_BONUS
-        RANGER(Tool.BOW, 0, Effects.ARCHER_ARMOR),
-        DRUID(null, 12, null);                        // DRUID_HP_BONUS (no skills: no mana share); it throws potions
+        // with the mod's guard types' primary and secondary skills (ModGuardTypesInitializer)
+        KNIGHT(Tool.SWORD, 15, Effects.MELEE_ARMOR, ADAPTABILITY, STAMINA), // KNIGHT_HP_BONUS
+        RANGER(Tool.BOW, 0, Effects.ARCHER_ARMOR, AGILITY, ADAPTABILITY),
+        DRUID(null, 12, null, MANA, FOCUS); // DRUID_HP_BONUS; it throws potions
 
         final Tool weapon;
         final int health;
         final String armorResearch;
+        final Skill primary, secondary;
 
-        Type(Tool weapon, int health, String armorResearch) {
+        Type(Tool weapon, int health, String armorResearch, Skill primary, Skill secondary) {
             this.weapon = weapon;
             this.health = health;
             this.armorResearch = armorResearch;
+            this.primary = primary;
+            this.secondary = secondary;
         }
     }
 
@@ -151,6 +160,11 @@ public final class Guard extends Job {
         return type() == Type.DRUID;
     }
 
+    @Override
+    public Skill[] skills() {
+        return sk(type().primary, type().secondary);
+    }
+
     /** "Knight", "Ranger" or "Druid". */
     @Override
     public String title() {
@@ -164,13 +178,14 @@ public final class Guard extends Job {
     }
 
     /**
-     * Health with its type's bonus (knight 15, druid 12, ranger none) and its tower's: 2 a level, and 20 more for a
-     * Guard Tower's single guard (the mod adds them as max health modifiers).
+     * Health with its type's bonus (knight 15 and its stamina level, druid 12 and half its mana level, ranger none) and
+     * its tower's: 2 a level, and 20 more for a Guard Tower's single guard (the mod adds them as max health modifiers).
      */
     @Override
     public double maxHealth() {
         double tower = hut.level < 1 ? 0 : HP_PER_LEVEL * hut.level + (hut.type == Hut.Type.GUARD_TOWER ? HP_TOWER : 0);
-        return Colonist.MAX_HEALTH + type().health + tower;
+        double skill = switch (type()) { case KNIGHT -> level(STAMINA); case DRUID -> level(MANA) / 2.0; default -> 0; };
+        return Colonist.MAX_HEALTH + type().health + skill + tower;
     }
 
     /**
@@ -430,6 +445,7 @@ public final class Guard extends Job {
             return;
         }
         if (attackIn > 0) attackIn--;
+        if (target != null && target.isDead()) experience(w, XP_PER_KILL); // the mod's onTargetDied: what it fought died
         if (!valid(target)) target = null;
         if (!fleeing && !resting && shouldRetreat(w)) { wakeUp(w); fleeing = true; target = null; }
         if (fleeing) { retreat(w); return; }
@@ -486,7 +502,7 @@ public final class Guard extends Job {
         chasing = null;
         w.stopWalking();
         if (attackIn > 0) return;
-        attackIn = ATTACK_DELAY;
+        attackIn = Math.max(ATTACK_DELAY - level(ADAPTABILITY) / 3, ATTACK_DELAY_MIN); // the mod's knight getAttackDelay
         w.swing();
         at.getWorld().playSound(at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.NEUTRAL, 1, 1);
         double hit = damage(w);
@@ -534,7 +550,8 @@ public final class Guard extends Job {
         double dy = target.getBoundingBox().getMinY() + target.getHeight() / 2 - from.getY();
         double flat = Math.sqrt(dx * dx + dz * dz), dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         var rnd = ThreadLocalRandom.current();
-        a.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + flat * AIM_HIGHER, dz), INACCURACY).multiply(ARROW_SPEED + dist / SPEED_FOR_DISTANCE));
+        a.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + flat * AIM_HIGHER, dz), HIT_CHANCE_DIVIDER / (level(ADAPTABILITY) + 1))
+                .multiply(ARROW_SPEED + dist / SPEED_FOR_DISTANCE));
         a.setDamage(arrowDamage(w, bow));
         a.setPickupStatus(org.bukkit.entity.AbstractArrow.PickupStatus.DISALLOWED);
         a.addScoreboardTag(GUARD_ARROW);
@@ -558,10 +575,11 @@ public final class Guard extends Job {
         boolean hostile = target instanceof Enemy, strong = use(Guard::isSplashPotion, 1) > 0;
         var effect = hostile ? ADVERSE[rnd.nextInt(strong ? ADVERSE.length : 1)] : SUPPORT[rnd.nextInt(strong ? SUPPORT.length : 1)];
         attackIn = effect.isInstant() ? DRUID_DELAY * 2 : DRUID_DELAY;
+        experience(w, XP_PER_POTION);
         w.swing();
         ItemStack potion = new ItemStack(Material.SPLASH_POTION);
         potion.editMeta(org.bukkit.inventory.meta.PotionMeta.class, m -> {
-            m.addCustomEffect(new org.bukkit.potion.PotionEffect(effect, EFFECT_TICKS, strong ? 2 : 0), true);
+            m.addCustomEffect(new org.bukkit.potion.PotionEffect(effect, level(MANA) * EFFECT_TICKS_PER_MANA, strong ? 2 : 0), true);
             m.setColor(effect.getColor());
         });
         LivingEntity body = w.living();
@@ -572,7 +590,7 @@ public final class Guard extends Job {
         org.bukkit.util.Vector moving = target.getVelocity(); // it leads a moving target, as the mod's throwPotionAt
         double dx = target.getX() + moving.getX() - from.getX(), dz = target.getZ() + moving.getZ() - from.getZ();
         double dy = target.getEyeLocation().getY() - POTION_DROP - from.getY();
-        thrown.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + Math.sqrt(dx * dx + dz * dz) * POTION_AIM_HIGHER, dz), POTION_INACCURACY)
+        thrown.setVelocity(wobble(new org.bukkit.util.Vector(dx, dy + Math.sqrt(dx * dx + dz * dz) * POTION_AIM_HIGHER, dz), POTION_WOBBLE / level(FOCUS))
                 .multiply(POTION_SPEED));
         body.getWorld().playSound(body.getLocation(), Sound.ENTITY_WITCH_THROW, SoundCategory.NEUTRAL, 1, 0.8f + rnd.nextFloat() * 0.4f);
     }
@@ -648,10 +666,10 @@ public final class Guard extends Job {
 
     /**
      * The mod's calculateDamage: Power's level, research's, and 2 with an arrow from its stock (research), doubled at
-     * 20% health or less and 1.5x on a critical hit; then its base 2. (No skills: the mod's agility share is 0.)
+     * 20% health or less and 1.5x on a critical hit; then its base 2. Its agility level / 5 counts too.
      */
     private double arrowDamage(Colonist w, ItemStack bow) {
-        double d = colony.research.effect(Effects.ARCHER_DAMAGE);
+        double d = level(AGILITY) / 5.0 + colony.research.effect(Effects.ARCHER_DAMAGE);
         if (bow != null) d += bow.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.POWER);
         if (arrowsResearched() && use(Guard::isArrow, 1) > 0) d += ARROW_DAMAGE; // ours: used up on the shot, the mod's on a hit
         if (w.health <= colony.health.max(w) * LOW_HEALTH) d *= 2;
@@ -659,9 +677,9 @@ public final class Guard extends Job {
         return RANGED_BASE_DAMAGE + d;
     }
 
-    /** How far a ranger shoots: 10 blocks and one a tower level, at most 24 (the mod's getAttackDistance; no skills). */
+    /** How far a ranger shoots: 10 blocks, one a tower level and its adaptability / 50 x 15, at most 24 (the mod's getAttackDistance). */
     private int range() {
-        return Math.min(RANGE_BASE + hut.level, RANGE_MAX);
+        return Math.min(RANGE_BASE + hut.level + (int) (level(ADAPTABILITY) / 50.0f * 15), RANGE_MAX);
     }
 
     /**
@@ -698,7 +716,7 @@ public final class Guard extends Job {
     /** 1 in 20, and less with the Coffee research (1 / (1 + strength) of that): it sits down where it is. */
     private boolean startNap(Colonist w) {
         var rnd = ThreadLocalRandom.current();
-        if (rnd.nextInt(NAP_ODDS) != 1 || rnd.nextDouble() >= 1 / (1 + colony.research.effect(Effects.SLEEP_LESS))) return false;
+        if (rnd.nextInt(level(ADAPTABILITY) / 2 + NAP_ODDS) != 1 || rnd.nextDouble() >= 1 / (1 + colony.research.effect(Effects.SLEEP_LESS))) return false;
         napTicks = NAP_MIN + rnd.nextInt(NAP_SPREAD);
         w.sitOn(w.location().getBlock());
         w.setStatus(title() + ": napping");
@@ -714,6 +732,7 @@ public final class Guard extends Job {
     }
 
     private void wakeUp(Colonist w) {
+        if (napTicks > 0) experience(w, 1); // the mod's stopSleeping
         napTicks = 0;
         w.standUp();
     }

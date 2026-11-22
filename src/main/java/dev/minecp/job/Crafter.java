@@ -40,7 +40,7 @@ import java.util.function.Predicate;
  * smelts whatever ore it is brought. The Dyer and Glassblower do both, as the mod's crafting and smelting modules.
  */
 public class Crafter extends Job {
-    private static final int HITS = 3;       // the mod's HITTING_TIME at a typical skill (it is 30 with no skill at all)
+    private static final int HITTING_TIME = 3, PROGRESS_MULTIPLIER = 10, MAX_PROGRESS = 50; // the mod's crafting progress
     private static final int HIT_TICKS = 10; // the mod's HIT_DELAY
     private static final int EXTRA_RECIPES = 5; // the mod's EXTRA_RECIPE_MULTIPLIER
 
@@ -365,10 +365,11 @@ public class Crafter extends Job {
         w.hold(ready.getResult());
         w.swing();
         cooldown = HIT_TICKS;
-        if (++hits < HITS) return;
+        if (++hits < hits()) return;
         hits = 0;
         craft(chest, ready);
         w.worked(); // one action per craft, as the mod's
+        experience(w, ready.getResult().getAmount() / 2.0); // the mod's: half the request's count when done; ours: per craft
     }
 
     /**
@@ -377,7 +378,18 @@ public class Crafter extends Job {
      */
     private boolean smelt(Colonist w, Inventory chest) {
         if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE); scan = 200; }
-        return !furnaces.isEmpty() && Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel);
+        // the request smelters use at most their main skill / 10 + 1 furnaces at once; the Smeltery's ore smelter (the mod's AbstractEntityAIUsesFurnace) all
+        int most = oreSmelter ? Integer.MAX_VALUE : skill(0) / 10 + 1;
+        return !furnaces.isEmpty() && Furnaces.tend(this, w, furnaces, chest, () -> nextInput(chest), this::isFuel, most);
+    }
+
+    /**
+     * Its worker speeds its furnaces up: its skill / 10 x 2 ticks a second, the second skill for the request smelters,
+     * the main one for the Smeltery's (the mod's AbstractEntityAIUsesFurnace).
+     */
+    @Override
+    public void everySecond() {
+        if (smelts && colony.worker(this) != null) Furnaces.speedUp(furnaces, skill(oreSmelter ? 0 : 1) / 10 * Furnaces.SPEED_UP_PER_10);
     }
 
     /** Why its furnaces stand idle, for the hut menu, or null. */
@@ -436,6 +448,15 @@ public class Crafter extends Job {
     }
 
     // ---- menus and saving ---------------------------------------------------------------------------------------
+
+    /**
+     * Swings per craft (the mod's getRequiredProgressForMakingRawMaterial): 10 / (its crafting skill / 2 + 1) x 3, in
+     * whole numbers: 30 at level 1, 3 from level 8, none from level 20. The crafting skill is its main one (the baker's dexterity).
+     */
+    private int hits() {
+        int speed = hut.type == Hut.Type.BAKER ? skill(1) : skill(0);
+        return PROGRESS_MULTIPLIER / Math.min(speed / 2 + 1, MAX_PROGRESS) * HITTING_TIME;
+    }
 
     @Override
     public List<Component> info(Colony c) {

@@ -37,7 +37,7 @@ public final class Builder extends Job {
     private static final double CLOSE = 4;        // PathJobMoveCloseToXNearY: walks to within 4 of the block (the mod: dx+dy+dz)
     // Ours, not the mod's:
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
-    private static final int PLACE_TICKS = 8;
+    private int breaking; // ticks of mining what this step cleared
 
     public BuildOrder order;
     public Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
@@ -205,6 +205,7 @@ public final class Builder extends Job {
             deliver(); // leftovers back in the chest; what doesn't fit stays carried
             Hut.WorkOrder done = work;
             BuildOrder finished = order;
+            experience(w, XP_PER_BUILDING);
             cancel();
             onFinish.accept(done, finished);
             return;
@@ -325,10 +326,12 @@ public final class Builder extends Job {
         if (partner != null) drops.addAll(dropsOf(partner.block()));
         Inventory bag = bag();
         if (bag == null || !fits(bag, drops)) return false;
+        breaking = 0;
         place(w, step, chest);
         if (partner != null) place(w, partner, chest);
         act(w);
-        cooldown = faster(PLACE_TICKS, Effects.PLACE_SPEED); // ours: one step places, breaking what was there
+        // the mod's place time with its adaptability, and the mining time of what it cleared (ours: one step does both)
+        cooldown = Math.max(1, (step.isClear() ? 0 : placeTicks(skill(0))) + breaking);
         return true;
     }
 
@@ -358,6 +361,7 @@ public final class Builder extends Job {
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
         else if (!b.isEmpty()) { // clear whatever is in the way, into its inventory
+            breaking += breakTicks(b, Tool.forBlock(b.getType(), false), skill(1)); // the mod's mining time, with its athletics
             gather(takeContents(b), w); // emptied first, or its contents would be lost
             gather(breakWith(Tool.forBlock(b.getType(), false), b, w), w);
             b.setType(Material.AIR, false);
@@ -371,12 +375,14 @@ public final class Builder extends Job {
                 else use(cost, 1);
                 if (cost == Material.WATER_BUCKET || cost == Material.LAVA_BUCKET) gather(Material.BUCKET, 1, w); // emptied
             }
+            experience(w, XP_PER_BLOCK); // BuildingStructureHandler: each block placed (what it clears counts in breakWith)
             var sounds = step.data().getSoundGroup();
             b.getWorld().playSound(b.getLocation(), sounds.getPlaceSound(), SoundCategory.BLOCKS,
                     sounds.getVolume(), sounds.getPitch());
         }
     }
 
+    private static final double XP_PER_BUILDING = 8; // AbstractEntityAIStructure.XP_EACH_BUILDING: each build finished
     private static final int MIN_OPEN_SLOTS = 5; // the mod's: it stops loading materials with this few slots free, for what it digs up
 
     /** Takes what the next steps need from the chest, leaving 5 slots free (the mod's MIN_OPEN_SLOTS). */

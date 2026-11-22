@@ -88,9 +88,6 @@ public final class Lumberjack extends Job {
         return 16 + 8 * Math.max(0, hut.level - 1);
     }
 
-    private int chopTicks() {
-        return faster(Math.max(6, 26 - 4 * hut.level), "blockbreakspeedmultiplier");
-    }
 
     @Override
     public void tick(Colonist w) {
@@ -137,27 +134,31 @@ public final class Lumberjack extends Job {
                 if (!onLeaves) {
                     while (next < logs.size() && !Tag.LOGS.isTagged(logs.get(next).getType())) next++; // gone already
                     if (next < logs.size()) {
-                        chop(logs.get(next++), Tool.AXE, w);
+                        Block log = logs.get(next++);
+                        int ticks = breakTicks(log, Tool.AXE, skill(0)); // the mod's mining time, with its strength
+                        chop(log, Tool.AXE, w);
                         act(w);
-                        cooldown = chopTicks();
+                        cooldown = Math.max(1, ticks);
                         return;
                     }
                     onLeaves = true;
                     next = 0;
                 }
-                int cleared = 0;
+                int cleared = 0, ticks = 0;
                 while (next < leaves.size() && cleared < LEAVES_PER_SWING) {
                     Block leaf = leaves.get(next++);
                     if (!Tag.LEAVES.isTagged(leaf.getType())) continue; // decayed or gone already
+                    ticks += breakTicks(leaf, Tool.HOE, skill(0)); // each leaf's mining time
                     chop(leaf, Tool.HOE, w);
                     cleared++;
                 }
                 if (cleared > 0) {
                     act(w);
-                    cooldown = chopTicks() / 2;
+                    cooldown = Math.max(1, ticks);
                     return;
                 }
                 w.setStatus("Lumberjack: working");
+                experience(w, 1); // the mod's XP_PER_TREE, once a tree is down
                 // none dropped: from the hut chest (the mod's checkAndTransferFromHut); not at all with replanting off
                 state = !hut.on(Settings.REPLANT) || replant() ? State.TO_HUT : State.SAPLINGS;
             }

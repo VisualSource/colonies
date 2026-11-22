@@ -9,6 +9,7 @@ public final class Effects {
 
     // citizens
     public static final String HEALTH = "healthaddition";
+    public static final String LEVELING = "levelingmultiplier";
     public static final String WALKING = "walkingmultiplier";
     public static final String REGENERATION = "regenerationmultiplier";
     public static final String HEALING_SATURATION = "healingsaturationlimitaddition";
@@ -65,7 +66,7 @@ public final class Effects {
     public static final String USE_ARROWS = "consumearrowsunlock";
 
     /** Every id above, for the test. */
-    static final String[] ALL = {HEALTH, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
+    static final String[] ALL = {HEALTH, LEVELING, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
             WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
             MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES, MORE_ORES, MASKS, VACCINES, SIFTER_STRING, SIFTER_FLINT, SIFTER_IRON, SIFTER_DIAMOND, CRUSHING_ONE_TO_ONE, DEPTH_KNOWLEDGE, PODZOL_CHANCE, PLANTATION_JUNGLE, PLANTATION_LARGE,
             MELEE_DAMAGE, MELEE_ARMOR, BLOCK_ATTACKS, GUARD_CRIT, KNIGHT_TAUNT, SHIELD_USAGE, RETREAT, FLEEING_DAMAGE, FLEEING_SPEED, WHIRLWIND,
