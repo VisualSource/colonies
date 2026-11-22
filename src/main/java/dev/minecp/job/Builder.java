@@ -239,6 +239,8 @@ public final class Builder extends Job {
                 goToHut(w);
                 return;
             }
+            if (freeSlots() == 0) { emptyInventory(w); return; } // full of what it dug up: no room even for the next block
+            fetch(i -> i.isSimilar(need), need.getMaxStackSize()); // the next block first, whatever room the rest leaves
             restock(chest);
             if (carrying(need) == 0) {
                 w.setStatus("Builder: needs materials");
@@ -266,12 +268,33 @@ public final class Builder extends Job {
                 return;
             }
         }
-        if (!work(w, step, chest)) {
+        if (!work(w, step, chest)) emptyInventory(w);
+    }
+
+    /**
+     * Its inventory has no room for what it would dig up: to the hut to hand it in, keeping what the build still needs
+     * (the mod's INVENTORY_FULL dump); if those alone fill it, they go in too and come back with the next restock. With
+     * the hut chest full as well it waits there for couriers to clear it (the mod asks for a pickup and says so).
+     */
+    private void emptyInventory(Colonist w) {
+        if (!atHut(w)) { w.setStatus("Builder: emptying its inventory"); goToHut(w); return; }
+        boolean all = deliver();
+        if (all && bagFull()) { emptying = true; all = deliver(); emptying = false; }
+        if (!all) {
             w.setStatus("Builder: chest full");
-            note = "The hut chest is full: make room for what it digs up.";
-            if (!atHut(w)) goToHut(w); // wait at the hut, like the mod
-            cooldown = 100; // stop until there is room for what it digs up
+            note = "Its inventory and the hut chest are full: make room in the hut chest for what it digs up.";
+            cooldown = 100;
         }
+    }
+
+    private boolean emptying; // handing in the build's materials too, to make room
+
+    /** When it hands things in, it keeps the materials the build still needs (the mod keeps what its building needs). */
+    @Override
+    boolean keepsOnHand(ItemStack i) {
+        if (emptying || order == null) return false;
+        for (ItemStack need : needed().keySet()) if (need.isSimilar(i.asOne())) return true;
+        return false;
     }
 
     private static boolean standsAt(Colonist w, Block spot, Block target) {
@@ -294,13 +317,14 @@ public final class Builder extends Job {
         return false;
     }
 
-    /** @return false if nothing was done because the hut chest has no room for what it would dig up. */
+    /** @return false if nothing was done because its inventory has no room for what it would dig up (the mod's builder digs into its inventory). */
     private boolean work(Colonist w, BuildOrder.Step step, Inventory chest) {
         BuildOrder.Step partner = order.partner(step); // top of a door, head of a bed: never leave half of one
         if (partner != null && (partner.done() || protect.test(partner.block()))) partner = null;
         List<ItemStack> drops = new ArrayList<>(step.convertWith() != null ? List.of() : dropsOf(step.block()));
         if (partner != null) drops.addAll(dropsOf(partner.block()));
-        if (!fits(chest, drops)) return false;
+        Inventory bag = bag();
+        if (bag == null || !fits(bag, drops)) return false;
         place(w, step, chest);
         if (partner != null) place(w, partner, chest);
         act(w);
@@ -333,9 +357,9 @@ public final class Builder extends Job {
         Material cost = step.cost(); // before the block changes: converting dirt is free, laying it is not
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
-        else if (!b.isEmpty()) { // clear whatever is in the way, drops go to the hut
-            store(chest, takeContents(b)); // emptied first, or its contents would be lost
-            store(chest, breakWith(Tool.forBlock(b.getType(), false), b, w));
+        else if (!b.isEmpty()) { // clear whatever is in the way, into its inventory
+            gather(takeContents(b), w); // emptied first, or its contents would be lost
+            gather(breakWith(Tool.forBlock(b.getType(), false), b, w), w);
             b.setType(Material.AIR, false);
         }
         if (!step.isClear()) {
@@ -353,20 +377,17 @@ public final class Builder extends Job {
         }
     }
 
-    /** Takes what the next steps need from the chest, as much as its inventory holds. */
+    private static final int MIN_OPEN_SLOTS = 5; // the mod's: it stops loading materials with this few slots free, for what it digs up
+
+    /** Takes what the next steps need from the chest, leaving 5 slots free (the mod's MIN_OPEN_SLOTS). */
     private void restock(Inventory chest) {
         Map<ItemStack, Integer> want = order.nextLoad(BuildOrder.Step::item, carryLimit());
-        want.forEach((item, n) -> fetch(i -> i.isSimilar(item), n - carrying(item))); // whole items: racks never taken for chests
-    }
-
-    /**
-     * shortcut: drops teleport straight into the hut chest; make the builder carry them back if it matters.
-     * {@link #work} checks they fit first, so the overflow drop is only a safety net.
-     */
-    private void store(Inventory chest, Collection<ItemStack> items) {
-        Location at = hut.block.getLocation().toCenterLocation();
-        for (ItemStack overflow : chest.addItem(items.toArray(ItemStack[]::new)).values())
-            at.getWorld().dropItemNaturally(at, overflow);
+        for (var e : want.entrySet()) {
+            int room = (freeSlots() - MIN_OPEN_SLOTS) * e.getKey().getMaxStackSize();
+            if (room <= 0) break;
+            ItemStack item = e.getKey();
+            fetch(i -> i.isSimilar(item), Math.min(room, e.getValue() - carrying(item))); // whole items: racks never taken for chests
+        }
     }
 
     /** Distance across the ground (the mod's getDistance2D): height doesn't count. */
