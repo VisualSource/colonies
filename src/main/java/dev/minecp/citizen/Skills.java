@@ -111,6 +111,11 @@ public final class Skills {
         xp.put(s, have);
     }
 
+    /** Raises (or with a negative {@code by} lowers) a skill by whole levels, 1 to 99 (the mod's incrementLevel: the enchanter's mana). */
+    public void shift(Skill s, int by) {
+        level.put(s, Math.clamp(level(s) + by, 1, MAX_LEVEL));
+    }
+
     /** How far a skill is towards its next level, 0 to 1. */
     public double progress(Skill s) {
         return level(s) >= MAX_LEVEL ? 1 : xp(s) / needed(level(s));

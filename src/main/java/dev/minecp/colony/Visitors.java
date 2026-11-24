@@ -301,19 +301,22 @@ public final class Visitors {
 
     /**
      * Takes {@code count} of {@code item} from the player's main inventory, if it has that many. Matched by item alone, as
-     * the mod: any enchanted book will do, whatever its enchantments.
+     * the mod: any enchanted book will do, whatever its enchantments. Colonies' own items made from that item (an ancient
+     * tome is an enchanted book, a hut a chest) don't count: in the mod they are other items.
      */
     private static boolean pay(Player p, Material item, int count) {
         var inv = p.getInventory();
+        java.util.function.Predicate<ItemStack> fits = i -> i != null && i.getType() == item
+                && i.getPersistentDataContainer().getKeys().stream().noneMatch(k -> k.getNamespace().equals(dev.minecp.MineCP.NAMESPACE));
         int have = 0;
         for (int s = 0; s < 36; s++) { // the main inventory and hotbar, not armour or off hand
             ItemStack i = inv.getItem(s);
-            if (i != null && i.getType() == item) have += i.getAmount();
+            if (fits.test(i)) have += i.getAmount();
         }
         if (have < count) return false;
         for (int s = 0; s < 36 && count > 0; s++) {
             ItemStack i = inv.getItem(s);
-            if (i == null || i.getType() != item) continue;
+            if (!fits.test(i)) continue;
             int take = Math.min(count, i.getAmount());
             count -= take;
             inv.setItem(s, i.getAmount() == take ? null : i.subtract(take));

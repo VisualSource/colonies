@@ -3,6 +3,7 @@ package dev.minecp.colony;
 import dev.minecp.job.ArcherTrainee;
 import dev.minecp.job.Alchemist;
 import dev.minecp.job.Beekeeper;
+import dev.minecp.job.Enchanter;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Composter;
 import dev.minecp.job.Cook;
@@ -106,6 +107,9 @@ public final class Hut {
         // Unlocked by research; the mod's recipe: a brewing stand in the middle
         ALCHEMIST("Alchemist Tower", Material.CHEST, "craftsmanship/luxury/alchemist", "alchemist", "An alchemist brews potions, grows nether wart and cuts mistletoe",
                 () -> new RecipeChoice.MaterialChoice(Material.BREWING_STAND), "Alchemist", Alchemist::new, false),
+        // The mod's recipe: an enchanting table in the middle; no research needed
+        ENCHANTER("Enchanter's Tower", Material.CHEST, "mystic/enchanter", "enchanter", "An enchanter studies other workers and turns ancient tomes into enchanted books",
+                () -> new RecipeChoice.MaterialChoice(Material.ENCHANTING_TABLE), "Enchanter", Enchanter::new, false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
@@ -309,7 +313,8 @@ public final class Hut {
 
         /**
          * Its building at {@code level} in a style: the structure at its path, or else in a "default" folder beside it
-         * (the cavern style keeps each hut in default, alternative and megahall folders).
+         * (the cavern style keeps each hut in default, alternative and megahall folders); medieval birch's enchanter is
+         * under craftsmanship/luxury.
          */
         public String structure(String style, int level) {
             String plain = style + "/" + path + level;
@@ -317,7 +322,9 @@ public final class Hut {
                 if (dev.minecp.build.BuildOrder.exists(plain)) return plain;
                 int slash = path.lastIndexOf('/');
                 String nested = style + "/" + path.substring(0, slash + 1) + "default/" + path.substring(slash + 1) + level;
-                return dev.minecp.build.BuildOrder.exists(nested) ? nested : plain;
+                if (dev.minecp.build.BuildOrder.exists(nested)) return nested;
+                String luxury = style + "/craftsmanship/luxury/" + modId() + level; // medieval birch keeps its enchanter there
+                return this == ENCHANTER && dev.minecp.build.BuildOrder.exists(luxury) ? luxury : plain;
             });
         }
 

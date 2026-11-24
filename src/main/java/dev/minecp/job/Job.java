@@ -105,7 +105,7 @@ public abstract class Job {
             case SWINEHERD -> sk(STRENGTH, ATHLETICS);
             case RABBIT_HUTCH -> sk(AGILITY, ATHLETICS);
             case GRAVEYARD -> sk(STRENGTH, MANA);
-            case HOSPITAL -> sk(MANA, KNOWLEDGE);
+            case HOSPITAL, ENCHANTER -> sk(MANA, KNOWLEDGE);
             case UNIVERSITY, SCHOOL -> sk(KNOWLEDGE, MANA);
             case LIBRARY -> sk(INTELLIGENCE, INTELLIGENCE);
             case PLANTATION -> sk(AGILITY, DEXTERITY);

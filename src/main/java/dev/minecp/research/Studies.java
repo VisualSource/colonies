@@ -36,17 +36,17 @@ public final class Studies {
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("enchanter", "Enchanter's Tower"), Map.entry("stable", "Stable"),
+            Map.entry("stable", "Stable"),
             Map.entry("netherworker", "Nether Mine"), Map.entry("florist", "Flower Shop"),
             Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
-    /** What undoing a finished research costs: the mod's 1 ancient tome, which Colonies doesn't have (config). */
-    public static Material resetItem = Material.ENCHANTED_BOOK;
+    /** What undoing a finished research costs (config): the mod's 1 ancient tome (null here), or a vanilla item. */
+    public static Material resetItem = null;
     public static int resetCount = 1;
-    /** "1 × enchanted book". */
+    /** "1 × ancient tome". */
     public static String resetCost() {
-        return resetCount + " × " + resetItem.name().toLowerCase().replace('_', ' ');
+        return resetCount + " × " + (resetItem == null ? "ancient tome" : resetItem.name().toLowerCase().replace('_', ' '));
     }
 
     /** Creative players' researches finish at once (the mod's researchCreativeCompletion). */
@@ -230,6 +230,7 @@ public final class Studies {
             if (k.equals("minecp:rack")) one = dev.minecp.logistics.Rack::is;
             else if (k.equals("minecp:clipboard")) one = clipboard;
             else if (k.equals("minecolonies:mistletoe")) one = dev.minecp.job.Alchemist::isMistletoe;
+            else if (k.equals("minecolonies:ancienttome")) one = dev.minecp.job.Enchanter::isAncientTome;
             else {
                 Material m = k.startsWith("minecraft:") ? Material.matchMaterial(k) : null;
                 if (m == null) return null;
@@ -312,7 +313,7 @@ public final class Studies {
             for (Research ch : ResearchTree.children(r.id()))
                 if (started.containsKey(ch.id())) return "Undo what came after " + r.name() + " first.";
             if (p.getGameMode() != GameMode.CREATIVE) {
-                Predicate<ItemStack> m = i -> i.getType() == resetItem && plain(i);
+                Predicate<ItemStack> m = resetItem == null ? dev.minecp.job.Enchanter::isAncientTome : i -> i.getType() == resetItem && plain(i);
                 if (count(p.getInventory(), m) < resetCount)
                     return "Undoing a research costs " + resetCost() + ".";
                 take(p.getInventory(), m, resetCount);

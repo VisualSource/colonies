@@ -184,6 +184,8 @@ public final class Menus {
             }));
         }
         if (h.type == Hut.Type.MINER && h.level > 0) buttons.add(button("Guards", p, c, h, player -> mineGuards(player, c, h)));
+        if (job instanceof dev.minecp.job.Enchanter en && h.level > 0)
+            buttons.add(button("Gather targets (" + en.targets.size() + ")", p, c, h, player -> gatherTargets(player, c, h, en)));
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
             boolean offered = false; // one Hire button, for the first open job
             for (Job j : jobs) {
@@ -286,6 +288,24 @@ public final class Menus {
         }));
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, h.type.title + " settings", body, inputs, buttons, 1);
+    }
+
+    /** The huts the enchanter studies (the mod's Gather Targets tab): any built worker hut but an enchanter's, none at first. */
+    private void gatherTargets(Player p, Colony c, Hut h, dev.minecp.job.Enchanter en) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Hut x : c.huts) {
+            if (!dev.minecp.job.Enchanter.canStudy(x, c)) continue;
+            boolean on = en.targets.contains(x);
+            String names = workers(c, x);
+            buttons.add(button((on ? "Stop studying " : "Study ") + x.type.title + (names.isEmpty() ? "" : " (" + names + ")"), p, c, h, Action.MANAGE_HUTS, player -> {
+                if (!en.targets.remove(x)) en.targets.add(x);
+                plugin.save(c);
+                gatherTargets(player, c, h, en);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Gather targets", List.of(text(Component.text("While its mana is short of 10 per hut level, the enchanter studies these huts, "
+                + "each once a day, with a book from its hut: +1 mana each time."))), List.of(), buttons, 1);
     }
 
     /** The guard huts whose task is to patrol a mine, to assign to this one (the mod's miner guard window): 1 to 3 of them by its level. */

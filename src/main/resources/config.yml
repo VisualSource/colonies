@@ -35,7 +35,7 @@ raids:
 research:
   # Research a creative player starts is finished at once (as the mod's default).
   creative-completion: true
-  # What undoing a finished research costs. The mod takes 1 ancient tome, which Colonies doesn't have.
+  # What undoing a finished research costs: ancient_tome (the mod's, dropped by raiders) or any vanilla item.
   reset-cost:
-    item: enchanted_book
+    item: ancient_tome
     amount: 1

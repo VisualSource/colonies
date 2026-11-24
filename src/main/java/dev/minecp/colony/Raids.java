@@ -73,36 +73,36 @@ public final class Raids {
     }
 
     private static final java.util.function.DoubleUnaryOperator D1 = d -> d; // the mod's armor: the difficulty modifier
-    private static final Object[] NO_DROPS = {};
+    private static final Object TOME = "ancient tome"; // in a drop table: the Enchanter's ancient tome
 
     /**
      * The mod's land cultures. Ours: vanilla mobs stand in for its raider models (zombies and husks for melee, skeletons,
      * bogged and strays for archers), with plain armor; the armor is for looks (its own points don't count) and the
-     * raider's armor is the mod's number. Drops are the mod's loot tables with vanilla items for its own (the ancient tome
-     * is left out, so its share drops nothing).
+     * raider's armor is the mod's number. Drops are the mod's loot tables, with vanilla items for its own and the
+     * Enchanter's ancient tome; the Norse chief rolls twice, as in the mod.
      */
     enum Culture {
         BARBARIANS("Barbarians",
                 new Spec(Zombie.class, Material.STONE_AXE, null, set("LEATHER", 2), 1, D1, 0,
-                        new Object[]{97, Material.DIAMOND_AXE, 1, Material.GOLDEN_AXE, 2, Material.IRON_AXE, 5, Material.STONE_AXE, 6}),
-                new Spec(Skeleton.class, Material.BOW, null, set("LEATHER", 2), 1, D1, 0, new Object[]{95, Material.BOW, 10}),
+                        new Object[]{97, Material.DIAMOND_AXE, 1, Material.GOLDEN_AXE, 2, Material.IRON_AXE, 5, Material.STONE_AXE, 6, TOME, 3}),
+                new Spec(Skeleton.class, Material.BOW, null, set("LEATHER", 2), 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Zombie.class, Material.IRON_SWORD, null, set("CHAINMAIL", 4), 1.5, d -> 2 * d, 1, // the mod's chief sword and chainmail
-                        new Object[]{121, Material.DIAMOND_SWORD, 5, Material.GOLDEN_SWORD, 5, Material.IRON_SWORD, 11, Material.STONE_SWORD, 20})),
+                        new Object[]{121, Material.DIAMOND_SWORD, 5, Material.GOLDEN_SWORD, 5, Material.IRON_SWORD, 11, Material.STONE_SWORD, 20, TOME, 30})),
         MUMMIES("Mummies",
-                new Spec(Husk.class, null, null, new Material[0], 1, D1, 0, NO_DROPS),
-                new Spec(Skeleton.class, Material.BOW, null, new Material[0], 1, D1, 0, new Object[]{95, Material.BOW, 10}),
+                new Spec(Husk.class, null, null, new Material[0], 1, D1, 0, new Object[]{95, TOME, 15}),
+                new Spec(Skeleton.class, Material.BOW, null, new Material[0], 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Skeleton.class, Material.BOW, null, set("GOLDEN", 2), 4.5, d -> 2 * d, 1, // the pharaoh's fire-arrow scepter: a Flame bow
-                        new Object[]{113, Material.BOW, 3, Material.ARROW, 30})),
+                        new Object[]{113, Material.BOW, 3, Material.ARROW, 30, TOME, 30})),
         AMAZONS("Amazons",
-                new Spec(Zombie.class, Material.STONE_SPEAR, null, set("LEATHER", 2), 1, D1, 0, new Object[]{100, Material.STONE_SPEAR, 15}),
-                new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 1), 1, D1, 0, new Object[]{100, Material.BOW, 15}),
-                new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 4), 1.5, d -> 4 * d, 1, new Object[]{190, Material.BOW, 80})),
+                new Spec(Zombie.class, Material.STONE_SPEAR, null, set("LEATHER", 2), 1, D1, 0, new Object[]{100, Material.STONE_SPEAR, 15, TOME, 5}),
+                new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 1), 1, D1, 0, new Object[]{100, Material.BOW, 15, TOME, 5}),
+                new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 4), 1.5, d -> 4 * d, 1, new Object[]{190, Material.BOW, 80, TOME, 30})),
         NORSEMEN("Norsemen",
                 new Spec(Zombie.class, Material.STONE_AXE, Material.SHIELD, set("IRON", 2), 1 / 1.25, d -> 15, 0, // the shieldmaiden
-                        new Object[]{95, Material.SHIELD, 10}),
-                new Spec(Stray.class, Material.BOW, null, set("CHAINMAIL", 1), 1 / 1.25, D1, 0, new Object[]{95, Material.BOW, 10}),
+                        new Object[]{95, Material.SHIELD, 10, TOME, 5}),
+                new Spec(Stray.class, Material.BOW, null, set("CHAINMAIL", 1), 1 / 1.25, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Zombie.class, Material.STONE_AXE, null, set("IRON", 4), 1, d -> 2 * d + 15, 1,
-                        new Object[]{125, Material.LEATHER, 15, Material.DIAMOND_AXE, 10}));
+                        new Object[]{125, Material.LEATHER, 15, Material.DIAMOND_AXE, 10, TOME, 50}));
 
         final String title;
         final Spec melee, archer, chief;
@@ -400,7 +400,10 @@ public final class Raids {
             set(m, Attribute.FOLLOW_RANGE, 70);
             EntityEquipment e = m.getEquipment();
             EquipmentSlot[] slots = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
-            for (int i = 0; i < s.armor().length; i++) e.setItem(slots[i], looks(new ItemStack(s.armor()[i])));
+            for (int i = 0; i < s.armor().length; i++) { // the mod's barbarian chief wears real chainmail, which adds its armor; the rest is for looks
+                ItemStack piece = new ItemStack(s.armor()[i]);
+                e.setItem(slots[i], s == Culture.BARBARIANS.chief ? piece : looks(piece));
+            }
             if (s.weapon() != null) {
                 ItemStack weapon = new ItemStack(s.weapon());
                 if (s == Culture.MUMMIES.chief) weapon.addEnchantment(Enchantment.FLAME, 1);
@@ -546,7 +549,10 @@ public final class Raids {
         for (Horde h : hordes) if (h.specs.containsKey(e)) h.camp = 0;
     }
 
-    /** A raider died: the mod's loot table instead of vanilla's, and 5 experience. */
+    /**
+     * A raider died: the mod's loot table instead of vanilla's, and 5 experience. Loot-table weapons come undamaged, as
+     * the mod's (its tables have no damage function). The pharaoh's arrows come 1 to 16, plus 1 to 32 a Looting level.
+     */
     public void died(org.bukkit.event.entity.EntityDeathEvent e) {
         for (Horde h : hordes) {
             Spec s = h.specs.get(e.getEntity());
@@ -554,15 +560,49 @@ public final class Raids {
             h.killed++;
             e.getDrops().clear();
             e.setDroppedExp(5);
+            var rnd = ThreadLocalRandom.current();
+            Player killer = e.getEntity().getKiller();
+            int looting = killer == null ? 0 : killer.getInventory().getItemInMainHand().getEnchantmentLevel(Enchantment.LOOTING);
             Object[] d = s.drops();
-            if (d.length == 0) return;
-            int roll = ThreadLocalRandom.current().nextInt((int) d[0]);
-            for (int i = 1; i < d.length; i += 2) {
-                roll -= (int) d[i + 1];
-                if (roll < 0) { e.getDrops().add(new ItemStack((Material) d[i])); return; }
+            for (int rolls = s == Culture.NORSEMEN.chief ? 2 : 1; rolls > 0; rolls--) {
+                int roll = rnd.nextInt((int) d[0]);
+                for (int i = 1; i < d.length; i += 2) {
+                    if ((roll -= (int) d[i + 1]) >= 0) continue;
+                    ItemStack drop = d[i] == TOME ? dev.minecp.job.Enchanter.ancientTome() : new ItemStack((Material) d[i]);
+                    if (drop.getType() == Material.ARROW) drop.setAmount(Math.min(64, rnd.nextInt(1, 17) + looting * rnd.nextInt(1, 33)));
+                    e.getDrops().add(drop);
+                    break;
+                }
             }
+            if (killer != null) for (Material m : equipped(s)) // vanilla: only when a player killed it
+                if (rnd.nextFloat() - looting * 0.01f < EQUIPMENT_DROP_CHANCE) e.getDrops().add(worn(m));
             return;
         }
+    }
+
+    private static final float EQUIPMENT_DROP_CHANCE = 0.085f; // vanilla's for equipment a mob is given; the mod doesn't change it
+
+    /**
+     * What the mod equips a raider with, which drops as a vanilla mob's equipment does: the weapon (our iron sword for the
+     * barbarian chief's sword; not the pharaoh's scepter, the mod's own item), and the barbarian chief's chainmail. The
+     * rest of what ours wear is only for looks and never drops.
+     */
+    private static List<Material> equipped(Spec s) {
+        List<Material> out = new ArrayList<>();
+        if (s.weapon() != null && s != Culture.MUMMIES.chief) out.add(s.weapon());
+        if (s == Culture.BARBARIANS.chief) out.addAll(List.of(s.armor()));
+        return out;
+    }
+
+    /** A dropped piece of equipment, worn down as vanilla's: max durability less a random 1 to (max - 3) left. */
+    private static ItemStack worn(Material m) {
+        ItemStack item = new ItemStack(m);
+        int max = m.getMaxDurability();
+        if (max > 0) {
+            var rnd = ThreadLocalRandom.current();
+            item.setData(DataComponentTypes.DAMAGE, max - rnd.nextInt(1 + rnd.nextInt(Math.max(max - 3, 1))));
+        }
+        return item;
     }
 
     /** A citizen died during a raid: a guard counts 1, anyone else 2; over half the colony's beds is a defeat. */

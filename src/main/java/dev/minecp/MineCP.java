@@ -88,9 +88,11 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         dev.minecp.research.Studies.creativeCompletion = cfg.getBoolean("research.creative-completion", true);
         dev.minecp.research.Studies.resetCount = Math.max(0, cfg.getInt("research.reset-cost.amount", 1));
-        Material resetItem = Material.matchMaterial(cfg.getString("research.reset-cost.item", "enchanted_book"));
-        if (resetItem != null && resetItem.isItem()) dev.minecp.research.Studies.resetItem = resetItem;
-        else getLogger().warning("research.reset-cost.item isn't an item; using enchanted_book.");
+        String resetName = cfg.getString("research.reset-cost.item", "ancient_tome");
+        Material resetItem = resetName.equals("ancient_tome") ? null : Material.matchMaterial(resetName);
+        boolean ok = resetName.equals("ancient_tome") || resetItem != null && resetItem.isItem();
+        dev.minecp.research.Studies.resetItem = ok ? resetItem : null;
+        if (!ok) getLogger().warning("research.reset-cost.item isn't an item; using ancient_tome.");
         dev.minecp.research.Studies.clipboard = items::isClipboard;
         dev.minecp.colony.GuardPost.banner = (item, hut) -> items.rallying(item) && items.bannerHuts(item).contains(hut.block);
         Advancements.load(getLogger()); // first: it may reload data, which could drop recipes added before it
