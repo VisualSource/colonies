@@ -231,6 +231,7 @@ public final class Menus {
             buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h, null)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
             if (c.permissions.has(p, Action.MANAGE_HUTS)) buttons.add(button("Style: " + c.style, p, c, h, player -> styles(player, c, h)));
+            if (h.level >= 1 && c.permissions.has(p, Action.MANAGE_HUTS)) buttons.add(button("Flag", p, c, h, Action.MANAGE_HUTS, player -> plugin.flags.design(player, c, h)));
             if (c.building != null || !c.decorations.isEmpty())
                 buttons.add(button("Builds (" + (c.decorations.size() + (c.building != null ? 1 : 0)) + ")", p, c, h, player -> builds(player, c, h)));
         }

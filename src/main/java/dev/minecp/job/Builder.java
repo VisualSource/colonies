@@ -3,6 +3,7 @@ package dev.minecp.job;
 import dev.minecp.build.BuildOrder;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.Flag;
 import dev.minecp.colony.ColonyStore;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Rack;
@@ -115,7 +116,7 @@ public final class Builder extends Job {
     }
 
     private static String name(ItemStack item) {
-        return Rack.is(item) ? "storage racks" : Job.name(item.getType());
+        return Rack.is(item) ? "storage racks" : Flag.is(item) ? "colony banners" : Job.name(item.getType());
     }
 
     @Override
@@ -357,7 +358,7 @@ public final class Builder extends Job {
 
     private void place(Colonist w, BuildOrder.Step step, Inventory chest) {
         Block b = step.block();
-        Material cost = step.cost(); // before the block changes: converting dirt is free, laying it is not
+        ItemStack cost = step.item(); // before the block changes: converting dirt is free, laying it is not
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
         else if (!b.isEmpty()) { // clear whatever is in the way, into its inventory
@@ -369,11 +370,11 @@ public final class Builder extends Job {
         if (!step.isClear()) {
             if (convert == null && step.data().getMaterial().isSolid() && w.overlaps(b)) w.hopAside(b);
             b.setBlockData(step.data(), false); // no physics: blocks are placed out of support order
+            if (step.flag()) Flag.tag(b, colony);
             if (step.rack()) Rack.tag(b); // the builder places the block, not the structure's chest data
             if (cost != null) { // used up
-                if (step.rack()) use(Rack::is, 1);
-                else use(cost, 1);
-                if (cost == Material.WATER_BUCKET || cost == Material.LAVA_BUCKET) gather(Material.BUCKET, 1, w); // emptied
+                use(cost::isSimilar, 1);
+                if (cost.getType() == Material.WATER_BUCKET || cost.getType() == Material.LAVA_BUCKET) gather(Material.BUCKET, 1, w); // emptied
             }
             experience(w, XP_PER_BLOCK); // BuildingStructureHandler: each block placed (what it clears counts in breakWith)
             var sounds = step.data().getSoundGroup();

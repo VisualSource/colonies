@@ -62,6 +62,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     final Menus menus = new Menus(this);
     public final Teaching teaching = new Teaching(this);
     public final GuardTools guardTools = new GuardTools(this);
+    public final Flags flags = new Flags(this);
     final Scrolls scrolls = new Scrolls(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
@@ -108,6 +109,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new ChestNames(this), this);
         getServer().getPluginManager().registerEvents(teaching, this);
         getServer().getPluginManager().registerEvents(guardTools, this);
+        getServer().getPluginManager().registerEvents(flags, this);
         getServer().getPluginManager().registerEvents(scrolls, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
@@ -170,6 +172,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void onDisable() {
         placement.endAll();
         border.endAll();
+        flags.endAll();
         saveAll();
         saves.finish();
         colonies.values().forEach(Colony::despawn);

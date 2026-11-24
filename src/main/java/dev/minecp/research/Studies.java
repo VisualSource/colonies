@@ -169,6 +169,7 @@ public final class Studies {
             case Effects.USE_ARROWS -> "Rangers ask for arrows, which add 2 damage to each shot";
             case Effects.DRUID_POTIONS -> "The Alchemist makes magic potions; druids use them up for stronger potions of more kinds";
             case Effects.TELESCOPE -> "Guards rally to a banner up to 500 blocks from the town hall, outside the colony too";
+            case Effects.STANDARD -> "Guards can be rallied to a standing colony banner"; // the rally banner used on it
             case Effects.SIFTER_STRING -> "The Fletcher makes string sifter meshes";
             case Effects.SIFTER_FLINT -> "The Stonemason makes flint sifter meshes";
             case Effects.SIFTER_IRON -> "The Blacksmith makes iron sifter meshes";

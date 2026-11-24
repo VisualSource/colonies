@@ -522,6 +522,7 @@ public final class Guard extends Job {
         ItemStack weapon = weapon() == null ? null : tool(weapon());
         if (!java.util.Objects.equals(e.getItemInMainHand().isEmpty() ? null : e.getItemInMainHand(), weapon)) w.hold(weapon);
         ItemStack off = shieldResearched() ? shield : null; // a ranger keeps a knight's shield but doesn't carry it
+        if (off != null) colony.flag.paint(off);
         if (!java.util.Objects.equals(e.getItemInOffHand().isEmpty() ? null : e.getItemInOffHand(), off)) e.setItemInOffHand(off);
     }
 
@@ -585,11 +586,11 @@ public final class Guard extends Job {
     }
 
     private void task(Colonist w) {
-        org.bukkit.entity.Player leader = hut.post.rallied(colony);
-        rallying = leader != null;
+        Location rally = hut.post.rallied(colony);
+        rallying = rally != null;
         if (escorting()) w.living().addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, GLOW_TICKS, 0, false, false));
         else w.living().removePotionEffect(org.bukkit.potion.PotionEffectType.GLOWING);
-        if (leader != null) { rallyTo(w, leader); return; }
+        if (rally != null) { rallyTo(w, rally); return; }
         switch (task()) {
             case GUARD -> guardSpot(w);
             case FOLLOW -> follow(w);
@@ -629,11 +630,12 @@ public final class Guard extends Job {
         else if (at.distance(to) > (hut.setting(Settings.FOLLOW_MODE).equals("TIGHT") ? FOLLOW_TIGHT : FOLLOW_LOOSE)) walkTo(w, to.getBlock());
     }
 
-    /** To a spot within 3 blocks of the banner's bearer, running the faster the more adaptable it is. */
-    private void rallyTo(Colonist w, org.bukkit.entity.Player leader) {
+    /** To a spot within 3 blocks of the banner's bearer or the colony banner, running the faster the more adaptable it is; it waits while that isn't loaded. */
+    private void rallyTo(Colonist w, Location rally) {
         w.setStatus(title() + ": rallying");
+        if (!rally.isChunkLoaded()) { running = 0; return; }
         var rnd = ThreadLocalRandom.current();
-        Block to = leader.getLocation().getBlock().getRelative(rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2, 0, rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2);
+        Block to = rally.getBlock().getRelative(rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2, 0, rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2);
         if (w.location().distance(to.getLocation().toCenterLocation()) <= FOLLOW_TIGHT) { running = 0; return; }
         running = 1 + Math.clamp(level(ADAPTABILITY) / RALLY_RUN, 0, RALLY_RUN_MAX);
         walkTo(w, to);

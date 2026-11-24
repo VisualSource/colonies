@@ -4343,7 +4343,7 @@ Size 43x16x28. 11 entities (item frames etc.) not converted.
 - **8x** domum_ornamentum:panel [polished_deepslate] -> minecraft:oak_trapdoor (no such block in that material): `7 6 3` `7 6 4` `7 6 5` `7 6 6` `7 6 21` `7 6 22` `7 6 23` `7 6 24`
 - **4x** domum_ornamentum:vanilla_stairs_compat [domum_ornamentum:brown_stone_bricks] -> minecraft:oak_stairs (no such block in that material): `3 2 3` `2 2 4` `2 2 5` `3 2 6`
 - **2x** domum_ornamentum:vanilla_slab_compat [domum_ornamentum:brown_stone_bricks] -> minecraft:oak_slab (no such block in that material): `3 2 4` `3 2 5`
-- **2x** minecolonies:colony_banner -> structure void (unknown block): `32 3 12` `32 3 15`
+- **2x** minecolonies:colony_banner -> minecraft:white_banner: `32 3 12` `32 3 15`
 - **1x** minecolonies:blockhuttownhall (hut block) -> minecraft:chest: `17 2 2`
 - **1x** domum_ornamentum:blockbarreldeco_standing -> minecraft:barrel: `36 11 4`
 - **1x** domum_ornamentum:blockbarreldeco_onside -> minecraft:barrel: `36 11 6`
@@ -4364,7 +4364,7 @@ Size 43x16x28. 13 entities (item frames etc.) not converted.
 - **4x** domum_ornamentum:vanilla_stairs_compat [domum_ornamentum:brown_stone_bricks] -> minecraft:oak_stairs (no such block in that material): `3 2 3` `2 2 4` `2 2 5` `3 2 6`
 - **4x** domum_ornamentum:panel [warped_hyphae] -> minecraft:warped_trapdoor: `12 2 10` `15 2 13` `15 2 14` `12 2 17`
 - **2x** domum_ornamentum:vanilla_slab_compat [domum_ornamentum:brown_stone_bricks] -> minecraft:oak_slab (no such block in that material): `3 2 4` `3 2 5`
-- **2x** minecolonies:colony_banner -> structure void (unknown block): `32 3 12` `32 3 15`
+- **2x** minecolonies:colony_banner -> minecraft:white_banner: `32 3 12` `32 3 15`
 - **1x** minecolonies:blockhuttownhall (hut block) -> minecraft:chest: `17 2 2`
 - **1x** domum_ornamentum:blockbarreldeco_standing -> minecraft:barrel: `36 11 4`
 - **1x** domum_ornamentum:blockbarreldeco_onside -> minecraft:barrel: `36 11 6`
@@ -4385,7 +4385,7 @@ Size 43x16x28. 20 entities (item frames etc.) not converted.
 - **4x** domum_ornamentum:panel [warped_hyphae] -> minecraft:warped_trapdoor: `12 2 10` `15 2 13` `15 2 14` `12 2 17`
 - **4x** domum_ornamentum:framed [polished_diorite + polished_deepslate] -> minecraft:polished_diorite: `5 8 4` `7 8 4` `5 8 6` `7 8 6`
 - **2x** domum_ornamentum:vanilla_slab_compat [domum_ornamentum:brown_stone_bricks] -> minecraft:oak_slab (no such block in that material): `3 2 4` `3 2 5`
-- **2x** minecolonies:colony_banner -> structure void (unknown block): `32 3 12` `32 3 15`
+- **2x** minecolonies:colony_banner -> minecraft:white_banner: `32 3 12` `32 3 15`
 - **2x** domum_ornamentum:vanilla_trapdoors_compat [deepslate_bricks] -> minecraft:oak_trapdoor (no such block in that material): `27 5 9` `27 5 18`
 - **2x** domum_ornamentum:blockpaperwall -> minecraft:white_stained_glass_pane: `40 8 13` `40 8 14`
 - **1x** minecolonies:blockhuttownhall (hut block) -> minecraft:chest: `17 2 2`

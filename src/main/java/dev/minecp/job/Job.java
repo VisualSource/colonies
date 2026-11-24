@@ -629,10 +629,11 @@ public abstract class Job {
 
     /**
      * What a worker breaking {@code b} with {@code tool} (null: by hand) gets: a storage rack comes back as a rack (its
-     * plain drop would be a chest named "Storage Rack" that works as neither); anything else drops as vanilla's.
+     * plain drop would be a chest named "Storage Rack" that works as neither), a colony banner as one; anything else drops as vanilla's.
      */
     static Collection<ItemStack> drops(Block b, ItemStack tool) {
         if (dev.minecp.logistics.Rack.is(b)) return List.of(dev.minecp.logistics.Rack.item());
+        if (dev.minecp.colony.Flag.is(b)) return List.of(dev.minecp.colony.Flag.item());
         return tool == null ? b.getDrops() : b.getDrops(tool);
     }
 

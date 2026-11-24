@@ -1,5 +1,6 @@
 package dev.minecp;
 
+import dev.minecp.colony.Flag;
 import dev.minecp.colony.Hut;
 import dev.minecp.logistics.Rack;
 
@@ -121,6 +122,12 @@ public final class Items implements Listener {
         rally.setIngredient('X', RecipeChoice.exactChoice(new ItemStack(Material.YELLOW_BANNER))); // plain, not another Rally Banner
         rally.setIngredient('C', new RecipeChoice.MaterialChoice(Material.BOW));
         add(rally);
+        // MineColonies' colony banner: two wool over the build tool.
+        ShapedRecipe flag = new ShapedRecipe(key("colony_banner"), Flag.item());
+        flag.shape("W", "W", "T");
+        flag.setIngredient('W', new RecipeChoice.MaterialChoice(Tag.WOOL));
+        flag.setIngredient('T', tool);
+        add(flag);
         // MineColonies' supply camp (chests) and supply ship (boats): a row of three under two corners. Plain items only
         // (chests or trapped chests; any boat): hut items and racks are chests too, and a Supply Ship is a boat.
         ShapedRecipe camp = new ShapedRecipe(key("supply_camp"), supply(false));

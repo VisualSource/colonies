@@ -50,6 +50,7 @@ FIXED = {
     "structurize:blocktagsubstitution": VOID,
     "minecolonies:blockminecoloniesrack": "minecraft:chest",
     "minecolonies:blockstash": "minecraft:chest",
+    "minecolonies:colony_banner": "minecraft:white_banner",
     "minecolonies:colony_wall_banner": "minecraft:white_wall_banner",
     "minecolonies:decorationcontroller": VOID,
     "minecolonies:blockwaypoint": "minecraft:air",
@@ -74,6 +75,8 @@ SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the taver
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
+FLAGS = {"minecolonies:colony_banner", "minecolonies:colony_wall_banner"}  # they show the colony's flag
+FLAG_TAG = "minecp:colony_banner"            # Paper data tag on them (Flag.KEY)
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)
 COUNT_ONLY ="structurize:blocksolidsubstitution"  # reported as a count, not coordinates
@@ -253,6 +256,9 @@ def convert(path, blocks, siblings=()):
             tag = {"minecp:hut": (nbt.BYTE, 1)} if primary is None or tuple(pos) == primary \
                 else {"minecp:subhut": (nbt.STRING, state["Name"].split(":", 1)[1].removeprefix("blockhut"))}
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"), "PublicBukkitValues": (nbt.COMPOUND, tag)})
+        elif state["Name"] in FLAGS:  # a white banner the plugin shows the colony's flag on
+            block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:banner"),
+                                           "PublicBukkitValues": (nbt.COMPOUND, {FLAG_TAG: (nbt.STRING, "")})})
         elif state["Name"] == RACK:  # a chest standing in for the mod's storage rack, tagged for a custom model later
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {RACK_TAG: (nbt.BYTE, 1)})})

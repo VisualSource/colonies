@@ -3,12 +3,15 @@ package dev.minecp;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.Flag;
 import dev.minecp.colony.GuardPost;
 import dev.minecp.colony.Hut;
+import dev.minecp.research.Effects;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.Rotatable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -22,6 +25,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /** The guard scepter and the rally banner (the mod's ItemScepterGuard and ItemBannerRallyGuards). */
 public final class GuardTools implements Listener {
@@ -81,16 +85,17 @@ public final class GuardTools implements Listener {
         plugin.save(c);
     }
 
-    /** On a guard hut it adds or removes it; sneaking, it starts or stops the rally; else it shows its list. */
+    /** On a guard hut it adds or removes it; on a standing colony banner the guards rally there; sneaking, it starts or stops the rally; else it shows its list. */
     private void banner(Player p, ItemStack banner, Block at) {
         Colony c = at == null ? null : plugin.colonyAt(at);
         Hut h = c == null ? null : c.hutAt(at);
         if (h != null && h.post != null) toggleHut(p, banner, c, h);
+        else if (at != null && Flag.is(at) && at.getBlockData() instanceof Rotatable) rallyTo(p, banner, at);
         else if (p.isSneaking()) toggle(p, banner);
         else plugin.menus.rallyBanner(p, banner);
     }
 
-    /** Adds a guard hut to the banner the player holds, or removes it (the mod's: a rally under way goes on without it, and one added joins the next). */
+    /** Adds a guard hut to the banner the player holds, or removes it (the mod's: its guards stay in a rally under way, and one added joins the next). */
     private void toggleHut(Player p, ItemStack banner, Colony c, Hut h) {
         if (!c.permissions.has(p, Action.RALLY_GUARDS)) { plugin.protection.deny(p, c, Action.RALLY_GUARDS); return; }
         List<Block> blocks = new ArrayList<>(plugin.items.bannerHuts(banner));
@@ -119,16 +124,31 @@ public final class GuardTools implements Listener {
             return;
         }
         if (huts.isEmpty()) { tell(p, "Right-click guard huts with the banner first.", false); return; }
+        start(p, banner, huts, h -> h.post.rally(p), "you");
+    }
+
+    /** The guards rally to a colony banner, for which the first hut's colony needs the research: the first in the player's world (the mod's). */
+    private void rallyTo(Player p, ItemStack banner, Block flag) {
+        List<Hut> huts = huts(banner);
+        Hut first = huts.stream().filter(h -> h.block.getWorld().equals(p.getWorld())).findFirst().orElse(null);
+        if (first == null) { tell(p, "Right-click guard huts in this world with the banner first.", false); return; }
+        Colony c = plugin.colonyAt(first.block);
+        if (!c.permissions.has(p, Action.RALLY_GUARDS)) { plugin.protection.deny(p, c, Action.RALLY_GUARDS); return; }
+        if (c.research.effect(Effects.STANDARD) <= 0) { tell(p, "Rallying guards to a colony banner needs the research Standard Bearer.", false); return; }
+        start(p, banner, huts, h -> h.post.rally(flag), "the colony banner");
+    }
+
+    private void start(Player p, ItemStack banner, List<Hut> huts, Consumer<Hut> rally, String to) {
         int guards = 0;
         for (Hut h : huts) {
             Colony c = plugin.colonyAt(h.block);
             if (!c.permissions.has(p, Action.RALLY_GUARDS)) continue;
-            h.post.rally(p);
+            rally.accept(h);
             guards += c.workersAt(h).size();
         }
         plugin.items.rallying(banner, true);
         p.getInventory().setItemInMainHand(banner);
-        tell(p, guards == 0 ? "No guards to rally." : guards + (guards == 1 ? " guard rallies" : " guards rally") + " to you.", guards > 0);
+        tell(p, guards == 0 ? "No guards to rally." : guards + (guards == 1 ? " guard rallies" : " guards rally") + " to " + to + ".", guards > 0);
     }
 
     private void stop(ItemStack banner) {

@@ -8,7 +8,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -24,7 +23,7 @@ import java.util.function.BiPredicate;
 
 /**
  * What the guards of one guard hut do together (the mod's AbstractBuildingGuards), the mod's numbers: where they patrol,
- * the spot they guard, the player they follow, the mine they patrol and the player they rally to.
+ * the spot they guard, the player they follow, the mine they patrol and the player or colony banner they rally to.
  */
 public final class GuardPost {
     /** The guard task setting's values (the mod's GuardTaskSetting). */
@@ -48,6 +47,7 @@ public final class GuardPost {
     private final Set<UUID> arrived = new HashSet<>();
     private int timer;
     private UUID rally;
+    private Block rallyAt; // a colony banner, in place of a player
 
     GuardPost(Hut hut) {
         this.hut = hut;
@@ -196,35 +196,53 @@ public final class GuardPost {
     /** They rally to {@code p}. */
     public void rally(Player p) {
         rally = p.getUniqueId();
+        rallyAt = null;
+    }
+
+    /** They rally to a colony banner (the standard research). */
+    public void rally(Block flag) {
+        rally = null;
+        rallyAt = flag;
     }
 
     /** The rally ends; those already hungry are left starving (the mod's setRallyLocation). */
     public void stopRally(Colony colony) {
-        if (rally == null) return;
+        if (rally == null && rallyAt == null) return;
         rally = null;
+        rallyAt = null;
         for (Colonist w : colony.workersAt(hut))
             if (w.saturation < Food.LOW_SATURATION) w.saturation = Math.max(0, w.saturation - Food.LOW_SATURATION);
     }
 
     /**
-     * The player they rally to now, or null: not while the player lacks the active banner, and no more once the player
-     * left the server or the colony's land (with the telescope research: 500 blocks from its town hall).
+     * Where they rally to now, or null: not while the player lacks the active banner, and no more once the player left
+     * the server or either left the colony's land (with the telescope research: 500 blocks from its town hall). To a
+     * colony banner they rally until told to stop, whoever is there and whether or not it still stands, as the mod's.
      */
-    public Player rallied(Colony colony) {
+    public Location rallied(Colony colony) {
+        if (rallyAt != null) {
+            Location at = rallyAt.getLocation().toCenterLocation();
+            if (inRange(at, colony)) return at;
+            colony.tell("The colony banner is too far from the colony: the guards of its " + hut.type.title + " stopped rallying to it.");
+            stopRally(colony);
+            return null;
+        }
         if (rally == null) return null;
         Player p = Bukkit.getPlayer(rally);
         if (p == null) { stopRally(colony); return null; }
-        Location at = p.getLocation(), centre = colony.townHall().block.getLocation();
-        World world = hut.block.getWorld();
-        boolean inside = at.getWorld().equals(world) && colony.claims().contains(Claims.key(at.getBlockX() >> 4, at.getBlockZ() >> 4));
-        if (!inside && (!at.getWorld().equals(world) || colony.research.effect(Effects.TELESCOPE) <= 0
-                || Colonist.flat(at, centre) > TELESCOPE_RANGE)) {
+        if (!inRange(p.getLocation(), colony)) {
             p.sendMessage(Component.text("Too far from the colony: the guards of its " + hut.type.title + " stopped following your banner.", NamedTextColor.RED));
             stopRally(colony);
             return null;
         }
-        for (ItemStack i : p.getInventory().getContents()) if (i != null && banner.test(i, hut)) return p;
+        for (ItemStack i : p.getInventory().getContents()) if (i != null && banner.test(i, hut)) return p.getLocation();
         return null;
+    }
+
+    private boolean inRange(Location at, Colony colony) {
+        if (!at.getWorld().equals(hut.block.getWorld())) return false;
+        return colony.claims().contains(Claims.key(at.getBlockX() >> 4, at.getBlockZ() >> 4))
+                || colony.research.effect(Effects.TELESCOPE) > 0 && Colonist.flat(at, colony.townHall().block.getLocation()) <= TELESCOPE_RANGE;
     }
 
     // ---- saving ----------------------------------------------------------------------------------------------------

@@ -30,6 +30,7 @@ public final class ColonyStore {
     public static void save(Colony colony, ConfigurationSection s) {
         s.set("name", colony.name);
         s.set("style", colony.style);
+        colony.flag.save(s.createSection("flag"));
         s.set("day", colony.day);
         s.set("founded", colony.founded);
         colony.permissions.save(s.createSection("permissions"));
@@ -139,6 +140,7 @@ public final class ColonyStore {
             if (b >= 0 && tower != null) tower.barracks = colony.hutByIndex(b);
         }
         colony.style = s.getString("style", colony.style);
+        if (s.isConfigurationSection("flag")) colony.flag.load(s.getConfigurationSection("flag"));
         colony.day = s.getInt("day");
         colony.founded = s.getLong("founded");
         if (s.isConfigurationSection("permissions")) colony.permissions.load(s.getConfigurationSection("permissions"));

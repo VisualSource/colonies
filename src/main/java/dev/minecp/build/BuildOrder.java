@@ -1,5 +1,6 @@
 package dev.minecp.build;
 
+import dev.minecp.colony.Flag;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.job.Tool;
 import dev.minecp.logistics.Rack;
@@ -42,13 +43,14 @@ public final class BuildOrder {
     /**
      * {@code fill}: a filler spot (barrier in the structure) that is only filled with dirt when not already solid.
      * {@code rack}: a chest standing in for the mod's storage rack, tagged with {@link #RACK_MARKER} when placed.
+     * {@code flag}: a colony banner, tagged with {@link Flag#KEY} when placed.
      */
-    public record Step(Block block, BlockData data, boolean fill, boolean rack) {
+    public record Step(Block block, BlockData data, boolean fill, boolean rack, boolean flag) {
         public boolean isClear() { return data.getMaterial().isAir(); }
         public boolean done() {
             if (fill) return block.getType().isSolid();
             // Compare type only: neighbour updates change states like fence connections after placing.
-            return isClear() ? block.isEmpty() : block.getType() == data.getMaterial();
+            return isClear() ? block.isEmpty() : block.getType() == data.getMaterial() && (!flag || Flag.is(block)); // a plain banner is another block in the mod
         }
         /** The tool that turns the block already there into this one in place (shovel: path, hoe: farmland), or null. */
         public Tool convertWith() {
@@ -57,10 +59,10 @@ public final class BuildOrder {
             if (want == Material.FARMLAND && TILLS.contains(have)) return Tool.HOE;
             return null;
         }
-        /** The item this step uses up as an item (a Storage Rack for rack spots), or null if it is free. */
+        /** The item this step uses up as an item (a Storage Rack for rack spots, a Colony Banner for flags), or null if it is free. */
         public ItemStack item() {
             Material m = cost();
-            return m == null ? null : rack ? Rack.item() : new ItemStack(m);
+            return m == null ? null : rack ? Rack.item() : flag ? Flag.item() : new ItemStack(m);
         }
         /** The item this step uses up, or null if it is free. */
         public Material cost() {
@@ -187,9 +189,10 @@ public final class BuildOrder {
             if (block.getY() < world.getMinHeight() || block.getY() >= world.getMaxHeight()) continue; // can't build there
             boolean fill = data.getMaterial() == Material.BARRIER;
             boolean rack = state instanceof TileState ts && ts.getPersistentDataContainer().has(RACK_MARKER);
+            boolean flag = state instanceof TileState ts && ts.getPersistentDataContainer().has(Flag.KEY);
             if (state instanceof TileState ts && ts.getPersistentDataContainer().has(SUBHUT_MARKER, PersistentDataType.STRING))
                 subHuts.put(block, ts.getPersistentDataContainer().get(SUBHUT_MARKER, PersistentDataType.STRING));
-            Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill, rack);
+            Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill, rack, flag);
             (step.isClear() ? clears : places).add(step);
         }
         clears.sort(Comparator.comparingInt((Step st) -> -st.block.getY())); // top down
@@ -226,7 +229,7 @@ public final class BuildOrder {
         List<Step> clears = new ArrayList<>();
         for (Step s : steps)
             if (!s.isClear() && !s.fill && s.block.getType() == s.data.getMaterial())
-                clears.add(new Step(s.block, Material.AIR.createBlockData(), false, false));
+                clears.add(new Step(s.block, Material.AIR.createBlockData(), false, false, false));
         clears.sort(Comparator.comparingInt((Step st) -> -st.block.getY()));
         return new BuildOrder(structure, origin, rotation, mirror, clears);
     }
@@ -262,7 +265,7 @@ public final class BuildOrder {
 
     /** Lays {@code m} as the foundation filler instead of dirt (the builder's fill block setting). */
     public void fillWith(Material m) {
-        steps.replaceAll(s -> s.fill ? new Step(s.block, m.createBlockData(), true, false) : s);
+        steps.replaceAll(s -> s.fill ? new Step(s.block, m.createBlockData(), true, false, false) : s);
     }
 
     /** Tag of the marker entities on a blueprint's seats (its "sit" tag positions: the tavern's chairs). */
