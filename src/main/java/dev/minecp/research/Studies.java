@@ -36,7 +36,6 @@ public final class Studies {
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("archery", "Archery"), Map.entry("combatacademy", "Combat Academy"),
             Map.entry("enchanter", "Enchanter's Tower"), Map.entry("stable", "Stable"),
             Map.entry("netherworker", "Nether Mine"), Map.entry("florist", "Flower Shop"),
             Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));

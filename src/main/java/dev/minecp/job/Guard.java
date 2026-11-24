@@ -172,6 +172,11 @@ public final class Guard extends Job {
         return t.charAt(0) + t.substring(1).toLowerCase();
     }
 
+    /** Whether that job trains this kind of guard (the mod's archer and knight in training). */
+    public boolean trainedBy(Job trainee) {
+        return knight() && trainee instanceof KnightTrainee || ranger() && trainee instanceof ArcherTrainee;
+    }
+
     /** Its weapon: a sword, a bow, or none (a druid throws potions). */
     private Tool weapon() {
         return type().weapon;
@@ -350,7 +355,7 @@ public final class Guard extends Job {
         return isArrow(i) && arrowsResearched() || isSplashPotion(i) && druid();
     }
 
-    private static boolean isShield(ItemStack i) {
+    static boolean isShield(ItemStack i) {
         return i != null && i.getType() == Material.SHIELD;
     }
 
@@ -657,7 +662,7 @@ public final class Guard extends Job {
     }
 
     /** {@code aim} made a unit vector, with vanilla Projectile.shoot's triangular wobble per axis for this inaccuracy. */
-    private static org.bukkit.util.Vector wobble(org.bukkit.util.Vector aim, double inaccuracy) {
+    static org.bukkit.util.Vector wobble(org.bukkit.util.Vector aim, double inaccuracy) {
         var rnd = ThreadLocalRandom.current();
         double spread = 0.0172275 * inaccuracy;
         return aim.normalize().add(new org.bukkit.util.Vector(spread * (rnd.nextDouble() - rnd.nextDouble()),

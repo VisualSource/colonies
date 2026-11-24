@@ -26,7 +26,7 @@ class CatalogTest {
         assertNull(Catalog.entry("fundamentals/builder2"), "upgrades aren't placed");
         assertEquals(Hut.Type.BARRACKS, Catalog.entry("military/barracks1").hut());
         assertNull(Catalog.entry("military/barrackstower1"), "comes with its barracks");
-        assertNull(Catalog.entry("military/archery1"), "a hut MineCP doesn't have");
+        assertNull(Catalog.entry("military/gatehouse1"), "a hut MineCP doesn't have");
     }
 
     @Test

@@ -61,10 +61,12 @@ public final class Settings {
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize",
             BEE_MODE = "beekeeper_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
+    static final String HIRE_TRAINEE = "hire_trainee";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
-    private static final Setting BREED = bool(BREEDING, "Breed animals");
+    private static final Setting BREED = bool(BREEDING, "Breed animals"),
+            HIRE_TRAINEES = bool(HIRE_TRAINEE, "Hire the best trainee of the Archery or Combat Academy first");
 
     private Settings() {}
 
@@ -103,9 +105,10 @@ public final class Settings {
                             org.bukkit.Material.COBBLESTONE, org.bukkit.Material.TUFF),
                     number(DAILY_LIMIT, "How many a day (0: only what huts ask for)", 0, 0, 4096));
             // ours: the mod picks the guard type with its hiring modules (knight, ranger, druid), here a choice
-            case GUARD_TOWER -> List.of(guardType(0, "Guard type", "KNIGHT", "RANGER")); // the mod's: druids only in barracks towers
-            case BARRACKS_TOWER -> java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
-                    .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")).toList();
+            case GUARD_TOWER -> List.of(guardType(0, "Guard type", "KNIGHT", "RANGER"), HIRE_TRAINEES); // the mod's: druids only in barracks towers
+            case BARRACKS_TOWER -> java.util.stream.Stream.concat(java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
+                    .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")),
+                    java.util.stream.Stream.of(HIRE_TRAINEES)).toList();
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
             case BEEKEEPER -> List.of(BREED, new Setting(BEE_MODE, "Take from full hives", Kind.CHOICE, "HONEYCOMB", 0, 0, List.of("HONEYCOMB", "HONEY", "BOTH")));
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));

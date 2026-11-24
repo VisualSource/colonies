@@ -13,7 +13,6 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
-import org.bukkit.block.data.type.Bed;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -46,7 +45,6 @@ public final class Sickness {
     private static final double HOSPITAL_NEAR = 10; // MINIMUM_DISTANCE_TO_HOSPITAL
     private static final int APPLE_ODDS = 3;        // a golden apple cures 1 time in 3
     private static final int APPLE_COOLDOWN = 20 * 60 * 5, POISON_COOLDOWN = 20 * 20; // the mod's interactionCooldown after each
-    private static final int BED_BELOW = 4, BED_ABOVE = 12; // ours: heights around the hut block searched for its beds
     private static final Set<Material> POISON = Set.of(Material.POISONOUS_POTATO, Material.CHICKEN, Material.SPIDER_EYE,
             Material.ROTTEN_FLESH); // the mod's poisonous_food tag
 
@@ -173,21 +171,8 @@ public final class Sickness {
         return best;
     }
 
-    /** A hospital's beds (their heads), inside its building. */
-    private List<Block> bedsOf(Hut hospital) {
-        List<Block> found = new ArrayList<>();
-        int[] box = colony.footprint(hospital); // minX, maxX+1, minZ, maxZ+1
-        if (box == null) return found;
-        int y0 = hospital.block.getY();
-        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = y0 - BED_BELOW; y <= y0 + BED_ABOVE; y++) {
-            Block b = hospital.block.getWorld().getBlockAt(x, y, z);
-            if (b.getBlockData() instanceof Bed bd && bd.getPart() == Bed.Part.HEAD) found.add(b);
-        }
-        return found;
-    }
-
     private Block freeBed(Hut hospital) {
-        for (Block b : bedsOf(hospital)) if (!beds.containsValue(b)) return b;
+        for (Block b : colony.bedsIn(hospital)) if (!beds.containsValue(b)) return b;
         return null;
     }
 

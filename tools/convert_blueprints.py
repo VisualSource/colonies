@@ -71,8 +71,8 @@ GRAVE_TAG = "minecp_grave"                           # tag of the marker entity 
 STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"),
                  "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
-PLANT_TAGS = ("sugar", "cactus", "bamboo")  # a plantation's own plots (the ground under each plant), the mod's work tags
-PLANT_TAG = "minecp_plant_"  # + the tag: marker on each plot (BuildOrder.PLANT_TAG)
+PLANT_TAGS = ("sugar", "cactus", "bamboo", "work")  # a plantation's own plots (the ground under each plant) and other work spots, the mod's tags
+PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 RACK_TAG = "minecp:rack"                     # Paper data tag on that chest (BuildOrder.RACK_MARKER)
 DATA_FORMAT = [121, 0]  # data pack format of Minecraft 26.3 (version.json pack_version.data_major/minor)

@@ -86,7 +86,7 @@ public final class Plantation extends Job {
             plotsLevel = hut.level;
             Map<Kind, List<Block>> all = new EnumMap<>(Kind.class);
             BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
-            if (o != null) o.plants.forEach((b, tag) -> {
+            if (o != null) o.workSpots.forEach((b, tag) -> {
                 for (Kind k : Kind.values())
                     if (k.tag.equals(tag) && all.computeIfAbsent(k, x -> new ArrayList<>()).size() < MAX_PLOTS) all.get(k).add(b);
             });

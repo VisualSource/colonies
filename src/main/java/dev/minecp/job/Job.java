@@ -109,7 +109,8 @@ public abstract class Job {
             case LIBRARY -> sk(INTELLIGENCE, INTELLIGENCE);
             case PLANTATION -> sk(AGILITY, DEXTERITY);
             case BEEKEEPER -> sk(DEXTERITY, ADAPTABILITY);
-            case GUARD_TOWER, BARRACKS_TOWER -> sk(ADAPTABILITY, STAMINA); // a knight's; Guard picks by its type
+            case GUARD_TOWER, BARRACKS_TOWER, COMBAT_ACADEMY -> sk(ADAPTABILITY, STAMINA); // a knight's; Guard picks by its type
+            case ARCHERY -> sk(AGILITY, ADAPTABILITY);
             default -> null;
         };
     }

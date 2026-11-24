@@ -91,6 +91,8 @@ public final class Advancements {
         add("military/army_8", MILITARY, "stone_sword", "A Watch", "Have 8 guards", "task");
         add("military/army_30", "military/army_8", "iron_sword", "A Garrison", "Have 30 guards", "task");
         add("military/army_80", "military/army_30", "diamond_sword", "A Standing Army", "Have 80 guards", "challenge");
+        add("military/build_archery", MILITARY, "target", "Bullseye", "Finish an Archery", "task");
+        add("military/build_combat_academy", MILITARY, "shield", "Basic Training", "Finish a Combat Academy", "task");
         add("military/build_barracks", MILITARY, "iron_block", "Quartered", "Finish a Barracks", "task");
         add("military/build_barracks_tower", "military/build_barracks", "stone_bricks", "Lookout Post", "Finish a Barracks Tower", "task");
         add("military/build_all_barracks_towers", "military/build_barracks_tower", "stone_brick_wall", "Fully Manned",
@@ -121,6 +123,8 @@ public final class Advancements {
             case BLACKSMITH -> level == 1 ? "production/build_blacksmith" : null;
             case CRUSHER -> level == 1 ? "production/build_crusher" : null;
             case SIFTER -> level == 1 ? "production/build_sifter" : null;
+            case ARCHERY -> level == 1 ? "military/build_archery" : null;
+            case COMBAT_ACADEMY -> level == 1 ? "military/build_combat_academy" : null;
             case BARRACKS -> level == 1 ? "military/build_barracks" : null;
             case BARRACKS_TOWER -> level == 1 ? "military/build_barracks_tower" : null;
             case SMELTERY -> level == 1 ? "production/build_smeltery" : level == 3 ? "production/build_smeltery_3" : level == 5 ? "production/build_smeltery_5" : null;

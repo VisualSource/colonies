@@ -290,7 +290,7 @@ public final class Menus {
 
     /** Manual housing: citizens living elsewhere or nowhere, the homeless first. */
     private void moveIn(Player p, Colony c, Hut h) {
-        List<Colonist> others = new ArrayList<>(c.colonists.stream().filter(x -> x.home != h).toList());
+        List<Colonist> others = new ArrayList<>(c.colonists.stream().filter(x -> x.home != h && !c.livesAtWork(x)).toList());
         others.sort(java.util.Comparator.comparing((Colonist x) -> x.home != null).thenComparing(x -> x.name));
         List<ActionButton> buttons = new ArrayList<>();
         for (Colonist x : others)

@@ -12,7 +12,6 @@ import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Bed;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -22,7 +21,6 @@ final class Routine {
     static final int FOOD_RETRY_TICKS = 20 * 60 * 5; // after finding no food, look again in 5 minutes (the mod's wait)
     private static final double TICKS_PER_BLOCK = 6; // the mod's estimate of walking time home
     private static final double Y_WEIGHT = 1.5;      // climbing counts for more
-    private static final int BED_RANGE = 8; // shortcut: beds are looked for near the hut block, not by the building's own outline
     private static final int BED_RESCAN_TICKS = 200;
     private static final int HUNGER_TICKS = 20 * 60; // saturation drops once a minute (as in the mod)
 
@@ -102,13 +100,9 @@ final class Routine {
         if (c.home == null) return null;
         Hut house = c.home;
         int now = Bukkit.getCurrentTick();
-        if (house.beds == null || now - house.bedsAt >= BED_RESCAN_TICKS) { // ~4,300 blocks: not every tick all night
-            List<Block> beds = new ArrayList<>();
+        if (house.beds == null || now - house.bedsAt >= BED_RESCAN_TICKS) { // thousands of blocks: not every tick all night
             Block hut = house.block;
-            for (int dx = -BED_RANGE; dx <= BED_RANGE; dx++) for (int dz = -BED_RANGE; dz <= BED_RANGE; dz++) for (int dy = -4; dy <= 10; dy++) {
-                Block b = hut.getRelative(dx, dy, dz);
-                if (b.getBlockData() instanceof Bed bd && bd.getPart() == Bed.Part.HEAD) beds.add(b);
-            }
+            List<Block> beds = colony.bedsIn(house);
             beds.sort(Comparator.comparingDouble(b -> b.getLocation().distanceSquared(hut.getLocation())));
             house.beds = beds;
             house.bedsAt = now;

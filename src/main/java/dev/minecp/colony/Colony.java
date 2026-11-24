@@ -154,6 +154,21 @@ public final class Colony {
         return h.builtBox;
     }
 
+    private static final int BEDS_BELOW = 5, BEDS_ABOVE = 12; // ours: heights around the hut block searched (the mod registers beds)
+
+    /** The beds (their heads) standing inside a hut's building. */
+    List<Block> bedsIn(Hut h) {
+        List<Block> found = new ArrayList<>();
+        int[] box = footprint(h); // minX, maxX+1, minZ, maxZ+1
+        if (box == null) return found;
+        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = h.block.getY() - BEDS_BELOW; y <= h.block.getY() + BEDS_ABOVE; y++) {
+            Block b = h.block.getWorld().getBlockAt(x, y, z);
+            if (org.bukkit.Tag.BEDS.isTagged(b.getType()) // first: the data is a new object for every block
+                    && b.getBlockData() instanceof org.bukkit.block.data.type.Bed bed && bed.getPart() == org.bukkit.block.data.type.Bed.Part.HEAD) found.add(b);
+        }
+        return found;
+    }
+
     public Hut townHall() {
         return huts.getFirst();
     }
@@ -169,13 +184,13 @@ public final class Colony {
     }
 
     /**
-     * How many citizens the colony has beds for: houses and taverns, at least 1, at most {@link #CITIZEN_CAP} or what
+     * How many citizens the colony has beds for: houses, taverns and the guards and trainees who live at work, at least 1, at most {@link #CITIZEN_CAP} or what
      * research allows, never over {@link #CITIZEN_MAX} (the mod's getMaxCitizens and maxCitizensFromResearch).
      */
     public int capacity() {
         int cap = (int) Math.min(CITIZEN_MAX, Math.max(CITIZEN_CAP, research.effect(Effects.CITIZEN_CAP)));
-        // a Locked home counts only who lives there now (the mod's calculateMaxCitizens)
-        return Math.max(1, Math.min(cap, huts.stream().mapToInt(h -> h.hiring == Settings.Hiring.LOCKED
+        // a Locked home counts only who lives there now, as does a hut that houses its workers (the mod's calculateMaxCitizens)
+        return Math.max(1, Math.min(cap, huts.stream().mapToInt(h -> h.type.housesWorkers() ? residents(h).size() : h.hiring == Settings.Hiring.LOCKED
                 ? Math.min(residents(h).size(), h.type.rooms(h.level)) : h.type.rooms(h.level)).sum()));
     }
 
@@ -274,9 +289,19 @@ public final class Colony {
 
     /**
      * Gives homeless citizens a bed in a house or tavern with room (a level N house sleeps N, a tavern 4), in homes
-     * that take residents on their own (the mod's LivingBuildingModule: auto housing, or its hiring mode).
+     * that take residents on their own (the mod's LivingBuildingModule: auto housing, or its hiring mode). Guards and
+     * trainees live at their hut instead, and lose that home with the job (the mod's WorkAtHomeBuildingModule).
      */
     void assignHomes() {
+        for (Colonist c : colonists) { // first, so the beds they leave are free below
+            if (livesAtWork(c)) {
+                Job job = jobOf(c);
+                if (c.home != null && c.home.type.isHome() && c.home.hiring != Settings.Hiring.LOCKED && !autoAssigns(c.home, Settings.AUTO_HIRING)) // the hiring switch, as the mod
+                    tell(c.name + " now lives at work (" + job.hut.type.worker + "). The " + c.home.type.title + " at "
+                            + c.home.block.getX() + " " + c.home.block.getY() + " " + c.home.block.getZ() + " has a bed free.");
+                c.home = job.hut;
+            } else if (c.home != null && c.home.type.housesWorkers()) c.home = null;
+        }
         for (Colonist c : colonists) {
             if (c.home != null) continue;
             for (Hut h : huts) if (autoAssigns(h, Settings.AUTO_HOUSING) && residents(h).size() < h.type.rooms(h.level)) { c.home = h; break; }
@@ -326,9 +351,15 @@ public final class Colony {
         assignJobs();
     }
 
+    /** Whether its job gives it its home: guards and trainees. */
+    public boolean livesAtWork(Colonist c) {
+        Job job = jobOf(c);
+        return job != null && job.hut.type.housesWorkers();
+    }
+
     /** A player moves {@code c} into the home {@code h} (manual housing), if it has room. */
     public boolean moveInto(Hut h, Colonist c) {
-        if (c.home == h || residents(h).size() >= h.type.rooms(h.level)) return false;
+        if (c.home == h || livesAtWork(c) || residents(h).size() >= h.type.rooms(h.level)) return false;
         c.home = h;
         assignHomes();
         return true;
@@ -407,13 +438,30 @@ public final class Colony {
 
     /**
      * Gives jobless citizens the open jobs of built huts. As the mod (IBuilding.canAssignCitizens): a hut takes a worker
-     * once level 1 is built; only the Builder's Hut hires at level 0, so its builder can build it.
+     * once level 1 is built; only the Builder's Hut hires at level 0, so its builder can build it. Guard huts take the
+     * most skilled trainee of their kind first, if their setting says so (the mod's GuardBuildingModule).
      */
     void assignJobs() {
+        boolean promoted = false;
         for (Job j : jobs) {
             if (worker(j) != null || !canHire(j) || !autoAssigns(j.hut, Settings.AUTO_HIRING)) continue;
+            Job trainee = j instanceof dev.minecp.job.Guard g && g.hut.on(Settings.HIRE_TRAINEE) ? mostSkilled(g::trainedBy, g.skills()[0]) : null;
+            if (trainee != null) {
+                j.worker = trainee.worker;
+                trainee.worker = null;
+                promoted = true;
+                continue;
+            }
             j.worker = colonists.stream().filter(c -> !c.child && jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
         }
+        if (promoted) assignJobs(); // the trainee's place is open; each pass fills a guard's, so this ends
+        else assignHomes();
+    }
+
+    /** The filled job of this kind whose worker has the highest {@code skill}, or null. */
+    Job mostSkilled(java.util.function.Predicate<Job> kind, dev.minecp.citizen.Skills.Skill skill) {
+        return jobs.stream().filter(j -> kind.test(j) && worker(j) != null)
+                .max(java.util.Comparator.comparingInt(j -> worker(j).skills.level(skill))).orElse(null);
     }
 
     public void removeHut(Hut hut) {

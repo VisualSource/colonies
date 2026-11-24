@@ -1,5 +1,6 @@
 package dev.minecp.colony;
 
+import dev.minecp.job.ArcherTrainee;
 import dev.minecp.job.Beekeeper;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Composter;
@@ -15,6 +16,7 @@ import dev.minecp.job.Healer;
 import dev.minecp.job.Herder;
 import dev.minecp.job.Guard;
 import dev.minecp.job.Job;
+import dev.minecp.job.KnightTrainee;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Mesh;
 import dev.minecp.job.Miner;
@@ -137,6 +139,13 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A guard (knight or ranger) patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Guard", Guard::new, false),
+        // Unlocked by research; the mod's recipes: three bows or three iron swords across the middle
+        ARCHERY("Archery", Material.CHEST, "military/archery", "archery", "Archers live and train here until a guard hut hires them",
+                () -> new RecipeChoice.MaterialChoice(Material.BOW), () -> new RecipeChoice.MaterialChoice(Material.BOW), "Archer in Training",
+                ArcherTrainee::new, false),
+        COMBAT_ACADEMY("Combat Academy", Material.CHEST, "military/combatacademy", "combatacademy", "Knights live and train here until a guard hut hires them",
+                () -> new RecipeChoice.MaterialChoice(Material.IRON_SWORD), () -> new RecipeChoice.MaterialChoice(Material.IRON_SWORD), "Knight in Training",
+                KnightTrainee::new, false),
         // Unlocked by research; the mod's recipe: an iron block in the middle. Its blueprint holds its towers' hut blocks.
         BARRACKS("Barracks", Material.CHEST, "military/barracks", "barracks", "Its towers house the colony's guards, one per tower level",
                 () -> new RecipeChoice.MaterialChoice(Material.IRON_BLOCK), false),
@@ -261,6 +270,11 @@ public final class Hut {
             return this == HOUSE ? level : this == TAVERN ? 4 : 0;
         }
 
+        /** Its workers live there instead of in a house (the mod's WorkAtHomeBuildingModule). */
+        public boolean housesWorkers() {
+            return this == GUARD_TOWER || this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY;
+        }
+
         /** A house or the tavern: citizens live there. */
         public boolean isHome() {
             return this == HOUSE || this == TAVERN;
@@ -277,7 +291,7 @@ public final class Hut {
 
         /** How many work here at {@code level}: a barracks tower's guards, one per level (the mod's); one elsewhere. */
         int workers(int level) {
-            return this == BARRACKS_TOWER ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
+            return this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
         }
 
         private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();

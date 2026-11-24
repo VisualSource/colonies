@@ -520,10 +520,16 @@ public final class Colonist {
         if (fleeTicks > 0 || climb != null || legs == null) return;
         stopWalking();
         Nms.halt(legs);
-        Location look = legs.getLocation();
-        look.setDirection(p.getLocation().toVector().subtract(look.toVector()));
-        legs.setRotation(look.getYaw(), 0);
+        face(p.getLocation());
         talkTicks = 60;
+    }
+
+    /** Turns towards {@code to} where it stands. */
+    public void face(Location to) {
+        if (legs == null) return;
+        Location look = legs.getLocation();
+        look.setDirection(to.toVector().subtract(look.toVector()));
+        legs.setRotation(look.getYaw(), 0);
     }
 
     public boolean isMoving() {
