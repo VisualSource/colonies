@@ -734,6 +734,12 @@ public final class Colonist {
         teleportNear(head);
     }
 
+    /** The highlight scroll: its body glows and its legs run faster for {@code ticks} (glowing legs would outline the hidden mob). */
+    public void highlight(int ticks) {
+        if (body != null) body.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, ticks, 0));
+        if (legs != null) legs.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, ticks, 0));
+    }
+
     /** Teleports onto {@code spot} (a block it can stand in). */
     public void teleportTo(Block spot) {
         stopWalking();

@@ -132,7 +132,7 @@ public final class Items implements Listener {
      * The mod's supply camp or ship deployer: right-click to place the camp on land or the ship on water, with a
      * Town Hall, a Build Tool and supplies in it (Placement). Paper stands in for its model: it places nothing itself.
      */
-    private ItemStack supply(boolean ship) {
+    ItemStack supply(boolean ship) {
         ItemStack item = new ItemStack(Material.PAPER);
         item.editMeta(m -> {
             m.itemName(Component.text(ship ? "Supply Ship" : "Supply Camp", NamedTextColor.GOLD));

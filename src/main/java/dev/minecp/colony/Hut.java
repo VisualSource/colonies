@@ -146,6 +146,9 @@ public final class Hut {
         GRAVEYARD("Graveyard", Material.CHEST, "mystic/graveyard", "graveyard", "An undertaker buries the colony's dead, and may bring one back",
                 () -> new RecipeChoice.MaterialChoice(Material.BONE), () -> new RecipeChoice.MaterialChoice(Material.STONE), "Undertaker",
                 Undertaker::new, false),
+        // Unlocked by research (Ambition); no worker; the mod's recipe: a diamond in the middle
+        MYSTICAL_SITE("Mystical Site", Material.CHEST, "mystic/mysticalsite", "mysticalsite", "Its level makes citizens happier and helps the undertaker bring the dead back",
+                () -> new RecipeChoice.MaterialChoice(Material.DIAMOND), false),
         // Unlocked by research; the mod's recipe: a carrot in the middle
         HOSPITAL("Hospital", Material.CHEST, "fundamentals/hospital", "hospital", "A healer cures the colony's sick and heals the hurt",
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),

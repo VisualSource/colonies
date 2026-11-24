@@ -62,6 +62,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     final Menus menus = new Menus(this);
     public final Teaching teaching = new Teaching(this);
     public final GuardTools guardTools = new GuardTools(this);
+    final Scrolls scrolls = new Scrolls(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
@@ -107,6 +108,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(new ChestNames(this), this);
         getServer().getPluginManager().registerEvents(teaching, this);
         getServer().getPluginManager().registerEvents(guardTools, this);
+        getServer().getPluginManager().registerEvents(scrolls, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
@@ -180,6 +182,16 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void save(Colony c) {
         if (colonies.get(c.owner) != c) return; // disbanded while one of its menus was still open: don't bring its file back
         saves.save(c);
+    }
+
+    /** Every colony. */
+    java.util.Collection<Colony> allColonies() {
+        return colonies.values();
+    }
+
+    /** The colony whose owner has this id, or null. */
+    Colony colonyOwnedBy(UUID owner) {
+        return colonies.get(owner);
     }
 
     /** The colony {@code p} owns, or null. */
@@ -371,6 +383,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
         if (items.isBuildTool(e.getItem()) || items.supplyKind(e.getItem()) != null) return; // the build tool and supplies (Placement)
         if (items.isGuardScepter(e.getItem()) || items.isRallyBanner(e.getItem())) return; // GuardTools
+        if (Scrolls.kind(e.getItem()) != null) return; // Scrolls
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();

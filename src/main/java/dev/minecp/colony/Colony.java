@@ -178,6 +178,11 @@ public final class Colony {
         return null;
     }
 
+    /** The highest level of the colony's mystical sites, 0 without one (the mod's getMysticalSiteMaxBuildingLevel). */
+    public int mysticalLevel() {
+        return huts.stream().filter(h -> h.type == Hut.Type.MYSTICAL_SITE).mapToInt(h -> h.level).max().orElse(0);
+    }
+
     public Hut hut(Hut.Type type) {
         for (Hut h : huts) if (h.type == type) return h;
         return null;
@@ -687,6 +692,7 @@ public final class Colony {
         if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         if (colonyTick % 20 == 0) for (Job j : jobs) j.everySecond();
+        if (colonyTick % 20 == 0) for (Hut h : huts) if (h.post != null) h.post.checkFollow();
         visitors.tick();
         raids.tick();
         sickness.tick();

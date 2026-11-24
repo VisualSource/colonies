@@ -37,8 +37,7 @@ public final class Studies {
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
             Map.entry("stable", "Stable"),
-            Map.entry("netherworker", "Nether Mine"),
-            Map.entry("mysticalsite", "Mystical Site"));
+            Map.entry("netherworker", "Nether Mine"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
     /** What undoing a finished research costs (config): the mod's 1 ancient tome (null here), or a vanilla item. */

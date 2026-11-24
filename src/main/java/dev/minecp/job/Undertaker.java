@@ -41,8 +41,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Undertaker extends Job {
     private static final int EMPTY_EFFORT = 100, RESURRECT_EFFORT = 400, BURY_EFFORT = 400; // EFFORT_EMPTY_GRAVE, _RESURRECT, _BURY
     private static final int SWING_TICKS = 5; // ours: a swing every 5 ticks, the pace that gives the mod's timings
-    // The mod's chance without totems or mystical site: 0.5% a hut level, 0.125% a mana level, plus research, at most 2.5%.
-    private static final double CHANCE_PER_LEVEL = 0.005, CHANCE_PER_MANA = 0.00125, MAX_CHANCE = 0.025;
+    // The mod's chance without totems: 0.5% a hut level, 0.125% a mana level, plus research, at most 2.5% plus 0.5% a mystical site level.
+    private static final double CHANCE_PER_LEVEL = 0.005, CHANCE_PER_MANA = 0.00125, MAX_CHANCE = 0.025, MAX_PER_MYSTICAL_LEVEL = 0.005;
     private static final double SPRINT = 1.3; // vanilla's sprinting speed modifier
 
     private enum State { FIND, TO_GRAVE, EMPTY, RESURRECT, DIG, BURY, DUMP }
@@ -99,7 +99,7 @@ public final class Undertaker extends Job {
 
     /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%. */
     private double chance() {
-        return Math.min(MAX_CHANCE, CHANCE_PER_LEVEL * hut.level + CHANCE_PER_MANA * level(Skill.MANA)
+        return Math.min(MAX_CHANCE + MAX_PER_MYSTICAL_LEVEL * colony.mysticalLevel(), CHANCE_PER_LEVEL * hut.level + CHANCE_PER_MANA * level(Skill.MANA)
                 + colony.research.effect(Effects.RESURRECT_CHANCE));
     }
 

@@ -1,6 +1,7 @@
 package dev.minecp.job;
 
 import dev.minecp.MineCP;
+import dev.minecp.Scrolls;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.colony.Colony;
@@ -27,6 +28,7 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -34,9 +36,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * The Enchanter's Tower (the mod's BuildingEnchanter and EntityAIWorkEnchanter), the mod's numbers unless noted. Its
  * worker's mana is its Mana skill: below 10 per hut level it studies the huts chosen as its gather targets, each once a
  * day, with a book (the book is used up, mana +1); with enough it turns an ancient tome into an enchanted book from its
- * hut level's table, which costs mana as high as the book's best enchantment. It takes each result to its hut.
+ * hut level's table, which costs mana as high as the book's best enchantment. It takes each result to its hut. It also
+ * makes the mod's scrolls when the colony asks for them (crafterrecipes/enchanter), before anything else.
  */
-public final class Enchanter extends Job {
+public final class Enchanter extends Crafter {
     private static final int MANA_PER_LEVEL = 10;      // MANA_REQ_PER_LEVEL
     private static final int DRAIN_STEPS = 60, DRAIN_TICKS = 10; // MAX_PROGRESS_TICKS, its drain state every 10 ticks
     private static final int ENCHANT_STEPS = 300, ENCHANT_TICKS = 20; // MAX_ENCHANTMENT_TICKS / hut level, a second each
@@ -54,7 +57,21 @@ public final class Enchanter extends Job {
     private int progress;
 
     public Enchanter(Hut hut, Colony colony) {
-        super(hut, colony);
+        super(hut, colony, r -> false, "teleport, area teleport, guard help and highlight scrolls", Kind.OWN);
+        // The mod's recipes; ours: a plain stick for its gold scepter (our Build Tool is made from one)
+        learn(scroll("enchanter_scroll_tp", Scrolls.Kind.TELEPORT, 3, Map.of(Material.PAPER, 3, Material.COMPASS, 1, Material.STICK, 1), 0), 1, s -> true);
+        learn(scroll("enchanter_scroll_area_tp", Scrolls.Kind.AREA, 1, Map.of(), 3), 2, s -> true);
+        learn(scroll("enchanter_scroll_guard_help", Scrolls.Kind.GUARD_HELP, 2, Map.of(Material.LAPIS_LAZULI, 5, Material.ENDER_PEARL, 1, Material.PAPER, 1), 1), 3, MORE_SCROLLS);
+        learn(scroll("enchanter_scroll_highlight", Scrolls.Kind.HIGHLIGHT, 5, Map.of(Material.GLOWSTONE_DUST, 6, Material.PAPER, 2), 3), 3, MORE_SCROLLS);
+    }
+
+    private static final java.util.function.Predicate<dev.minecp.research.Studies> MORE_SCROLLS = s -> s.effect("morescrollsunlock") > 0;
+
+    /** A scroll recipe: these plain items and {@code teleportScrolls} colony teleport scrolls (unbound). */
+    private static org.bukkit.inventory.Recipe scroll(String id, Scrolls.Kind kind, int count, Map<Material, Integer> items, int teleportScrolls) {
+        var r = (org.bukkit.inventory.ShapelessRecipe) own(id, Scrolls.item(kind, count), items);
+        for (int i = 0; i < teleportScrolls; i++) r.addIngredient(org.bukkit.inventory.RecipeChoice.exactChoice(Scrolls.item(Scrolls.Kind.TELEPORT, 1)));
+        return r;
     }
 
     // ---- the ancient tome -----------------------------------------------------------------------------------------
@@ -147,7 +164,7 @@ public final class Enchanter extends Job {
 
     @Override
     public List<Want> wants() {
-        List<Want> wants = new ArrayList<>();
+        List<Want> wants = new ArrayList<>(super.wants());
         if (hut.level < 1) return wants;
         if (level(Skill.MANA) < required()) {
             if (!targets.isEmpty() && has(Enchanter::plainBook) + inChest(Enchanter::plainBook) == 0)
@@ -160,47 +177,44 @@ public final class Enchanter extends Job {
     @Override
     int keep(ItemStack item) {
         if (isAncientTome(item)) return TOMES_KEPT;
-        return plainBook(item) ? 1 : 0;
+        return plainBook(item) ? 1 : super.keep(item);
     }
 
     @Override
     boolean keepsOnHand(ItemStack i) {
-        return isAncientTome(i) || plainBook(i);
+        return isAncientTome(i) || plainBook(i) || super.keepsOnHand(i);
     }
 
     @Override
     public List<Component> info(Colony c) {
         if (hut.level < 1) return List.of(Component.text("The enchanter starts once level 1 is built.", NamedTextColor.GRAY));
-        return List.of(Component.text("Mana " + level(Skill.MANA) + " of " + required() + " needed to enchant. Below it, it studies "
+        List<Component> lines = new ArrayList<>(super.info(c));
+        lines.add(Component.text("Mana " + level(Skill.MANA) + " of " + required() + " needed to enchant. Below it, it studies "
                 + (targets.isEmpty() ? "the huts you choose in Gather targets (none yet)" : targets.size() + " gather targets, each once a day, with a book")
                 + "; with enough it turns an ancient tome into an enchanted book.", NamedTextColor.GRAY));
+        return lines;
     }
 
+    /** With no scroll asked for (the crafter's work comes first), it studies or enchants. */
     @Override
-    public void tick(Colonist w) {
-        if (hut.level < 1) {
-            w.setStatus(hut.type.worker + ": idle");
-            w.wander(hut.block.getLocation().toCenterLocation());
-            return;
-        }
-        if (w.isMoving() || --cooldown > 0) return;
+    boolean otherWork(Colonist w, org.bukkit.inventory.Inventory chest) {
         if (studiedDay != colony.day) { studiedDay = colony.day; studied.clear(); } // the mod's onWakeUp
         targets.removeIf(h -> !colony.huts.contains(h) || !canStudy(h, colony));
         switch (state) {
             case DECIDE -> decide(w);
             case TO_TARGET -> {
-                if (!targets.contains(target)) { state = State.DECIDE; return; }
-                if (!w.isBeside(target.block)) { w.goBeside(target.block); return; }
+                if (!targets.contains(target)) { state = State.DECIDE; return true; }
+                if (!w.isBeside(target.block)) { w.goBeside(target.block); return true; }
                 progress = 0;
                 state = State.DRAIN;
             }
             case DRAIN -> {
-                if (!targets.contains(target) || !w.isBeside(target.block)) { state = State.TO_TARGET; return; }
+                if (!targets.contains(target) || !w.isBeside(target.block)) { state = State.TO_TARGET; return true; }
                 Location at = w.location().add(0, 1, 0);
                 at.getWorld().spawnParticle(Particle.ENCHANT, at, 10, 0.5, 0.5, 0.5, 0.5);
                 if (progress % 6 == 0) at.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, target.block.getLocation().toCenterLocation(), 3, 0.5, 0.5, 0.5);
                 cooldown = DRAIN_TICKS;
-                if (++progress < DRAIN_STEPS) return;
+                if (++progress < DRAIN_STEPS) return true;
                 if (use(Enchanter::plainBook, 1) == 1) {
                     w.skills.shift(Skill.MANA, 1);
                     experience(w, XP_PER_DRAIN);
@@ -210,13 +224,13 @@ public final class Enchanter extends Job {
                 state = State.DUMP;
             }
             case ENCHANT -> {
-                if (!atHut(w)) { goToHut(w); return; }
+                if (!atHut(w)) { goToHut(w); return true; }
                 Location at = hut.block.getLocation().toCenterLocation();
                 at.getWorld().spawnParticle(Particle.ENCHANT, at, 20, 0.5, 0.8, 0.5, 1);
                 if (progress % 5 == 0) at.getWorld().playSound(at, Sound.BLOCK_ENCHANTMENT_TABLE_USE, SoundCategory.BLOCKS, 0.6f, 1);
                 w.swing();
                 cooldown = ENCHANT_TICKS;
-                if (++progress < ENCHANT_STEPS / hut.level) return;
+                if (++progress < ENCHANT_STEPS / hut.level) return true;
                 if (use(Enchanter::isAncientTome, 1) == 1) {
                     ItemStack book = book();
                     int cost = ((EnchantmentStorageMeta) book.getItemMeta()).getStoredEnchants().values().stream().mapToInt(Integer::intValue).max().orElse(0);
@@ -227,11 +241,12 @@ public final class Enchanter extends Job {
                 state = State.DUMP;
             }
             case DUMP -> {
-                if (!atHut(w)) { goToHut(w); return; }
-                if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return; }
+                if (!atHut(w)) { goToHut(w); return true; }
+                if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return true; }
                 state = State.DECIDE;
             }
         }
+        return true;
     }
 
     /** The mod's decide: study while short of mana, else enchant; with what it needs from its hut. */

@@ -47,6 +47,7 @@ public final class Happiness {
         f.add(new Factor("Got hurt", 2, c.hurtDays > 0 ? 0 : 1)); // neutral once it wears off, so colony averages count everyone
         f.add(new Factor("A citizen died", 3, c.griefDays > 0 ? 0 : 1));
         f.add(new Factor("Beat a raid", 1, c.defendedDays > 0 ? 2 : 1));
+        f.add(new Factor("Mystical site", 1, Math.max(1, colony.mysticalLevel() / 2.0))); // the mod's: neutral up to level 2, 2.5 at level 5
         return f;
     }
 

@@ -52,6 +52,11 @@ MODELS = {
     "hut/alchemist": "minecolonies:item/blockhutalchemist",
     "hut/enchanter": "minecolonies:item/blockhutenchanter",
     "ancient_tome": "minecolonies:item/ancienttome",
+    "scroll_tp": "minecolonies:item/scroll_tp",
+    "scroll_area_tp": "minecolonies:item/scroll_area_tp",
+    "scroll_guard_help": "minecolonies:item/scroll_guard_help",
+    "scroll_highlight": "minecolonies:item/scroll_highlight",
+    "scroll_buff": "minecolonies:item/scroll_buff",
     "hut/sifter": "minecolonies:item/blockhutsifter",
     "hut/hospital": "minecolonies:item/blockhuthospital",
     "mesh/string": "minecolonies:item/sifter_mesh_string",
@@ -75,6 +80,7 @@ MODELS = {
     "magic_potion": "minecolonies:item/magicpotion",
     "hut/barracks_tower": "minecolonies:item/blockhutbarrackstower",
     "hut/graveyard": "minecolonies:item/blockhutgraveyard",
+    "hut/mystical_site": "minecolonies:item/blockhutmysticalsite",
     "hut/fisherman": "minecolonies:item/blockhutfisherman",
     "hut/chicken_herder": "minecolonies:item/blockhutchickenherder",
     "hut/cowboy": "minecolonies:item/blockhutcowboy",
@@ -98,7 +104,8 @@ MODELS = {
 BASE = {"hut/town_hall": "bell", "hut/field": "hay_block", "build_goggles": "leather_helmet", "build_tool": "stick",
         "clipboard": "paper", "resource_scroll": "paper", "supply_camp": "paper", "supply_ship": "paper",
         "mesh/string": "paper", "mesh/flint": "paper", "mesh/iron": "paper", "mesh/diamond": "paper", "compost": "bone_meal", "guard_scepter": "blaze_rod",
-        "mistletoe": "lily_of_the_valley", "magic_potion": "dragon_breath", "ancient_tome": "enchanted_book"}  # the rest: chest
+        "mistletoe": "lily_of_the_valley", "magic_potion": "dragon_breath", "ancient_tome": "enchanted_book",
+        "scroll_tp": "paper", "scroll_area_tp": "paper", "scroll_guard_help": "paper", "scroll_highlight": "paper", "scroll_buff": "paper"}  # the rest: chest
 # Vanilla's own definitions of those items (Minecraft 26.3's assets/minecraft/items), the fallback without --client.
 VANILLA = json.loads(r'''{"bell":{"type":"minecraft:model","model":"minecraft:item/bell"},"chest":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:christmas"}},"when":["12-24","12-25","12-26"]}],"fallback":{"type":"minecraft:special","base":"minecraft:item/chest","model":{"type":"minecraft:chest","texture":"minecraft:normal"}},"pattern":"MM-dd","property":"minecraft:local_time"},"hay_block":{"type":"minecraft:model","model":"minecraft:block/hay_block"},"stick":{"type":"minecraft:model","model":"minecraft:item/stick"},"blaze_rod":{"type":"minecraft:model","model":"minecraft:item/blaze_rod"},"paper":{"type":"minecraft:model","model":"minecraft:item/paper"},"lily_of_the_valley":{"type":"minecraft:model","model":"minecraft:item/lily_of_the_valley"},"dragon_breath":{"type":"minecraft:model","model":"minecraft:item/dragon_breath"},"bone_meal":{"type":"minecraft:model","model":"minecraft:item/bone_meal"},"enchanted_book":{"type":"minecraft:model","model":"minecraft:item/enchanted_book"},"leather_helmet":{"type":"minecraft:select","cases":[{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_quartz_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:quartz"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_iron_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:iron"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_netherite_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:netherite"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_redstone_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:redstone"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_copper_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:copper"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_gold_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:gold"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_emerald_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:emerald"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_diamond_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:diamond"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_lapis_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:lapis"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_amethyst_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:amethyst"},{"model":{"type":"minecraft:model","model":"minecraft:item/leather_helmet_resin_trim","tints":[{"type":"minecraft:dye","default":-6265536}]},"when":"minecraft:resin"}],"fallback":{"type":"minecraft:model","model":"minecraft:item/leather_helmet","tints":[{"type":"minecraft:dye","default":-6265536}]},"property":"minecraft:trim_material"}}''')
 # The name MineCP gives each placed hut chest (Hut.Type titles) and rack (Rack.tag) -> its MODELS entry: keep in step.
@@ -109,7 +116,7 @@ CHEST_NAMES = {
     "Blacksmith's Hut": "hut/blacksmith", "Smeltery": "hut/smeltery", "Mechanic's Hut": "hut/mechanic",
     "Fletcher's Hut": "hut/fletcher", "Dyer's Hut": "hut/dyer", "Glassblower's Hut": "hut/glassblower", "Crusher": "hut/crusher", "Sifter": "hut/sifter", "Hospital": "hut/hospital", "Concrete Mixer": "hut/concrete_mixer", "Alchemist Tower": "hut/alchemist", "Enchanter's Tower": "hut/enchanter",
     "Guard Tower": "hut/guard_tower", "Archery": "hut/archery", "Combat Academy": "hut/combat_academy", "Barracks": "hut/barracks", "Barracks Tower": "hut/barracks_tower", "Composter's Hut": "hut/composter", "Flower Shop": "hut/florist", "Plantation": "hut/plantation", "Beekeeper's Hut": "hut/beekeeper", "School": "hut/school", "Library": "hut/library", "Tavern": "hut/tavern", "Bakery": "hut/baker", "Storage Rack": "rack",
-    "Graveyard": "hut/graveyard", "Fisherman's Hut": "hut/fisherman", "Chicken Farmer's Hut": "hut/chicken_herder",
+    "Graveyard": "hut/graveyard", "Mystical Site": "hut/mystical_site", "Fisherman's Hut": "hut/fisherman", "Chicken Farmer's Hut": "hut/chicken_herder",
     "Cowhand's Hut": "hut/cowboy", "Shepherd's Hut": "hut/shepherd", "Swineherd's Hut": "hut/swineherd",
     "Rabbit Hutch": "hut/rabbit_hutch", "Postbox": "hut/post_box", "University": "hut/university", "Stash": "hut/stash",
 }

@@ -123,12 +123,28 @@ public final class GuardPost {
         return guard == null ? hut.block : guard;
     }
 
+    private long followUntil; // world time a scroll's following ends; 0: none
+
     public void guard(Block at) {
         guard = at;
     }
 
     public void follow(Player p) {
         follow = p.getUniqueId();
+        followUntil = 0; // told to by a player: for as long as they like
+    }
+
+    /** Follow {@code p} for {@code ticks} of world time, then back to patrolling (the guard help scroll); saved, so a restart keeps it. */
+    public void followFor(Player p, long ticks) {
+        follow = p.getUniqueId();
+        followUntil = hut.block.getWorld().getFullTime() + ticks;
+    }
+
+    /** Once a second: a scroll's time to follow is up. */
+    void checkFollow() {
+        if (followUntil <= 0 || hut.block.getWorld().getFullTime() < followUntil) return;
+        followUntil = 0;
+        if (task() == Task.FOLLOW) hut.set(Settings.GUARD_TASK, "PATROL");
     }
 
     public UUID followed() {
@@ -216,6 +232,7 @@ public final class GuardPost {
         if (guard != null) s.set("guard", saved(guard));
         if (!patrol.isEmpty()) s.set("patrol", patrol.stream().map(GuardPost::saved).toList());
         if (follow != null) s.set("follow", follow.toString());
+        if (followUntil > 0) s.set("follow-until", followUntil);
         if (mine != null) s.set("mine", saved(mine));
     }
 
@@ -223,6 +240,7 @@ public final class GuardPost {
         guard = blockAt(s.getString("guard"));
         for (String p : s.getStringList("patrol")) if (blockAt(p) instanceof Block b) patrol.add(b);
         if (s.getString("follow") instanceof String id) follow = UUID.fromString(id);
+        followUntil = s.getLong("follow-until");
         mine = blockAt(s.getString("mine"));
     }
 

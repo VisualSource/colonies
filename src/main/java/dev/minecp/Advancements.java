@@ -47,6 +47,8 @@ public final class Advancements {
         add("minecolonies/build_town_hall_5", "minecolonies/build_town_hall", "bell", "Capital City", "Upgrade the Town Hall to level 5", "challenge");
         add("minecolonies/build_tavern", "minecolonies/build_builder", "barrel", "A Warm Welcome", "Finish a Tavern", "task");
         add("minecolonies/build_citizen", "minecolonies/build_tavern", "red_bed", "Room to Grow", "Finish a House", "task");
+        add("minecolonies/build_mysticalsite", "minecolonies/build_builder", "diamond", "A Sight to Behold", "Finish a Mystical Site", "task");
+        add("minecolonies/build_mysticalsite_5", "minecolonies/build_mysticalsite", "diamond_block", "Higher Powers", "Upgrade a Mystical Site to level 5", "challenge");
         add("minecolonies/build_guard_tower", "minecolonies/build_builder", "shield", "On Watch", "Finish a Guard Tower", "task");
         add("minecolonies/colony_population_5", "minecolonies/build_citizen", "red_bed", "A Hamlet", "Have 5 citizens", "goal");
         add("minecolonies/colony_population_10", "minecolonies/colony_population_5", "brick", "A Village", "Have 10 citizens", "task");
@@ -119,6 +121,7 @@ public final class Advancements {
             case LIBRARY -> level == 1 ? "production/build_library" : null;
             case ENCHANTER -> level == 1 ? "production/build_enchanter" : null;
             case TAVERN -> level == 1 ? "minecolonies/build_tavern" : null;
+            case MYSTICAL_SITE -> level == 1 ? "minecolonies/build_mysticalsite" : level == 5 ? "minecolonies/build_mysticalsite_5" : null;
             case WAREHOUSE -> level == 1 ? "production/build_warehouse" : null;
             case COURIER -> level == 1 ? "production/build_delivery_person" : null;
             case SAWMILL -> level == 1 ? "production/build_sawmill" : null;
