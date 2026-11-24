@@ -59,8 +59,9 @@ public final class MineCP extends JavaPlugin implements Listener {
     private final Set<UUID> tickFailed = new HashSet<>();
     public final Items items = new Items(this);
     private Saves saves;
-    private final Menus menus = new Menus(this);
+    final Menus menus = new Menus(this);
     public final Teaching teaching = new Teaching(this);
+    public final GuardTools guardTools = new GuardTools(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
@@ -91,6 +92,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (resetItem != null && resetItem.isItem()) dev.minecp.research.Studies.resetItem = resetItem;
         else getLogger().warning("research.reset-cost.item isn't an item; using enchanted_book.");
         dev.minecp.research.Studies.clipboard = items::isClipboard;
+        dev.minecp.colony.GuardPost.banner = (item, hut) -> items.rallying(item) && items.bannerHuts(item).contains(hut.block);
         Advancements.load(getLogger()); // first: it may reload data, which could drop recipes added before it
         items.addRecipes();
         saves = new Saves(new File(getDataFolder(), "colonies"), getLogger());
@@ -102,6 +104,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(items, this);
         getServer().getPluginManager().registerEvents(new ChestNames(this), this);
         getServer().getPluginManager().registerEvents(teaching, this);
+        getServer().getPluginManager().registerEvents(guardTools, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
@@ -365,6 +368,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void onInteract(PlayerInteractEvent e) {
         if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
         if (items.isBuildTool(e.getItem()) || items.supplyKind(e.getItem()) != null) return; // the build tool and supplies (Placement)
+        if (items.isGuardScepter(e.getItem()) || items.isRallyBanner(e.getItem())) return; // GuardTools
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();

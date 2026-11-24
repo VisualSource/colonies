@@ -44,6 +44,7 @@ final class Route {
     private static final double STEP_UP = 0.6;        // what the legs step up without jumping
     private static final int MAX_NODES = 8000;        // the mod's MAX_NODES
     private static final double HEURISTIC = 2;
+    static final double HEIGHT = 1.8; // the legs' (the mod's CITIZEN_HEIGHT)
     /** Where a search may start, nearest first: the feet block, a block up or down, then the 8 around at each height. */
     private static final int[][] START_OFFSETS;
     static {
@@ -162,7 +163,7 @@ final class Route {
             Info below = info(w, x, y - 1, z);
             return below.floor && !below.danger ? y - 1 + below.top : Double.NaN;
         }
-        if (feet.partial && info(w, x, y + 2, z).body) return y + feet.top; // 1.95 tall: a slab raises the head into y+2
+        if (feet.partial && (feet.top + HEIGHT <= 2 || info(w, x, y + 2, z).body)) return y + feet.top; // a slab raises the head into y+2, a carpet doesn't
         return Double.NaN;
     }
 

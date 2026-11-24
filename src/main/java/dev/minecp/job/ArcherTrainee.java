@@ -77,7 +77,7 @@ public final class ArcherTrainee extends Trainee {
             if ((stand = random(stands)) == null) { end(); return; }
         }
         Location at = stand.getLocation().add(0.5, 1, 0.5);
-        // beside it will do (the mod's reach is 7): carpet under a 2 high roof is too low for the legs
+        // beside it will do (the mod's reach is 7)
         if (w.location().distanceSquared(at) > AT_STAND_SQ && (tries == 0 || !w.isBeside(stand))) {
             if (++tries > WALK_TRIES || !w.walk(at) && w.walkBeside(stand) == null) end();
             return;

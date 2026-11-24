@@ -85,7 +85,7 @@ public final class Healer extends Job {
         List<Colonist> all = colony.colonists;
         Colonist someone = all.isEmpty() ? null : all.get(rnd.nextInt(all.size())); // the mod's random citizen
         if (someone != null && someone != w && someone.health < REMOTE_HEALTH && someone.location().getWorld() == hut.block.getWorld()
-                && flat(someone.location(), hut.block.getLocation()) < hut.level * REMOTE_RANGE) {
+                && Colonist.flat(someone.location(), hut.block.getLocation()) < hut.level * REMOTE_RANGE) {
             act = Act.REMOTE;
             patient = someone;
             return;
@@ -175,11 +175,6 @@ public final class Healer extends Job {
 
     private static void hearts(Location at, int n) {
         at.getWorld().spawnParticle(Particle.HEART, at.clone().add(0, 1, 0), n, 0.3, 0.3, 0.3);
-    }
-
-    /** Across the ground only, as the mod's getDistance2D. */
-    private static double flat(Location a, Location b) {
-        return Math.hypot(a.getX() - b.getX(), a.getZ() - b.getZ());
     }
 
     private static boolean near(Colonist w, Colonist other) {

@@ -8,6 +8,7 @@ import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Happiness;
 import dev.minecp.colony.Visitors;
+import dev.minecp.colony.GuardPost;
 import dev.minecp.colony.Hut;
 import dev.minecp.colony.Permissions;
 import dev.minecp.colony.Rank;
@@ -171,6 +172,17 @@ public final class Menus {
             if (cr.smelts) buttons.add(button(cr.crafts ? "Teach a furnace recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
                     player -> teachSmelting(player, c, h, cr)));
         }
+        if (h.post != null && h.level > 0) {
+            GuardPost.Task task = h.post.task();
+            if (task == GuardPost.Task.GUARD || task == GuardPost.Task.PATROL && h.setting(Settings.PATROL_MODE).equals("MANUAL"))
+                buttons.add(button(task == GuardPost.Task.GUARD ? "Set the spot to guard" : "Set patrol points", p, c, h, Action.MANAGE_HUTS, player -> plugin.guardTools.giveScepter(player, h)));
+            if (task == GuardPost.Task.FOLLOW && !p.getUniqueId().equals(h.post.followed())) buttons.add(button("Follow me", p, c, h, Action.MANAGE_HUTS, player -> {
+                h.post.follow(player);
+                plugin.save(c);
+                hut(player, c, h);
+            }));
+        }
+        if (h.type == Hut.Type.MINER && h.level > 0) buttons.add(button("Guards", p, c, h, player -> mineGuards(player, c, h)));
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
             boolean offered = false; // one Hire button, for the first open job
             for (Job j : jobs) {
@@ -259,7 +271,12 @@ public final class Menus {
                     if (n != null) h.set(s.key(), String.valueOf(n));
                     else player.sendMessage(Component.text("Kept " + h.setting(s.key()) + ".", NamedTextColor.RED));
                 }
-                case CHOICE -> { String o = view.getText(s.key()); if (s.options().contains(o)) h.set(s.key(), o); }
+                case CHOICE -> {
+                    String o = view.getText(s.key());
+                    if (!s.options().contains(o)) continue;
+                    if (s.key().equals(Settings.GUARD_TASK) && o.equals("FOLLOW") && h.post.task() != GuardPost.Task.FOLLOW) h.post.follow(player); // whoever told them to
+                    h.set(s.key(), o);
+                }
                 case BLOCK -> {}
             }
             c.hiringChanged(); // a hiring mode or the Town Hall's switches may now fill huts and homes
@@ -268,6 +285,66 @@ public final class Menus {
         }));
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, h.type.title + " settings", body, inputs, buttons, 1);
+    }
+
+    /** The guard huts whose task is to patrol a mine, to assign to this one (the mod's miner guard window): 1 to 3 of them by its level. */
+    private void mineGuards(Player p, Colony c, Hut h) {
+        List<Hut> posts = c.huts.stream().filter(x -> x.post != null && x.level > 0 && x.post.task() == GuardPost.Task.PATROL_MINE).toList();
+        int here = GuardPost.mineGuards(h, c).size(), most = GuardPost.mostMineGuards(h.level);
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Hut x : posts) {
+            Hut mine = x.post.mine(c);
+            if (mine != null && mine != h || mine == null && here >= most) continue;
+            String names = workers(c, x);
+            buttons.add(button((mine == h ? "Unassign " : "Assign ") + (names.isEmpty() ? x.type.title + " (no guards)" : names), p, c, h, Action.MANAGE_HUTS, player -> {
+                if (mine == h) x.post.leaveMine();
+                else x.post.assignMine(h, c);
+                plugin.save(c);
+                mineGuards(player, c, h);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        Dialogs.show(p, "Mine guards", List.of(text(Component.text(posts.isEmpty() ? "No guard hut has the task to patrol a mine: set it in a guard hut's settings."
+                : here + " of " + most + " guard huts patrol this mine."))), List.of(), buttons, 1);
+    }
+
+    /** The names of those who work at a hut. */
+    private static String workers(Colony c, Hut h) {
+        return String.join(", ", c.workersAt(h).stream().map(w -> w.name).toList());
+    }
+
+    /** The guard huts a rally banner calls, those gone too, and whether it does now (the mod's banner window). */
+    public void rallyBanner(Player p, ItemStack banner) {
+        List<ActionButton> buttons = new ArrayList<>();
+        List<DialogBody> body = new ArrayList<>();
+        List<Block> huts = plugin.items.bannerHuts(banner);
+        boolean active = plugin.items.rallying(banner);
+        body.add(text(Component.text(huts.isEmpty() ? "Right-click guard huts with the banner to add them." : (active ? "Rallying" : "Not rallying")
+                + ". Right-click a guard hut to add or remove it; sneak and right-click to rally or stop.")));
+        if (!huts.isEmpty()) buttons.add(bannerButton(active ? "Dismiss" : "Rally", p, plugin.guardTools::toggle));
+        for (Block b : huts) {
+            Colony c = plugin.colonyAt(b);
+            Hut h = c == null ? null : c.hutAt(b);
+            String where = " at " + b.getX() + " " + b.getY() + " " + b.getZ();
+            if (h == null || h.post == null) body.add(text(Component.text("Gone: the guard hut" + where, NamedTextColor.RED)));
+            else {
+                String guards = workers(c, h);
+                body.add(text(Component.text(h.type.title + where + ": " + (guards.isEmpty() ? "no guards" : guards))));
+            }
+            buttons.add(bannerButton("Remove the one" + where, p, (player, held) -> {
+                plugin.guardTools.remove(player, held, b);
+                rallyBanner(player, held);
+            }));
+        }
+        Dialogs.show(p, "Rally Banner", body, List.of(), buttons, 1);
+    }
+
+    /** A button for the rally banner in the player's hand. */
+    private ActionButton bannerButton(String label, Player shownTo, BiConsumer<Player, ItemStack> action) {
+        return Dialogs.button(plugin, label, 200, shownTo, () -> true, (player, view) -> {
+            ItemStack held = player.getInventory().getItemInMainHand();
+            if (plugin.items.isRallyBanner(held)) action.accept(player, held);
+        });
     }
 
     /** Manual hiring: the colony's adults, the jobless first; hiring one moves it from its old job. */
@@ -885,6 +962,6 @@ public final class Menus {
     /** An item's name, or a word option's ("RANGER": "Ranger"). */
     private static String choiceLabel(String option) {
         Material m = Material.matchMaterial(option);
-        return m != null ? Job.name(m) : option.charAt(0) + option.substring(1).toLowerCase();
+        return m != null ? Job.name(m) : option.charAt(0) + option.substring(1).toLowerCase().replace('_', ' ');
     }
 }

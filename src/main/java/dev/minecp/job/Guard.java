@@ -3,7 +3,9 @@ package dev.minecp.job;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.citizen.Skills.Skill;
 import dev.minecp.colony.Colony;
+import dev.minecp.colony.GuardPost.Task;
 import dev.minecp.colony.Hut;
+import dev.minecp.colony.Settings;
 import dev.minecp.research.Effects;
 
 import static dev.minecp.citizen.Skills.Skill.*;
@@ -17,6 +19,7 @@ import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Enemy;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -36,7 +39,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * A guard at a Guard Tower or a barracks tower: a knight (the mod's JobKnight, EntityAIMelee, MeleeCombatAI), a ranger
  * (JobRanger, EntityAIRange, RangeCombatAI) or a druid (JobDruid, EntityAIDruid, DruidCombatAI), by the tower's
- * setting for its slot, with the mod's AbstractEntityAIGuard: it patrols between the colony's built huts, attacks the
+ * setting for its slot, with the mod's AbstractEntityAIGuard: it patrols, guards a spot, follows a player or patrols a mine, attacks the
  * hostile mobs it sees with a sword, a bow or splash potions, and wears the armor its tower level allows. It doesn't sleep at night or shelter from rain, but naps on duty now and then; it doesn't run when hurt (unless research lets it
  * retreat to its tower). Research adds damage, critical hits and armor; knights also parrying, a shield, taunting and a
  * whirlwind; rangers double shots, piercing arrows and arrows from the tower.
@@ -48,9 +51,19 @@ public final class Guard extends Job {
     private static final double BASE_DAMAGE = 3;       // BASE_PHYSICAL_DAMAGE, on top of the sword's
     private static final int VISION_BASE = 15, VISION_PER_LEVEL = 3; // BASE_VISION_RANGE + VISION_RANGE_PER_LEVEL x level
     private static final int Y_VISION = 3;
-    private static final int CHASE = 80;               // MAX_PATROL_DERIVATION: how far from the tower it chases
+    // How far it chases by task (MAX_PATROL_, MAX_FOLLOW_ and MAX_GUARD_DERIVATION, 20 more for a knight on guard):
+    private static final int CHASE = 80, ESCORT_CHASE = 30, GUARD_CHASE = 10, GUARD_CHASE_KNIGHT = 20;
+    private static final int TASK_TICKS = 100;         // GUARD_TASK_INTERVAL: how often it sees to its task
+    private static final int COMBAT_TICKS = 600;       // COMBAT_TIME: this long after a fight it counts as in it
+    private static final int FOLLOW_TIGHT = 6, FOLLOW_LOOSE = 15; // GUARD_FOLLOW_TIGHT_RANGE, GUARD_FOLLOW_LOSE_RANGE
+    private static final int GLOW_TICKS = 600;         // GLOW_EFFECT_DURATION
+    private static final int GUARD_REACH = 5, GUARD_ODDS = 10, RANGER_GUARD_ODDS = 30, DRUID_GUARD_ODDS = 3; // guardMovement: 1 time in these back to the spot
+    private static final int GUARD_ROAM = 10, DRUID_ROAM = 20, DRUID_HEIGHT = 3; // EntityAIDruid: this far above or below it roams too
+    private static final int RALLY_RUN = 30, RALLY_RUN_MAX = 3; // the mod's rally: a Speed level per 30 adaptability, 3 above the first at most
+    private static final int GUARD_BONUS_RANGE = 10, GUARD_Y_VISION = 25; // rangers on guard shoot farther; ranged guards on guard look up and down farther
+    private static final int ALERTED = 4;           // RaidManager: how many guards a raid alert sends
+    private static final int CALL_RANGE_SQ = 40;       // PATROL_DEVIATION_RAID_POINT, which the mod compares with the squared distance
     private static final int HP_TOWER = 20, HP_PER_LEVEL = 2; // BONUS_HP_SINGLE_GUARD, BONUS_HEALTH_PER_LEVEL
-    private static final int PATROL_WAIT = 100;        // GUARD_TASK_INTERVAL: ticks at a patrol point
     private static final double XP_PER_KILL = 15;      // EXP_PER_MOB_DEATH
     private static final int SEARCH_TICKS = 20;        // ours: how often it looks for a target
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
@@ -106,8 +119,11 @@ public final class Guard extends Job {
     private final Map<EquipmentSlot, ItemStack> armor = new EnumMap<>(EquipmentSlot.class); // worn; saved
     private ItemStack shield; // carried once researched; saved
     private LivingEntity target;
-    private Hut patrolTo;
-    private int attackIn, searchIn, waitAt, restTicks;
+    private Block goingTo, minePoint;
+    private Location lastQuiet;                       // where it last saw to its task without a fight; null: its hut
+    private boolean rallying, gearing;                // with a rally banner's bearer; on its way to fetch gear
+    private int running;                              // a rallying guard's Speed level
+    private int attackIn, searchIn, taskIn, fighting, restTicks;
     private long lastWhirlwind;
     private boolean fleeing, resting; // retreating to the tower, then resting there (not saved: it simply carries on)
     private int napTicks, napCheckIn = NAP_CHECK;    // napping while napTicks > 0 (not saved)
@@ -145,7 +161,7 @@ public final class Guard extends Job {
     /** Its type, from its tower's setting for its slot. */
     private Type type() {
         if (slot < 0) slot = colony.jobsAt(hut).indexOf(this); // stays -1 until it is one of the colony's jobs
-        return Type.valueOf(hut.setting(dev.minecp.colony.Settings.guardTypeKey(Math.max(slot, 0))));
+        return Type.valueOf(hut.setting(Settings.guardTypeKey(Math.max(slot, 0))));
     }
 
     private boolean knight() {
@@ -247,14 +263,17 @@ public final class Guard extends Job {
     @Override
     public double pace() {
         double speed = colony.research.effect(Effects.FLEEING_SPEED);
-        return fleeing && speed > 0 ? 1 + SPEED_PER_LEVEL * ((int) speed + 1) : 1;
+        return fleeing && speed > 0 ? 1 + SPEED_PER_LEVEL * ((int) speed + 1) : rallying ? 1 + SPEED_PER_LEVEL * running : 1;
     }
 
     /** Something hurt it: it fights back (a mob; players are left to permissions) instead of running; a ranger needs its bow. */
     @Override
     public boolean fightsBack(Entity source) {
         if (!canFight()) return false;
-        if (source instanceof LivingEntity l && !(source instanceof org.bukkit.entity.Player) && colony.colonistOf(source) == null && valid(l)) target = l;
+        if (source instanceof LivingEntity l && !(source instanceof org.bukkit.entity.Player) && colony.colonistOf(source) == null && valid(l) && l != target) {
+            target = l;
+            callOthers(colony.worker(this));
+        }
         return true;
     }
 
@@ -265,7 +284,7 @@ public final class Guard extends Job {
 
     @Override
     public boolean interruptible() {
-        return target == null && !fleeing && !resting;
+        return target == null && fighting <= 0 && !fleeing && !resting && !escorting();
     }
 
     @Override
@@ -282,11 +301,25 @@ public final class Guard extends Job {
     public List<Component> info(Colony c) {
         if (hut.level == 0) return List.of(Component.text("Guards start once level 1 is built.", NamedTextColor.GRAY));
         int[] tier = ARMOR[Math.min(hut.level, Hut.MAX_LEVEL) - 1];
-        return List.of(Component.text("Guards patrol the colony and fight the monsters they see within " + vision() + " blocks: knights with "
+        return List.of(Component.text(taskInfo(c)), Component.text("Guards fight the monsters they see within " + vision() + " blocks: knights with "
                 + toolLabel(Tool.SWORD) + ", rangers with " + toolLabel(Tool.BOW) + " from up to " + range() + " blocks"
                 + (hut.type == Hut.Type.BARRACKS_TOWER ? ", druids with splash potions from " + druidRange()
                         + " (slowing monsters, strengthening players they fight)" : "") + ". They wear " + armorName(tier[0]) + " to "
                 + armorName(tier[1]) + " armor. Pick each guard's type in Settings.", NamedTextColor.GRAY));
+    }
+
+    private String taskInfo(Colony c) {
+        Block spot = hut.post.guardSpot();
+        Hut mine = hut.post.mine(c);
+        String followed = hut.post.followed() == null ? null : org.bukkit.Bukkit.getOfflinePlayer(hut.post.followed()).getName();
+        int points = hut.post.patrolPoints().size();
+        return "Task: " + switch (task()) {
+            case GUARD -> "guard " + spot.getX() + " " + spot.getY() + " " + spot.getZ();
+            case FOLLOW -> followed == null ? "follow (nobody yet)" : "follow " + followed;
+            case PATROL_MINE -> mine == null ? "patrol a mine (assign one in a Miner's Hut's menu)" : "patrol the mine at " + mine.block.getX() + " " + mine.block.getZ();
+            case PATROL -> !hut.setting(Settings.PATROL_MODE).equals("MANUAL") ? "patrol the colony"
+                    : points == 0 ? "patrol the colony (no patrol points set)" : "patrol " + points + " points";
+        } + ".";
     }
 
     // ---- gear ---------------------------------------------------------------------------------------------------
@@ -460,40 +493,165 @@ public final class Guard extends Job {
         if (target == null && --searchIn <= 0 && canFight()) {
             searchIn = SEARCH_TICKS;
             target = druid() ? druidTarget(w) : nearestEnemy(w);
-            if (target == null && toWake == null) toWake = napper(w);
+            if (target != null) callOthers(w);
+            else if (toWake == null) toWake = napper(w);
         }
         if (target != null && druid() && affected(target)) target = null; // the mod's druid moves on once its potion took
-        if (target != null) { if (ranger()) shoot(w); else if (druid()) throwPotion(w); else fight(w); return; }
+        if (target != null) { fighting = COMBAT_TICKS; if (ranger()) shoot(w); else if (druid()) throwPotion(w); else fight(w); return; }
         if (toWake != null && wake(w)) return;
         if (--napCheckIn <= 0) {
             napCheckIn = NAP_CHECK;
-            if (w.hurtTicks == 0 && w.disease == null && startNap(w)) return; // walking or not, not sick, as the mod's: sitting down stops it
+            if (w.hurtTicks == 0 && fighting <= 0 && w.disease == null && startNap(w)) return; // walking or not, not sick nor just out of a fight, as the mod's: sitting down stops it
         }
-        if (w.isMoving() || --cooldown > 0) return;
-
-        if (gearWaiting()) {
+        if (gearing) {
+            if (w.isMoving()) return;
             if (!atHut(w)) { w.setStatus(title() + ": getting gear"); goToHut(w); return; }
             gearUp();
+            gearing = false;
         }
+        if (--taskIn > 0) return;
+        taskIn = TASK_TICKS;
+        if (fighting > 0) fighting -= TASK_TICKS;
+        if (fighting <= 0) lastQuiet = w.location();
+        gearing = !escorting() && gearWaiting();
+        if (gearing) return;
         note = weapon() == null || hasTool(weapon(), null) ? null : ranger() ? "No bow: it can't fight. Put " + toolLabel(Tool.BOW) + " in the tower's chest."
                 : "No sword: it fights with its fists. Put " + toolLabel(Tool.SWORD) + " in the tower's chest.";
-        patrol(w);
+        task(w);
     }
 
-    /** Walks between the colony's built huts at random (the mod's automatic patrol), waiting a while at each. */
+    // ---- its task (the mod's decide, every 5 s without a target) ---------------------------------------------------
+
+    private Task task() {
+        return hut.post.task();
+    }
+
+    /** On the move with a player: rallied, or told to follow. It doesn't eat, see a healer or fetch gear meanwhile. */
+    private boolean escorting() {
+        return rallying || task() == Task.FOLLOW;
+    }
+
+    private void task(Colonist w) {
+        org.bukkit.entity.Player leader = hut.post.rallied(colony);
+        rallying = leader != null;
+        if (escorting()) w.living().addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, GLOW_TICKS, 0, false, false));
+        else w.living().removePotionEffect(org.bukkit.potion.PotionEffectType.GLOWING);
+        if (leader != null) { rallyTo(w, leader); return; }
+        switch (task()) {
+            case GUARD -> guardSpot(w);
+            case FOLLOW -> follow(w);
+            case PATROL_MINE -> patrolMine(w);
+            case PATROL -> patrol(w);
+        }
+    }
+
+    /** To the point its hut's guards patrol now; together they go on from there. One whose chunk isn't loaded counts as reached. */
     private void patrol(Colonist w) {
         w.setStatus(title() + ": patrolling");
-        if (patrolTo == null || !colony.huts.contains(patrolTo)) patrolTo = nextPatrolPoint();
-        if (patrolTo == null) { w.wander(hut.block.getLocation().toCenterLocation()); return; }
-        if (!w.isBeside(patrolTo.block)) { w.goBeside(patrolTo.block); return; }
-        if (++waitAt < PATROL_WAIT / 20) { cooldown = 20; return; } // tick() counts down cooldown once per tick
-        waitAt = 0;
-        patrolTo = nextPatrolPoint();
+        Block to = hut.post.point();
+        if (to.getWorld().isChunkLoaded(to.getX() >> 4, to.getZ() >> 4) && !w.isBeside(to)) { walkTo(w, to); return; }
+        hut.post.arrived(w, colony);
     }
 
-    private Hut nextPatrolPoint() {
-        List<Hut> built = colony.huts.stream().filter(h -> h.level >= 1).toList();
-        return built.isEmpty() ? null : built.get(ThreadLocalRandom.current().nextInt(built.size()));
+    /** Keeps near the spot it guards, the ranged guards moving about it (ours: to any spot around, the mod's picks edges). */
+    private void guardSpot(Colonist w) {
+        w.setStatus(title() + ": guarding");
+        Block spot = hut.post.guardSpot();
+        Location centre = spot.getLocation().toCenterLocation();
+        double off = w.location().distance(centre);
+        var rnd = ThreadLocalRandom.current();
+        if (knight() || ranger()) {
+            if (rnd.nextInt(knight() ? GUARD_ODDS : RANGER_GUARD_ODDS) == 0) { if (off > GUARD_REACH) walkTo(w, spot); return; }
+            if (knight() || w.isMoving()) return;
+        } else if (rnd.nextInt(DRUID_GUARD_ODDS) == 0) { walkTo(w, spot); return; }
+        if (off <= GUARD_ROAM || druid() && Math.abs(w.location().getY() - spot.getY()) > DRUID_HEIGHT) w.walkRandom(centre, ranger() ? GUARD_ROAM : DRUID_ROAM);
+        else walkTo(w, spot);
+    }
+
+    /** Keeps within 6 or 15 blocks of the player it follows; more than 30 off it is brought there. */
+    private void follow(Colonist w) {
+        w.setStatus(title() + ": following");
+        Location at = w.location(), to = hut.post.followTo();
+        if (Colonist.flat(at, to) > ESCORT_CHASE) w.teleportNear(to.getBlock());
+        else if (at.distance(to) > (hut.setting(Settings.FOLLOW_MODE).equals("TIGHT") ? FOLLOW_TIGHT : FOLLOW_LOOSE)) walkTo(w, to.getBlock());
+    }
+
+    /** To a spot within 3 blocks of the banner's bearer, running the faster the more adaptable it is. */
+    private void rallyTo(Colonist w, org.bukkit.entity.Player leader) {
+        w.setStatus(title() + ": rallying");
+        var rnd = ThreadLocalRandom.current();
+        Block to = leader.getLocation().getBlock().getRelative(rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2, 0, rnd.nextInt(FOLLOW_TIGHT) - FOLLOW_TIGHT / 2);
+        if (w.location().distance(to.getLocation().toCenterLocation()) <= FOLLOW_TIGHT) { running = 0; return; }
+        running = 1 + Math.clamp(level(ADAPTABILITY) / RALLY_RUN, 0, RALLY_RUN_MAX);
+        walkTo(w, to);
+    }
+
+    /** Between the dug nodes of its mine, on its own. */
+    private void patrolMine(Colonist w) {
+        Hut mine = hut.post.mine(colony);
+        if (mine == null) {
+            if (hut.post.mineGone()) return;
+            w.setStatus(title() + ": no mine");
+            note = "No mine to patrol: assign this hut in a Miner's Hut's menu.";
+            return;
+        }
+        w.setStatus(title() + ": patrolling the mine");
+        if (minePoint == null || w.isBeside(minePoint)) minePoint = colony.jobAt(mine) instanceof Miner m ? m.patrolPoint() : mine.block;
+        walkTo(w, minePoint);
+    }
+
+    private void walkTo(Colonist w, Block to) {
+        if (w.isBeside(to) || w.isMoving() && to.equals(goingTo)) return;
+        goingTo = to;
+        w.goBeside(to);
+    }
+
+    /** The 4 guards nearest {@code at}, within {@code range} blocks, that are free to help have their huts patrol there next; any of those free that nap wake up (the mod's raid alert). */
+    public static void alert(Colony colony, Block at, int range) {
+        Location l = at.getLocation();
+        record Near(Guard g, double d) {}
+        List<Near> near = new ArrayList<>();
+        for (Job j : colony.jobs) {
+            Colonist w = colony.worker(j);
+            if (!(j instanceof Guard g) || w == null || w.location().getWorld() != l.getWorld() || !g.interruptible()) continue;
+            double d = w.location().distance(l);
+            if (d < range && (g.task() != Task.GUARD || g.inReach(l, g.chase()))) {
+                if (g.napTicks > 0) g.wakeUp(w);
+                near.add(new Near(g, d));
+            }
+        }
+        near.sort(java.util.Comparator.comparingDouble(Near::d));
+        for (Near n : near.subList(0, Math.min(ALERTED, near.size()))) n.g.hut.post.alert(at);
+    }
+
+    /** How far it chases from where its task has it. */
+    private int chase() {
+        return rallying ? ESCORT_CHASE : switch (task()) {
+            case PATROL -> CHASE;
+            case FOLLOW, PATROL_MINE -> ESCORT_CHASE;
+            case GUARD -> GUARD_CHASE + (knight() ? GUARD_CHASE_KNIGHT : 0);
+        };
+    }
+
+    /** Within its chase and {@code attack} blocks of where its task has it: the spot it guards, the player it follows, or where it last was without a fight. */
+    private boolean inReach(Location at, double attack) {
+        Location from = switch (task()) {
+            case GUARD -> hut.post.guardSpot().getLocation().toCenterLocation();
+            case FOLLOW -> hut.post.followTo();
+            case PATROL, PATROL_MINE -> lastQuiet == null ? hut.block.getLocation() : lastQuiet;
+        };
+        return from.getWorld() == at.getWorld() && from.distance(at) <= chase() + attack;
+    }
+
+    /** It found something to fight: its hut's others join in, and a raider draws the guard huts right by it (the mod's notifyGuardsOfTarget; not a druid's). */
+    private void callOthers(Colonist w) {
+        if (druid() || !(target instanceof Enemy)) return; // ours: what isn't a monster but hit it is its own fight
+        for (Job j : colony.jobsAt(hut)) {
+            Colonist other = colony.worker(j);
+            if (j instanceof Guard g && g != this && other != null && g.target == null && other.hurtTicks == 0 && g.napTicks <= 0 && g.canFight() && g.valid(target)) g.target = target;
+        }
+        if (colony.raids.isRaider(target)) for (Hut h : colony.huts)
+            if (h.post != null && h.block.getWorld() == w.location().getWorld() && h.block.getLocation().distanceSquared(w.location()) < CALL_RANGE_SQ) h.post.alert(target.getLocation().getBlock());
     }
 
     private void fight(Colonist w) {
@@ -619,7 +777,7 @@ public final class Guard extends Job {
         int r = vision(), under = 0;
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
-        for (Entity e : w.location().getNearbyEntities(r, Y_VISION, r)) {
+        for (Entity e : w.location().getNearbyEntities(r, yVision(), r)) {
             if (!(e instanceof LivingEntity l) || !valid(l)) continue;
             boolean fighting = e instanceof org.bukkit.entity.Player p && p.getGameMode() == org.bukkit.GameMode.SURVIVAL && hunted(p);
             if (!(e instanceof Enemy) && !fighting) continue;
@@ -654,7 +812,7 @@ public final class Guard extends Job {
         }
         chasing = null;
         if (attackIn > 0) return false;
-        if (at.distanceSquared(there) < FLEE_DISTANCE_SQ && ThreadLocalRandom.current().nextInt(FLEE_ODDS) == 0) {
+        if (at.distanceSquared(there) < FLEE_DISTANCE_SQ && task() != Task.GUARD && ThreadLocalRandom.current().nextInt(FLEE_ODDS) == 0) {
             org.bukkit.util.Vector away = at.toVector().subtract(there.toVector()).setY(0);
             if (away.lengthSquared() > 0) w.walk(at.clone().add(away.normalize().multiply(range / 2.0)));
         } else w.stopWalking();
@@ -682,9 +840,9 @@ public final class Guard extends Job {
         return RANGED_BASE_DAMAGE + d;
     }
 
-    /** How far a ranger shoots: 10 blocks, one a tower level and its adaptability / 50 x 15, at most 24 (the mod's getAttackDistance). */
+    /** How far a ranger shoots: 10 blocks, one a tower level and its adaptability / 50 x 15, at most 24; 10 more on guard (the mod's getAttackDistance). */
     private int range() {
-        return Math.min(RANGE_BASE + hut.level + (int) (level(ADAPTABILITY) / 50.0f * 15), RANGE_MAX);
+        return Math.min(RANGE_BASE + hut.level + (int) (level(ADAPTABILITY) / 50.0f * 15), RANGE_MAX) + (task() == Task.GUARD ? GUARD_BONUS_RANGE : 0);
     }
 
     /**
@@ -775,9 +933,9 @@ public final class Guard extends Job {
         return w.health < (int) colony.health.max(w) * LOW_HEALTH;
     }
 
-    /** Below 20% health and away from the tower, with the retreat research (the mod's shouldFlee; its retreat setting is on by default). */
+    /** Below 20% health and away from the tower, with the retreat research (the mod's shouldFlee), unless the setting is off. */
     private boolean shouldRetreat(Colonist w) {
-        return colony.research.effect(Effects.RETREAT) > 0 && lowHealth(w)
+        return hut.on(Settings.RETREAT) && colony.research.effect(Effects.RETREAT) > 0 && lowHealth(w)
                 && w.location().distanceSquared(hut.block.getLocation().toCenterLocation()) > RETREAT_FROM;
     }
 
@@ -796,7 +954,11 @@ public final class Guard extends Job {
      */
     private boolean rest(Colonist w) {
         double max = colony.health.max(w);
-        if (w.health >= (int) max * RESTED) { resting = false; return false; }
+        if (w.health >= (int) max * RESTED || !hut.on(Settings.RETREAT)) {
+            resting = false;
+            hut.post.alert(hut.block); // the mod's: back to work means its hut patrols there next
+            return false;
+        }
         if (++restTicks % REST_CHECK == 0 && target != null && target.getLocation().distance(w.location()) < REST_ALARM) {
             resting = false;
             return false;
@@ -810,19 +972,23 @@ public final class Guard extends Job {
         return VISION_BASE + VISION_PER_LEVEL * hut.level;
     }
 
-    /** Alive, on the colony's land, and not too far from the tower to chase (the mod: only the distance). */
+    /** Alive, and not too far to chase (the mod's isWithinPersecutionDistance). */
     private boolean valid(LivingEntity e) {
-        if (e == null || !e.isValid() || e.isDead() || !e.getWorld().equals(hut.block.getWorld())) return false;
-        Location l = e.getLocation();
-        return l.distance(hut.block.getLocation()) <= CHASE && colony.claims().contains(dev.minecp.colony.Claims.key(l.getBlockX() >> 4, l.getBlockZ() >> 4));
+        return e != null && e.isValid() && !e.isDead() && e.getWorld().equals(hut.block.getWorld())
+                && inReach(e.getLocation(), ranger() ? range() : druid() ? druidRange() : REACH);
+    }
+
+    /** How far above and below it looks (the mod's: rangers and druids 25 more where they guard). */
+    private int yVision() {
+        return !knight() && task() == Task.GUARD ? Y_VISION + GUARD_Y_VISION : Y_VISION;
     }
 
     private LivingEntity nearestEnemy(Colonist w) {
         int r = vision();
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
-        for (Entity e : w.location().getNearbyEntities(r, Y_VISION, r)) {
-            if (!(e instanceof Enemy) || !(e instanceof LivingEntity l) || !valid(l)) continue;
+        for (Entity e : w.location().getNearbyEntities(r, yVision(), r)) {
+            if (!(e instanceof Enemy) || !(e instanceof LivingEntity l) || !valid(l) || !w.living().hasLineOfSight(e)) continue;
             double d = e.getLocation().distanceSquared(w.location());
             if (d < bestD) { bestD = d; best = l; }
         }

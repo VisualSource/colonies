@@ -56,6 +56,7 @@ public final class ColonyStore {
             if (h.barracks != null) hs.set("barracks", colony.huts.indexOf(h.barracks));
             if (h.hiring != Settings.Hiring.DEFAULT) hs.set("hiring", h.hiring.name());
             h.settings.forEach((k, v) -> hs.set("settings." + k, v));
+            if (h.post != null) h.post.save(hs.createSection("post"));
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
@@ -122,6 +123,7 @@ public final class ColonyStore {
             h.hiring = Settings.Hiring.valueOf(hs.getString("hiring", "DEFAULT"));
             var set = hs.getConfigurationSection("settings");
             if (set != null) for (String k : set.getKeys(false)) h.settings.put(k, set.getString(k));
+            if (h.post != null && hs.isConfigurationSection("post")) h.post.load(hs.getConfigurationSection("post"));
             h.seed = Material.matchMaterial(hs.getString("seed", ""));
             List<Integer> extent = hs.getIntegerList("extent");
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);

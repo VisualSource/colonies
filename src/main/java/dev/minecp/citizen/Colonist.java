@@ -43,6 +43,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class Colonist {
     // Ours, not the mod's:
     private static final double WALK_SPEED = 0.45; // multiplier on the legs mob's movement speed
+    private static final double TRADER_HEIGHT = 1.95; // vanilla's, which the legs are scaled down from
     private static final double STEP_DISTANCE = 1.6; // blocks walked per footstep sound
     private static final int WANDER_RADIUS = 12;
     private static final int CLIMB_TICKS = 100;     // a ladder climb taking longer than this, plus 10 a block, has failed
@@ -294,6 +295,11 @@ public final class Colonist {
     }
 
     /** Where walkBeside may stop for {@code b}: up to 2 out, 2 below to 1 above, not in its own column. */
+    /** How far apart across the ground, as the mod's getDistance2D: along x plus along z. */
+    public static int flat(Location a, Location b) {
+        return Math.abs(a.getBlockX() - b.getBlockX()) + Math.abs(a.getBlockZ() - b.getBlockZ());
+    }
+
     private static Route.Goal besideGoal(Block b) {
         int bx = b.getX(), by = b.getY(), bz = b.getZ();
         return (x, y, z) -> Math.abs(x - bx) <= 2 && Math.abs(z - bz) <= 2 && y - by >= -2 && y - by <= 1 && !(x == bx && z == bz);
@@ -735,7 +741,7 @@ public final class Colonist {
     }
 
     /** Teleports onto a free spot near {@code block}, for when nothing walkable leads there. */
-    void teleportNear(Block block) {
+    public void teleportNear(Block block) {
         List<Block> spots = spotsBeside(block);
         for (int dy = 2; spots.isEmpty() && dy <= 16; dy++) // nothing at reach height: look further up
             for (BlockFace f : SIDES) if (canStandIn(block.getRelative(f).getRelative(0, dy, 0))) spots.add(block.getRelative(f).getRelative(0, dy, 0));
@@ -824,8 +830,25 @@ public final class Colonist {
 
     /** Walks to a random spot up to {@code range} blocks from where it stands. @return false if none was reachable. */
     public boolean walkRandom(int range) {
-        Location spot = randomStandSpot(location(), range);
+        return walkRandom(location(), range);
+    }
+
+    /** The same from {@code center}. */
+    public boolean walkRandom(Location center, int range) {
+        Location spot = randomStandSpot(center, range);
         return spot != null && walk(spot);
+    }
+
+    /** A spot it can walk to {@code min} or a little more blocks off in a random direction, or null. */
+    public Block farSpot(int min) {
+        if (legs == null) return null;
+        Location at = legs.getLocation();
+        double angle = ThreadLocalRandom.current().nextDouble(2 * Math.PI);
+        Route.Result r = plan(at.getBlockX() + (int) (Math.cos(angle) * min), at.getBlockY(), at.getBlockZ() + (int) (Math.sin(angle) * min),
+                (x, y, z) -> Math.hypot(x + 0.5 - at.getX(), z + 0.5 - at.getZ()) >= min);
+        if (r == null || !r.reached() || r.steps().isEmpty()) return null;
+        Route.Step end = r.steps().getLast();
+        return at.getWorld().getBlockAt(end.x(), end.y(), end.z());
     }
 
     private static Location randomStandSpot(Location center, int range) {
@@ -911,6 +934,8 @@ public final class Colonist {
             l.setPersistent(false); // the colony file is the source of truth, not the world save
             l.setDespawnDelay(0);
             l.addScoreboardTag(LEGS_TAG);
+            var scale = l.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+            if (scale != null) scale.setBaseValue(Route.HEIGHT / TRADER_HEIGHT);
         });
         Bukkit.getMobGoals().removeAllGoals(legs);
         // Paper only fully ticks mobs within ~32 blocks of a player ("entity activation range"); farther

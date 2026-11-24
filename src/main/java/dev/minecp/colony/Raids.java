@@ -51,6 +51,7 @@ public final class Raids {
     public static boolean enabled = true, breakDoors = true;
     public static int difficulty = 5, maxRaiders = 80, averageNights = 14, minimumNights = 10;
 
+    private static final int ALERT_RANGE = 75;        // the mod's: the 4 nearest guards this near the hut raiders marched on go there
     private static final int MIN_LEVEL = 75;          // MIN_REQUIRED_RAIDLEVEL
     private static final int BIG_HORDE = 20;          // one spawn point per 20 raiders
     private static final int UPDATE = 500;            // the mod's raid events update on the colony tick
@@ -349,7 +350,7 @@ public final class Raids {
                 case HOUSE, TAVERN -> 4;
                 default -> 2;
             };
-            if (Math.hypot(h.block.getX() - x, h.block.getZ() - z) < 35 + bonus * h.level) return false;
+            if (Math.abs(h.block.getX() - x) + Math.abs(h.block.getZ() - z) < 35 + bonus * h.level) return false;
         }
         return true;
     }
@@ -497,16 +498,28 @@ public final class Raids {
         if (goal == null) return;
         Location at = m.getLocation(), there = goal.block.getLocation().toCenterLocation();
         double dist = at.distance(there);
-        if (dist < 5) { target = null; return; } // reached: another hut next (the mod roams its bounds for 30 s first)
+        if (dist < 5) { leaveTarget(); return; } // reached: another hut next (the mod roams its bounds for 30 s first)
         Location step = dist <= 32 ? there : at.clone().add(there.toVector().subtract(at.toVector()).normalize().multiply(32));
         if (dist > 32) step = step.getWorld().getHighestBlockAt(step).getLocation().add(0.5, 1, 0.5);
         double fromLanding = Math.abs(step.getX() - h.landed.getX()) + Math.abs(step.getY() - h.landed.getY()) + Math.abs(step.getZ() - h.landed.getZ());
         m.getPathfinder().moveTo(step, dist > 32 && fromLanding > 50 ? 1.8 : 1.1);
     }
 
+    public boolean isRaider(Entity e) {
+        for (Horde h : hordes) if (h.raiders.contains(e)) return true;
+        return false;
+    }
+
+    /** On to another hut: guards are sent to this one (the mod alerts them whenever it picks the next). */
+    private void leaveTarget() {
+        if (target != null) dev.minecp.job.Guard.alert(colony, target.block, ALERT_RANGE);
+        target = null;
+    }
+
     private Hut target() {
         int raiders = hordes.stream().mapToInt(h -> h.raiders.size()).sum();
         if (target == null || !colony.huts.contains(target) || ++picks > Math.max(6, raiders / 3)) {
+            leaveTarget();
             List<Hut> built = colony.huts.stream().filter(x -> x.level >= 1).toList();
             target = built.isEmpty() ? null : built.get(ThreadLocalRandom.current().nextInt(built.size()));
             picks = 0;

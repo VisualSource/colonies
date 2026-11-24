@@ -431,6 +431,11 @@ public final class Colony {
         return null;
     }
 
+    /** The citizens who work at the hut, in hiring order. */
+    public List<Colonist> workersAt(Hut hut) {
+        return jobsAt(hut).stream().map(this::worker).filter(java.util.Objects::nonNull).toList();
+    }
+
     public Colonist worker(Job j) {
         for (Colonist c : colonists) if (c.id.equals(j.worker)) return c;
         return null;
@@ -672,6 +677,7 @@ public final class Colony {
             visitors.colonyTick(COLONY_TICK);
             research.colonyTick();
             raids.hireSpies();
+            for (Hut h : huts) if (h.post != null) h.post.colonyTick(this);
             // ours: counted each colony tick (the mod counts when a guard is hired)
             milestones.guards((int) jobs.stream().filter(j -> j instanceof dev.minecp.job.Guard && j.worker != null).count());
         }
@@ -710,6 +716,7 @@ public final class Colony {
                 if (c.meal != null) { c.meal.abandon(); c.meal = null; } // its food back, out of the restaurant's queue
                 continue;
             }
+            if (c.meal != null && job != null && !job.interruptible()) { c.meal.abandon(); c.meal = null; } // not now (the mod's canAIBeInterrupted)
             if (c.meal != null) { // eating comes before work
                 if (c.meal.tick(this, job)) {
                     c.hungerNote = c.meal.why;

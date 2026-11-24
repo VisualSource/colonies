@@ -270,9 +270,14 @@ public final class Hut {
             return this == HOUSE ? level : this == TAVERN ? 4 : 0;
         }
 
+        /** Its workers are guards (the mod's AbstractBuildingGuards). */
+        boolean guards() {
+            return this == GUARD_TOWER || this == BARRACKS_TOWER;
+        }
+
         /** Its workers live there instead of in a house (the mod's WorkAtHomeBuildingModule). */
         public boolean housesWorkers() {
-            return this == GUARD_TOWER || this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY;
+            return guards() || this == ARCHERY || this == COMBAT_ACADEMY;
         }
 
         /** A house or the tavern: citizens live there. */
@@ -360,11 +365,13 @@ public final class Hut {
     public int stage;            // what the farmer does here next: till, plant, harvest (Farmer.Kind order)
     public int workedDay = -1;   // colony day the farmer last worked it (one action a day, as in the mod)
     public Hut barracks;         // a barracks tower's barracks; saved
+    public final GuardPost post; // a guard hut's, else null
 
     Hut(Type type, Block block, int level) {
         this.type = type;
         this.block = block;
         this.level = level;
+        post = type.guards() ? new GuardPost(this) : null;
     }
 
     /**

@@ -7,6 +7,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
 import org.bukkit.Tag;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -27,7 +28,7 @@ import java.util.List;
 /** The plugin's items: the Build Tool, hut items, and their recipes (the Build Tool is kept when crafting). */
 public final class Items implements Listener {
     private final Plugin plugin;
-    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey, supplyKey, starterKey;
+    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey, supplyKey, starterKey, scepterKey, scepterLastKey, bannerKey, rallyingKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
     Items(Plugin plugin) {
@@ -39,6 +40,10 @@ public final class Items implements Listener {
         scrollKey = new NamespacedKey(MineCP.NAMESPACE, "resource_scroll");
         supplyKey = new NamespacedKey(MineCP.NAMESPACE, "supply");     // value: "camp" or "ship"
         starterKey = new NamespacedKey(MineCP.NAMESPACE, "starter");   // the converter's stand-ins in the supplies' barrels
+        scepterKey = new NamespacedKey(MineCP.NAMESPACE, "guard_scepter");       // value: its guard hut, "world,x,y,z"
+        scepterLastKey = new NamespacedKey(MineCP.NAMESPACE, "guard_scepter_last"); // the block it was used on last
+        bannerKey = new NamespacedKey(MineCP.NAMESPACE, "rally_banner");         // value: its guard huts, separated by ";"
+        rallyingKey = new NamespacedKey(MineCP.NAMESPACE, "rallying");
     }
 
     /**
@@ -103,6 +108,14 @@ public final class Items implements Listener {
         university.setIngredient('T', tool);
         university.setIngredient('B', new RecipeChoice.MaterialChoice(Material.BOOK));
         add(university);
+        // MineColonies' rally banner: iron swords, guard towers beside a yellow banner, bows.
+        ShapedRecipe rally = new ShapedRecipe(key("rally_banner"), rallyBanner());
+        rally.shape("AAA", "BXB", "CCC");
+        rally.setIngredient('A', new RecipeChoice.MaterialChoice(Material.IRON_SWORD));
+        rally.setIngredient('B', RecipeChoice.exactChoice(hutItem(Hut.Type.GUARD_TOWER)));
+        rally.setIngredient('X', RecipeChoice.exactChoice(new ItemStack(Material.YELLOW_BANNER))); // plain, not another Rally Banner
+        rally.setIngredient('C', new RecipeChoice.MaterialChoice(Material.BOW));
+        add(rally);
         // MineColonies' supply camp (chests) and supply ship (boats): a row of three under two corners. Plain items only
         // (chests or trapped chests; any boat): hut items and racks are chests too, and a Supply Ship is a boat.
         ShapedRecipe camp = new ShapedRecipe(key("supply_camp"), supply(false));
@@ -246,6 +259,88 @@ public final class Items implements Listener {
             m.getPersistentDataContainer().set(key, PersistentDataType.STRING, c.owner.toString());
             m.lore(List.of(Component.text((isClipboard(item) ? "Requests of " : "Builder of ") + c.name, NamedTextColor.GRAY)));
         });
+    }
+
+    /** The mod's guard scepter for one guard hut (GuardTools): a blaze rod stands in for its model. */
+    ItemStack guardScepter(Block hut, boolean patrol) {
+        ItemStack item = note(Material.BLAZE_ROD, "Guard Scepter", patrol ? "Right-click each patrol point in turn, the last one twice"
+                : "Right-click the spot to guard", scepterKey, "guard_scepter");
+        item.editMeta(m -> m.getPersistentDataContainer().set(scepterKey, PersistentDataType.STRING, place(hut)));
+        return item;
+    }
+
+    boolean isGuardScepter(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(scepterKey);
+    }
+
+    /** The guard hut's block of a scepter, or null. */
+    Block scepterHut(ItemStack item) {
+        return placeAt(item.getPersistentDataContainer().get(scepterKey, PersistentDataType.STRING));
+    }
+
+    /** The block a scepter was used on last, or null. */
+    Block scepterLast(ItemStack item) {
+        return placeAt(item.getPersistentDataContainer().get(scepterLastKey, PersistentDataType.STRING));
+    }
+
+    void scepterLast(ItemStack item, Block at) {
+        item.editMeta(m -> m.getPersistentDataContainer().set(scepterLastKey, PersistentDataType.STRING, place(at)));
+    }
+
+    /** The mod's rally banner (GuardTools): a yellow banner with a tag. */
+    private ItemStack rallyBanner() {
+        ItemStack item = new ItemStack(Material.YELLOW_BANNER);
+        item.editMeta(m -> {
+            m.itemName(Component.text("Rally Banner", NamedTextColor.GOLD));
+            m.setMaxStackSize(1);
+            m.getPersistentDataContainer().set(bannerKey, PersistentDataType.STRING, "");
+        });
+        bannerHuts(item, List.of());
+        return item;
+    }
+
+    public boolean isRallyBanner(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(bannerKey);
+    }
+
+    /** The guard hut blocks a rally banner calls. */
+    public List<Block> bannerHuts(ItemStack item) {
+        String s = item.getPersistentDataContainer().getOrDefault(bannerKey, PersistentDataType.STRING, "");
+        List<Block> out = new ArrayList<>();
+        for (String one : s.split(";")) if (placeAt(one) instanceof Block b) out.add(b);
+        return out;
+    }
+
+    void bannerHuts(ItemStack item, List<Block> huts) {
+        item.editMeta(m -> {
+            m.getPersistentDataContainer().set(bannerKey, PersistentDataType.STRING, String.join(";", huts.stream().map(Items::place).toList()));
+            m.lore(List.of(Component.text(huts.isEmpty() ? "Right-click guard huts to add them" : "Rallies " + huts.size() + (huts.size() == 1 ? " guard hut" : " guard huts"), NamedTextColor.GRAY),
+                    Component.text("Sneak and right-click to rally or stop", NamedTextColor.GRAY)));
+        });
+    }
+
+    /** Whether a rally banner is active (it glints). */
+    public boolean rallying(ItemStack item) {
+        return isRallyBanner(item) && item.getPersistentDataContainer().has(rallyingKey);
+    }
+
+    void rallying(ItemStack item, boolean on) {
+        item.editMeta(m -> {
+            if (on) m.getPersistentDataContainer().set(rallyingKey, PersistentDataType.BOOLEAN, true);
+            else m.getPersistentDataContainer().remove(rallyingKey);
+            m.setEnchantmentGlintOverride(on ? true : null);
+        });
+    }
+
+    private static String place(Block b) {
+        return b.getWorld().getUID() + "," + b.getX() + "," + b.getY() + "," + b.getZ();
+    }
+
+    private static Block placeAt(String s) {
+        String[] p = s == null ? new String[0] : s.split(",");
+        if (p.length != 4) return null;
+        var world = org.bukkit.Bukkit.getWorld(java.util.UUID.fromString(p[0]));
+        return world == null ? null : world.getBlockAt(Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
     }
 
     public boolean isGoggles(ItemStack item) {

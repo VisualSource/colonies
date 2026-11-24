@@ -1,13 +1,13 @@
 package dev.minecp.colony;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * The mod's building settings (its SettingsModule, BuildingModules' *_SETTINGS) that MineCP has the behaviour for, with
  * the mod's defaults, and its hiring modes. Each hut keeps its own values (Hut.setting); the Town Hall's are the
  * colony's. Left out because their features don't exist here: the lumberjack's restricted area, defoliating and shears,
- * the builder's work order mode and building patterns, crafters' recipe mode, the guard
- * tower's tasks, and the tavern's music.
+ * the builder's work order mode and building patterns, crafters' recipe mode, and the tavern's music.
  */
 public final class Settings {
     /** The mod's HiringMode: DEFAULT follows the Town Hall's auto hiring (or auto housing for homes). */
@@ -62,11 +62,20 @@ public final class Settings {
             MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize",
             BEE_MODE = "beekeeper_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     static final String HIRE_TRAINEE = "hire_trainee";
+    public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
 
     private static final Setting BREED = bool(BREEDING, "Breed animals"),
             HIRE_TRAINEES = bool(HIRE_TRAINEE, "Hire the best trainee of the Archery or Combat Academy first");
+    /** A guard hut's, besides its guards' types. */
+    private static final List<Setting> GUARDS = List.of(words(GUARD_TASK, "Task", "PATROL", "GUARD", "FOLLOW", "PATROL_MINE"),
+            words(PATROL_MODE, "Patrol points (manual: set with the Guard Scepter)", "AUTO", "MANUAL"),
+            words(FOLLOW_MODE, "Follow", "TIGHT", "LOOSE"), bool(RETREAT, "Retreat when badly hurt (with research)"), HIRE_TRAINEES);
+
+    private static final List<Setting> TOWER = Stream.concat(Stream.of(guardType(0, "Guard type", "KNIGHT", "RANGER")), GUARDS.stream()).toList(); // the mod's: druids only in barracks towers
+    private static final List<Setting> BARRACKS_TOWER = Stream.concat(java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
+            .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")), GUARDS.stream()).toList();
 
     private Settings() {}
 
@@ -76,7 +85,12 @@ public final class Settings {
     }
 
     private static Setting guardType(int slot, String label, String... types) {
-        return new Setting(guardTypeKey(slot), label, Kind.CHOICE, types[0], 0, 0, List.of(types));
+        return words(guardTypeKey(slot), label, types);
+    }
+
+    /** One of these words, the first by default. */
+    private static Setting words(String key, String label, String... options) {
+        return new Setting(key, label, Kind.CHOICE, options[0], 0, 0, List.of(options));
     }
 
     /** The settings a hut of this type has, in menu order. */
@@ -105,12 +119,10 @@ public final class Settings {
                             org.bukkit.Material.COBBLESTONE, org.bukkit.Material.TUFF),
                     number(DAILY_LIMIT, "How many a day (0: only what huts ask for)", 0, 0, 4096));
             // ours: the mod picks the guard type with its hiring modules (knight, ranger, druid), here a choice
-            case GUARD_TOWER -> List.of(guardType(0, "Guard type", "KNIGHT", "RANGER"), HIRE_TRAINEES); // the mod's: druids only in barracks towers
-            case BARRACKS_TOWER -> java.util.stream.Stream.concat(java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
-                    .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")),
-                    java.util.stream.Stream.of(HIRE_TRAINEES)).toList();
+            case GUARD_TOWER -> TOWER;
+            case BARRACKS_TOWER -> BARRACKS_TOWER;
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
-            case BEEKEEPER -> List.of(BREED, new Setting(BEE_MODE, "Take from full hives", Kind.CHOICE, "HONEYCOMB", 0, 0, List.of("HONEYCOMB", "HONEY", "BOTH")));
+            case BEEKEEPER -> List.of(BREED, words(BEE_MODE, "Take from full hives", "HONEYCOMB", "HONEY", "BOTH"));
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));
             case COWBOY -> List.of(BREED, number(MILKING, "Buckets of milk each time", 1, 0, 64),
                     number(STEWING, "Bowls of mushroom stew each time", 1, 0, 64),

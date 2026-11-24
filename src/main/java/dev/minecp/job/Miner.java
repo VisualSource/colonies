@@ -639,6 +639,17 @@ public final class Miner extends Job {
         return needs().containsKey(m) ? Integer.MAX_VALUE : 0;
     }
 
+    /** A place in its mine for guards to patrol: a random dug node of the deepest level, or the nearest dug one towards the shaft. */
+    Block patrolPoint() {
+        if (levels.isEmpty() || ladder == null) return hut.block;
+        Level level = levels.getLast();
+        List<Node> all = List.copyOf(level.nodes.values());
+        Node n = all.get(ThreadLocalRandom.current().nextInt(all.size()));
+        for (int i = 0; n != null && (!n.done || n.style == Style.LADDER_BACK) && i < all.size(); i++) n = level.nodes.get(key(n.px, n.pz));
+        if (n == null || n.style == Style.SHAFT || !n.done) return center(level.depth + 1);
+        return hut.block.getWorld().getBlockAt(n.x, level.depth + 1, n.z);
+    }
+
     // ---- saving --------------------------------------------------------------------------------------------
 
     @Override

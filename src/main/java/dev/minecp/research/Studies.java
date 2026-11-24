@@ -168,6 +168,7 @@ public final class Studies {
             case Effects.DOUBLE_ARROWS -> "Rangers shoot a second arrow " + pct + " of the time";
             case Effects.ARROW_PIERCE -> "Rangers' arrows pierce through two more mobs";
             case Effects.USE_ARROWS -> "Rangers ask for arrows, which add 2 damage to each shot";
+            case Effects.TELESCOPE -> "Guards rally to a banner up to 500 blocks from the town hall, outside the colony too";
             case Effects.SIFTER_STRING -> "The Fletcher makes string sifter meshes";
             case Effects.SIFTER_FLINT -> "The Stonemason makes flint sifter meshes";
             case Effects.SIFTER_IRON -> "The Blacksmith makes iron sifter meshes";

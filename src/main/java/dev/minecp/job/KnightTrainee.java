@@ -146,7 +146,7 @@ public final class KnightTrainee extends Trainee {
         onDummies = false; // without this partner it decides again
         Colonist other = colony.worker(partner);
         Location at = w.location(), there = other.location();
-        if (Math.hypot(at.getX() - there.getX(), at.getZ() - there.getZ()) > PARTNER_REACH) { w.goBeside(there.getBlock()); return; }
+        if (Colonist.flat(at, there) > PARTNER_REACH) { w.goBeside(there.getBlock()); return; }
         w.face(there);
         cooldown = PARTNER_STEP;
         if (delay > 0) { delay--; return; }

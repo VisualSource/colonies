@@ -69,7 +69,7 @@ final class Routine {
         double extra = 0;
         if (job instanceof Miner && job.hut.block.getY() - 20 > at.getBlockY()) { // down the mine: first the way up
             Location hut = job.hut.block.getLocation();
-            extra = Math.hypot(at.getX() - hut.getX(), at.getZ() - hut.getZ()) + Math.abs(at.getY() - hut.getY()) * 3;
+            extra = Colonist.flat(at, hut) + Math.abs(at.getY() - hut.getY()) * 3;
             at = hut;
         }
         double dx = home.getX() - at.getX(), dz = home.getZ() - at.getZ(), dy = (home.getY() - at.getY()) * Y_WEIGHT;
