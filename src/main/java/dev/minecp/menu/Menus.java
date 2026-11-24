@@ -161,6 +161,12 @@ public final class Menus {
             buttons.add(button("Flower list (" + bk.flowers.size() + ")", p, c, h, player -> itemList(player, c, h, "flower list",
                     "It asks for these and feeds them to its bees to breed them.", bk.flowers, dev.minecp.job.Beekeeper::flower, Job::name,
                     "isn't a flower bees breed with.")));
+        if (job instanceof dev.minecp.job.Florist fl && h.level > 0)
+            buttons.add(button("Flower list (" + fl.excluded.size() + " left out)", p, c, h, player -> itemList(player, c, h, "flowers left out",
+                    "Flowers it won't grow. It grows the rest of what its level allows: poppies and dandelions at level 1, small flowers at 2, "
+                            + "all from 3. It may leave out " + (h.level <= 1 ? "none" : h.level >= 5 ? "any" : "up to " + dev.minecp.job.Florist.mostExcluded(h.level)) + " at this level.",
+                    fl.excluded, m -> dev.minecp.job.Florist.allowed(h.level).contains(m) && fl.excluded.size() < dev.minecp.job.Florist.mostExcluded(h.level),
+                    Job::name, "can't be left out: it isn't one it grows at this level, or no more can be left out here.")));
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));

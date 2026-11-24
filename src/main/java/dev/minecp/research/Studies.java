@@ -37,7 +37,7 @@ public final class Studies {
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
             Map.entry("stable", "Stable"),
-            Map.entry("netherworker", "Nether Mine"), Map.entry("florist", "Flower Shop"),
+            Map.entry("netherworker", "Nether Mine"),
             Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
@@ -217,7 +217,7 @@ public final class Studies {
                 : String.join(" or ", names) + " levels adding up to " + q.level();
     }
 
-    /** What a cost takes, or null if Colonies has no such item (the mod's compost, ancient tome, gates). */
+    /** What a cost takes, or null if Colonies has no such item (the mod's gates). */
     static Predicate<ItemStack> matcher(ResearchTree.Cost c) {
         Predicate<ItemStack> any = i -> false;
         if (c.tag() != null) {
@@ -231,6 +231,7 @@ public final class Studies {
             else if (k.equals("minecp:clipboard")) one = clipboard;
             else if (k.equals("minecolonies:mistletoe")) one = dev.minecp.job.Alchemist::isMistletoe;
             else if (k.equals("minecolonies:ancienttome")) one = dev.minecp.job.Enchanter::isAncientTome;
+            else if (k.equals("minecolonies:compost")) one = dev.minecp.job.Compost::is;
             else {
                 Material m = k.startsWith("minecraft:") ? Material.matchMaterial(k) : null;
                 if (m == null) return null;

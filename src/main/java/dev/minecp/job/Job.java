@@ -84,6 +84,7 @@ public abstract class Job {
             case BUILDER -> sk(ADAPTABILITY, ATHLETICS);
             case LUMBERJACK -> sk(STRENGTH, FOCUS);
             case FARMER, COMPOSTER -> sk(STAMINA, ATHLETICS);
+            case FLORIST -> sk(DEXTERITY, AGILITY);
             case COOK -> sk(ADAPTABILITY, KNOWLEDGE);
             case COURIER -> sk(AGILITY, ADAPTABILITY);
             case MINER -> sk(STRENGTH, STAMINA);

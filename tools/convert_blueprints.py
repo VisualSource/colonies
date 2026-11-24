@@ -223,6 +223,8 @@ def convert(path, blocks, siblings=()):
         name, props, note = convert_state(state["Name"], state.get("Properties", {}), te, blocks)
         if note:
             notes[note].append(pos)
+        if state["Name"] == "minecolonies:composted_dirt":  # a florist's plant spot: dirt, marked as a work spot
+            out_entities.append(marker(pos, [PLANT_TAG + "compost"]))
         if state["Name"] == GRAVE:  # the undertaker buries citizens here, facing this way
             facing = state.get("Properties", {}).get("facing", "north")
             out_entities.append(marker(pos, [GRAVE_TAG, "minecp_facing_" + facing]))

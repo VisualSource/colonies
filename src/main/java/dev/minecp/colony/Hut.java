@@ -14,6 +14,7 @@ import dev.minecp.job.Crafter;
 import dev.minecp.job.Crusher;
 import dev.minecp.job.Farmer;
 import dev.minecp.job.Fisherman;
+import dev.minecp.job.Florist;
 import dev.minecp.job.Healer;
 import dev.minecp.job.Herder;
 import dev.minecp.job.Guard;
@@ -121,6 +122,9 @@ public final class Hut {
         // Unlocked by research; the mod's recipe has its barrel block in the middle: a vanilla composter here
         COMPOSTER("Composter's Hut", Material.CHEST, "agriculture/horticulture/composter", "composter", "A composter turns plants and food into compost",
                 () -> new RecipeChoice.MaterialChoice(Material.COMPOSTER), "Composter", Composter::new, false),
+        // Unlocked by research (Flower Power); the mod's recipe: a poppy in the middle
+        FLORIST("Flower Shop", Material.CHEST, "agriculture/horticulture/florist", "florist", "A florist grows flowers on composted dirt",
+                () -> new RecipeChoice.MaterialChoice(Material.POPPY), "Florist", Florist::new, false),
         // Fisherman and herders: the mod's recipe middles (a rod, an egg, beef, shears, a porkchop, a rabbit)
         FISHERMAN("Fisherman's Hut", Material.CHEST, "agriculture/husbandry/fisherman", "fisherman", "A fisherman fishes in ponds nearby",
                 () -> new RecipeChoice.MaterialChoice(Material.FISHING_ROD), "Fisherman", Fisherman::new, false),

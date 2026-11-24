@@ -5,7 +5,7 @@ api-version: '26.3'
 commands:
   colony:
     description: Colony commands.
-    usage: /colony <info | buildtool | members | member add <player> [officer|friend|hostile] | member remove <player> | build <structure> | build cancel | townhall | builderhut | house | lumberjack | farmer | field | cook | warehouse | courier | miner | sawmill | stonemason | stonesmeltery | blacksmith | smeltery | mechanic | fletcher | dyer | glassblower | crusher | sifter | concretemixer | alchemist | enchanter | tavern | baker | graveyard | hospital | composter | plantation | fisherman | beekeeper | chickenherder | cowboy | shepherd | swineherder | rabbithutch | guardtower | archery | combatacademy | barracks | barrackstower | school | library | university | postbox | stash | rack | movement | raid now [amount] | raid tonight>
+    usage: /colony <info | buildtool | members | member add <player> [officer|friend|hostile] | member remove <player> | build <structure> | build cancel | townhall | builderhut | house | lumberjack | farmer | field | cook | warehouse | courier | miner | sawmill | stonemason | stonesmeltery | blacksmith | smeltery | mechanic | fletcher | dyer | glassblower | crusher | sifter | concretemixer | alchemist | enchanter | tavern | baker | graveyard | hospital | composter | florist | plantation | fisherman | beekeeper | chickenherder | cowboy | shepherd | swineherder | rabbithutch | guardtower | archery | combatacademy | barracks | barrackstower | school | library | university | postbox | stash | rack | movement | raid now [amount] | raid tonight>
 permissions:
   minecp.admin:
     default: op

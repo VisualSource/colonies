@@ -76,7 +76,7 @@ public final class Compost {
         return item;
     }
 
-    static boolean is(ItemStack item) {
+    public static boolean is(ItemStack item) {
         return item != null && item.getType() == Material.BONE_MEAL && item.getPersistentDataContainer().has(KEY);
     }
 
