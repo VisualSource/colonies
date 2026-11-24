@@ -55,6 +55,7 @@ public final class GuardPost {
     }
 
     public Task task() {
+        if (hut.type == Hut.Type.GATE_HOUSE) return Task.GUARD; // the mod's: always, each guard at its own spot
         return Task.valueOf(hut.setting(Settings.GUARD_TASK));
     }
 

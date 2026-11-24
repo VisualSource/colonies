@@ -154,6 +154,10 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A guard (knight or ranger) patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Guard", Guard::new, false),
+        // No research; the mod's recipe: an iron sword and a bow beside planks (Items). Two guards that each hold a spot;
+        // colony connections are the mod's other use for it
+        GATE_HOUSE("Gatehouse", Material.CHEST, "military/gatehouse", "gatehouse", "Two guards stand watch at its gate; visitors arrive there",
+                () -> new RecipeChoice.MaterialChoice(Tag.PLANKS), "Guard", Guard::new, false),
         // Unlocked by research; the mod's recipes: three bows or three iron swords across the middle
         ARCHERY("Archery", Material.CHEST, "military/archery", "archery", "Archers live and train here until a guard hut hires them",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), () -> new RecipeChoice.MaterialChoice(Material.BOW), "Archer in Training",
@@ -271,6 +275,7 @@ public final class Hut {
             return switch (this) {
                 case TOWN_HALL -> new int[]{0, 1, 1, 2, 3, 5}[level];
                 case GUARD_TOWER -> new int[]{0, 2, 3, 3, 4, 5}[level]; // BuildingGuardTower.getClaimRadius
+                case GATE_HOUSE -> new int[]{0, 1, 1, 2}[Math.min(level, 3)]; // BuildingGateHouse.getClaimRadius
                 case FIELD, BARRACKS_TOWER -> 0; // the barracks' depends on its towers (Colony.claimRadius)
                 default -> level == 0 ? 0 : level <= 3 ? 1 : 2;
             };
@@ -278,7 +283,7 @@ public final class Hut {
 
         /** Its highest level: the mod's building max level (the tavern stops at 3). */
         public int maxLevel() {
-            return this == TAVERN ? 3 : MAX_LEVEL;
+            return this == TAVERN || this == GATE_HOUSE ? 3 : MAX_LEVEL;
         }
 
         /** Citizens it houses at {@code level}: a house one per level, the tavern 4 (the mod's LivingBuildingModule). */
@@ -287,9 +292,14 @@ public final class Hut {
             return this == HOUSE ? level : this == TAVERN ? 4 : 0;
         }
 
+        /** The guard-hut level its guards count as (the mod's getBuildingLevelEquivalent): a gatehouse's 1, 2, 3 as 1, 3, 5. */
+        public int guardLevel(int level) {
+            return this == GATE_HOUSE ? new int[]{0, 1, 3, 5}[Math.clamp(level, 0, 3)] : level;
+        }
+
         /** Its workers are guards (the mod's AbstractBuildingGuards). */
         boolean guards() {
-            return this == GUARD_TOWER || this == BARRACKS_TOWER;
+            return this == GUARD_TOWER || this == BARRACKS_TOWER || this == GATE_HOUSE;
         }
 
         /** Its workers live there instead of in a house (the mod's WorkAtHomeBuildingModule). */
@@ -313,15 +323,19 @@ public final class Hut {
 
         /** How many work here at {@code level}: a barracks tower's guards, one per level (the mod's); one elsewhere. */
         int workers(int level) {
-            return this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
+            return this == GATE_HOUSE ? 2 : this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
         }
+
+        /** Where some styles keep a hut instead: medieval birch's enchanter, cavern's gatehouse. */
+        private static final java.util.Map<Type, String> OTHER_PATHS = java.util.Map.of(
+                ENCHANTER, "craftsmanship/luxury/enchanter", GATE_HOUSE, "military/gatehouses/atlasgatehouse");
 
         private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
 
         /**
          * Its building at {@code level} in a style: the structure at its path, or else in a "default" folder beside it
-         * (the cavern style keeps each hut in default, alternative and megahall folders); medieval birch's enchanter is
-         * under craftsmanship/luxury.
+         * (the cavern style keeps each hut in default, alternative and megahall folders); or where a style keeps it apart
+         * ({@link #OTHER_PATHS}).
          */
         public String structure(String style, int level) {
             String plain = style + "/" + path + level;
@@ -330,8 +344,8 @@ public final class Hut {
                 int slash = path.lastIndexOf('/');
                 String nested = style + "/" + path.substring(0, slash + 1) + "default/" + path.substring(slash + 1) + level;
                 if (dev.minecp.build.BuildOrder.exists(nested)) return nested;
-                String luxury = style + "/craftsmanship/luxury/" + modId() + level; // medieval birch keeps its enchanter there
-                return this == ENCHANTER && dev.minecp.build.BuildOrder.exists(luxury) ? luxury : plain;
+                String other = OTHER_PATHS.get(this); // a style that keeps it elsewhere
+                return other != null && dev.minecp.build.BuildOrder.exists(style + "/" + other + level) ? style + "/" + other + level : plain;
             });
         }
 
@@ -426,6 +440,13 @@ public final class Hut {
     public void set(String key, String value) {
         if (Settings.initial(type, key).equals(value)) settings.remove(key);
         else settings.put(key, value);
+    }
+
+    /** Its building's spots with this blueprint tag (the converter's work spots) at its level now; none before level 1. */
+    public java.util.List<Block> workSpots(String style, String tag) {
+        if (level < 1) return java.util.List.of();
+        var o = dev.minecp.build.BuildOrder.create(structure(style, level), block.getLocation(), rotation, mirror, block);
+        return o == null ? java.util.List.of() : o.workSpots.entrySet().stream().filter(e -> e.getValue().equals(tag)).map(java.util.Map.Entry::getKey).toList();
     }
 
     /** Its building at {@code level}: the version it was placed as, else (or where a style lacks that version) the usual one. */

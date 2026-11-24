@@ -178,6 +178,15 @@ public final class Colony {
         return null;
     }
 
+    /** A gate spot of a built gatehouse picked at random (the mod's "gate" tag; the hut block if it has none), or null without one. */
+    Block gate() {
+        List<Hut> gates = huts.stream().filter(h -> h.type == Hut.Type.GATE_HOUSE && h.level >= 1).toList();
+        if (gates.isEmpty()) return null;
+        Hut h = gates.get(ThreadLocalRandom.current().nextInt(gates.size()));
+        List<Block> spots = h.workSpots(style, "gate");
+        return spots.isEmpty() ? h.block : spots.get(ThreadLocalRandom.current().nextInt(spots.size()));
+    }
+
     /** The highest level of the colony's mystical sites, 0 without one (the mod's getMysticalSiteMaxBuildingLevel). */
     public int mysticalLevel() {
         return huts.stream().filter(h -> h.type == Hut.Type.MYSTICAL_SITE).mapToInt(h -> h.level).max().orElse(0);

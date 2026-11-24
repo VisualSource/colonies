@@ -179,7 +179,7 @@ public final class Menus {
             if (cr.smelts) buttons.add(button(cr.crafts ? "Teach a furnace recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
                     player -> teachSmelting(player, c, h, cr)));
         }
-        if (h.post != null && h.level > 0) {
+        if (h.post != null && h.level > 0 && h.type != Hut.Type.GATE_HOUSE) { // a gatehouse's guards hold their own spots
             GuardPost.Task task = h.post.task();
             if (task == GuardPost.Task.GUARD || task == GuardPost.Task.PATROL && h.setting(Settings.PATROL_MODE).equals("MANUAL"))
                 buttons.add(button(task == GuardPost.Task.GUARD ? "Set the spot to guard" : "Set patrol points", p, c, h, Action.MANAGE_HUTS, player -> plugin.guardTools.giveScepter(player, h)));

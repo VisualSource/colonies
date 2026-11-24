@@ -60,6 +60,11 @@ public final class Items implements Listener {
             r.shape("PTP", type.sides != null ? "SXS" : "PXP", type == Hut.Type.SCHOOL ? "PXP" : "PPP");
             r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
             if (type.sides != null) r.setIngredient('S', type.sides.get());
+            if (type == Hut.Type.GATE_HOUSE) { // the mod's: an iron sword and a bow either side of planks
+                r.shape("PTP", "SXB", "PPP");
+                r.setIngredient('S', Material.IRON_SWORD);
+                r.setIngredient('B', Material.BOW);
+            }
             r.setIngredient('T', tool);
             r.setIngredient('X', centre);
             add(r);

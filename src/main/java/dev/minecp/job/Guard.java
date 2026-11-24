@@ -158,6 +158,37 @@ public final class Guard extends Job {
 
     private int slot = -1; // which of its tower's guards it is, for its type setting
 
+    /** The level its hut counts as for its guards: a gatehouse's 1, 2, 3 count as 1, 3, 5 (the mod's level equivalent). */
+    private int towerLevel() {
+        return hut.type.guardLevel(hut.level);
+    }
+
+    /** Its best gear by its hut's level equivalent; anything at the hut's top level (the mod's getMaxEquipmentLevel). */
+    @Override
+    int maxToolTier() {
+        return hut.level >= hut.type.maxLevel() ? Integer.MAX_VALUE : Math.max(towerLevel(), 1);
+    }
+
+    private List<Block> gateSpots = List.of(); // its building's spots for its kind (knight or archer)
+    private int gateSpotsLevel = -1;
+    private boolean gateSpotsRanger;
+
+    /**
+     * The spot it guards: a gatehouse guard's own, its kind's tag in the building (knight or archer) by its place among
+     * that kind's guards there, else the hut block (the mod's getGuardPos); any other guard's, its hut's.
+     */
+    private Block guarded() {
+        if (hut.type != Hut.Type.GATE_HOUSE) return hut.post.guardSpot();
+        if (gateSpotsLevel != hut.level || gateSpotsRanger != ranger()) { // read once a level, or when its type changes
+            gateSpotsLevel = hut.level;
+            gateSpotsRanger = ranger();
+            gateSpots = hut.workSpots(colony.style, ranger() ? "archer" : "knight");
+        }
+        int index = 0;
+        for (Job j : colony.jobsAt(hut)) { if (j == this) break; if (j instanceof Guard g && g.ranger() == ranger()) index++; }
+        return index < gateSpots.size() ? gateSpots.get(index) : hut.block;
+    }
+
     /** Its type, from its tower's setting for its slot. */
     private Type type() {
         if (slot < 0) slot = colony.jobsAt(hut).indexOf(this); // stays -1 until it is one of the colony's jobs
@@ -204,7 +235,7 @@ public final class Guard extends Job {
      */
     @Override
     public double maxHealth() {
-        double tower = hut.level < 1 ? 0 : HP_PER_LEVEL * hut.level + (hut.type == Hut.Type.GUARD_TOWER ? HP_TOWER : 0);
+        double tower = hut.level < 1 ? 0 : HP_PER_LEVEL * towerLevel() + (hut.type == Hut.Type.GUARD_TOWER ? HP_TOWER : 0);
         double skill = switch (type()) { case KNIGHT -> level(STAMINA); case DRUID -> level(MANA) / 2.0; default -> 0; };
         return Colonist.MAX_HEALTH + type().health + skill + tower;
     }
@@ -300,7 +331,7 @@ public final class Guard extends Job {
     @Override
     public List<Component> info(Colony c) {
         if (hut.level == 0) return List.of(Component.text("Guards start once level 1 is built.", NamedTextColor.GRAY));
-        int[] tier = ARMOR[Math.min(hut.level, Hut.MAX_LEVEL) - 1];
+        int[] tier = ARMOR[Math.min(towerLevel(), Hut.MAX_LEVEL) - 1];
         return List.of(Component.text(taskInfo(c)), Component.text("Guards fight the monsters they see within " + vision() + " blocks: knights with "
                 + toolLabel(Tool.SWORD) + ", rangers with " + toolLabel(Tool.BOW) + " from up to " + range() + " blocks"
                 + (hut.type == Hut.Type.BARRACKS_TOWER ? ", druids with splash potions from " + druidRange()
@@ -309,7 +340,7 @@ public final class Guard extends Job {
     }
 
     private String taskInfo(Colony c) {
-        Block spot = hut.post.guardSpot();
+        Block spot = guarded();
         Hut mine = hut.post.mine(c);
         String followed = hut.post.followed() == null ? null : org.bukkit.Bukkit.getOfflinePlayer(hut.post.followed()).getName();
         int points = hut.post.patrolPoints().size();
@@ -390,7 +421,7 @@ public final class Guard extends Job {
     }
 
     private int[] tier() {
-        return ARMOR[Math.max(1, Math.min(hut.level, Hut.MAX_LEVEL)) - 1];
+        return ARMOR[Math.max(1, Math.min(towerLevel(), Hut.MAX_LEVEL)) - 1];
     }
 
     private boolean fitsArmor(ItemStack i, EquipmentSlot slot) {
@@ -553,7 +584,7 @@ public final class Guard extends Job {
     /** Keeps near the spot it guards, the ranged guards moving about it (ours: to any spot around, the mod's picks edges). */
     private void guardSpot(Colonist w) {
         w.setStatus(title() + ": guarding");
-        Block spot = hut.post.guardSpot();
+        Block spot = guarded();
         Location centre = spot.getLocation().toCenterLocation();
         double off = w.location().distance(centre);
         var rnd = ThreadLocalRandom.current();
@@ -633,7 +664,7 @@ public final class Guard extends Job {
     /** Within its chase and {@code attack} blocks of where its task has it: the spot it guards, the player it follows, or where it last was without a fight. */
     private boolean inReach(Location at, double attack) {
         Location from = switch (task()) {
-            case GUARD -> hut.post.guardSpot().getLocation().toCenterLocation();
+            case GUARD -> guarded().getLocation().toCenterLocation();
             case FOLLOW -> hut.post.followTo();
             case PATROL, PATROL_MINE -> lastQuiet == null ? hut.block.getLocation() : lastQuiet;
         };
@@ -756,7 +787,7 @@ public final class Guard extends Job {
     }
 
     private int druidRange() {
-        return DRUID_RANGE + hut.level;
+        return DRUID_RANGE + towerLevel();
     }
 
     /** Already under one of a druid's effects (the mod's wasAffectedByDruid). */
@@ -783,7 +814,7 @@ public final class Guard extends Job {
             double d = e.getLocation().distanceSquared(w.location());
             if (d < bestD) { bestD = d; best = l; }
         }
-        return under <= hut.level * 2 ? best : null;
+        return under <= towerLevel() * 2 ? best : null;
     }
 
     /** A monster nearby is after this player (ours: the mod helps players a monster hurt in the last 30 s). */
@@ -839,7 +870,7 @@ public final class Guard extends Job {
 
     /** How far a ranger shoots: 10 blocks, one a tower level and its adaptability / 50 x 15, at most 24; 10 more on guard (the mod's getAttackDistance). */
     private int range() {
-        return Math.min(RANGE_BASE + hut.level + (int) (level(ADAPTABILITY) / 50.0f * 15), RANGE_MAX) + (task() == Task.GUARD ? GUARD_BONUS_RANGE : 0);
+        return Math.min(RANGE_BASE + towerLevel() + (int) (level(ADAPTABILITY) / 50.0f * 15), RANGE_MAX) + (task() == Task.GUARD ? GUARD_BONUS_RANGE : 0);
     }
 
     /**
@@ -966,7 +997,7 @@ public final class Guard extends Job {
     }
 
     private int vision() {
-        return VISION_BASE + VISION_PER_LEVEL * hut.level;
+        return VISION_BASE + VISION_PER_LEVEL * towerLevel();
     }
 
     /** Alive, and not too far to chase (the mod's isWithinPersecutionDistance). */

@@ -121,6 +121,9 @@ public final class Settings {
             // ours: the mod picks the guard type with its hiring modules (knight, ranger, druid), here a choice
             case GUARD_TOWER -> TOWER;
             case BARRACKS_TOWER -> BARRACKS_TOWER;
+            // the mod's: guard only, retreat, hire trainees; ours: a knight and a ranger by default (it has spots for 2 of each)
+            case GATE_HOUSE -> List.of(guardType(0, "Guard 1 type", "KNIGHT", "RANGER"), guardType(1, "Guard 2 type", "RANGER", "KNIGHT"),
+                    words(GUARD_TASK, "Task", "GUARD"), bool(RETREAT, "Retreat when badly hurt (with research)"), HIRE_TRAINEES);
             case CHICKEN_HERDER, SWINEHERD, RABBIT_HUTCH -> List.of(BREED);
             case BEEKEEPER -> List.of(BREED, words(BEE_MODE, "Take from full hives", "HONEYCOMB", "HONEY", "BOTH"));
             case SHEPHERD -> List.of(BREED, bool(SHEARING, "Shear sheep"), bool(DYEING, "Dye sheep"));

@@ -81,10 +81,7 @@ public final class Florist extends Job {
     private List<Block> spots() {
         if (spotsLevel != hut.level) {
             spotsLevel = hut.level;
-            List<Block> out = new ArrayList<>();
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
-            if (o != null) o.workSpots.forEach((b, tag) -> { if (tag.equals("compost")) out.add(b); });
-            spots = out;
+            spots = hut.workSpots(colony.style, "compost");
         }
         return spots;
     }

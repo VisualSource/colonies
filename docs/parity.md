@@ -228,7 +228,7 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - [x] Shepherd: shears adult sheep with shears from its chest, 1 wool (the mod's without Fortune), and dyes the sheep a random colour (hut level + 1)% of the time. Cowhand: one milk bucket (from a bucket) and one mushroom stew from a mooshroom (from a bowl) a day, the mod's default settings, keeping 2 buckets and 2 bowls; to the hut straight after
   - [x] Goes to the hut after 10 actions; keeps its tools, the breeding items (a stack) and the cowhand's buckets and bowls; asks for 16 breeding items when it has fewer than 2
   - Ours: drops picked up right after a kill (the mod waits for its 1 in 10 pick-up); a target it can't reach in 30 steps of walking is given up; the breeding pause isn't saved. Not done: feeding the young (it needs skill in the mod). Its settings are under Hut settings, Looting under Research
-- [ ] Stable
+- ~~Stable~~ (not yet: only in the mod's source) The mod's cavalry building (`BuildingStable`: a stablemaster breeds and trains horses, cavalry guards ride them and patrol between stables and gatehouses; Mounted Combat research). None of the style packs has a Stable blueprint, so it can't be built; it looks newer than the packs' release. Wait for a pack with one
 - [ ] Nether worker
   - Expedition log (`ExpeditionLogModule`, unlocked by research)
 
@@ -324,7 +324,11 @@ What MineCP has compared with MineColonies (`version/main`), and what is left. `
   - Guards and trainees live at their hut, as the mod's `WorkAtHomeBuildingModule`: they leave their house's bed free, the hut's level is their home's level for skills, they can't be moved out, and losing the job loses the home. When one leaves a home players fill by hand, the colony is told a bed is free, as the mod (it too looks at the hiring switch, not the housing one). Each counts for one towards the colony's capacity
   - Hiring: a guard hut that hires on its own takes the most skilled trainee of its kind first (archers for rangers, knights for knights; none for druids), when its Hire Trainees setting is on (the default), else the jobless as before. Ours: at once, where the mod waits for its next check
   - Advancements: finish an Archery, a Combat Academy. Not done: their statistics
-- [ ] Other guards: gate house
+- [~] Gatehouse (`BuildingGateHouse`), the mod's numbers unless noted: no research; recipe as the mod's (an iron sword and a bow either side of planks, the Build Tool on top); 3 levels; claims 1, 1, 2 chunks
+  - [x] Two guards at every level, each a knight or a ranger (Settings; ours: a knight and a ranger by default), always on the guard task, each at its own spot: its kind's tag in the building (knight or archer), by its place among that kind's guards there, else the hut (the mod's getGuardPos). Its levels count as guard-hut levels 1, 3 and 5 for health, sight, gear and the rest; anything goes at level 3. Settings: retreat and hiring trainees first. Its guards live there
+  - [x] New visitors arrive at a random gatehouse's "gate" spot (else its hut), not the tavern (the mod's TavernBuildingModule)
+  - [x] The converter marks the knight, archer and gate tags as work spots. **Re-run `./gradlew datapacks`** for older packs to have them (without them the guards stand at the hut). Cavern keeps its gatehouse as military/gatehouses/atlasgatehouse
+  - Not done: colony connections (see Colony connections): colony signs, diplomacy, and travel between allied colonies through gatehouses
   - Guard types: knight, ranger and druid done; cavalry (the stable), huscarl and marksman (research) not yet
 - [~] Raids (`RaidManager`, `HordeRaidEvent`, `RaiderMobUtils`, `RaiderWalkAI`; land hordes only), the mod's numbers unless noted:
   - [x] Schedule, per colony, decided one nightfall ahead: no raid before the minimum nights (10) plus any extra, a sure raid past the average (14) + 2, else a 1 in (average − minimum) chance each nightfall. Only when raids are on, the world isn't peaceful and the owner or an officer is online. Settings in config.yml (`raids:`), with the mod's defaults and ranges

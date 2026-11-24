@@ -119,7 +119,8 @@ public final class Visitors {
         Material item = items[rnd.nextInt(items.length)];
         int count = Math.min(5 * (10 - rarity) + rnd.nextInt(3), item.getMaxStackSize());
         boolean female = rnd.nextBoolean();
-        var at = tavern.block.getLocation().toCenterLocation();
+        Block gate = colony.gate(); // the mod's: a random gatehouse's gate spot, else the tavern
+        var at = (gate != null ? gate : tavern.block).getLocation().toCenterLocation();
         Colonist c = new Colonist(UUID.randomUUID(), colony.uniqueName(female), Colonist.randomSkin(female), at);
         c.skills.roll(15 + rarity * rarity / 2); // the mod's recruit level: BASE_RECRUIT_LEVEL + rarity² / 2
         list.add(new Visitor(c, tavern, item, count, STAY_TICKS));
