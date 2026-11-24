@@ -1,16 +1,23 @@
 package dev.minecp.citizen;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.crafting.BrewingRecipe;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.entity.CraftLivingEntity;
 import org.bukkit.craftbukkit.entity.CraftMob;
+import org.bukkit.craftbukkit.inventory.CraftItemStack;
+import org.bukkit.craftbukkit.util.CraftNamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.inventory.ItemStack;
 
 /**
  * Server internals (Mojang names via paperweight-userdev), for what the API can't do. The only other use is
- * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Raids use keepActive. Re-check all against each new
+ * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Raids use keepActive, the Alchemist brewsFrom. Re-check all against each new
  * Minecraft/Paper release.
  */
 public final class Nms {
@@ -47,6 +54,13 @@ public final class Nms {
     /** Jumps this tick (on a ladder: climbs). The API's setJumping is overwritten by the jump control each tick. */
     static void jump(Mob m) {
         ((CraftMob) m).getHandle().getJumpControl().jump();
+    }
+
+    /** Whether a brewing recipe takes this bottle: the API's recipe leaves out which potion its input holds. */
+    public static boolean brewsFrom(NamespacedKey recipe, ItemStack bottle) {
+        var manager = ((CraftServer) Bukkit.getServer()).getServer().getRecipeManager();
+        return manager.byKey(CraftNamespacedKey.toResourceKey(Registries.RECIPE, recipe))
+                .map(h -> h.value() instanceof BrewingRecipe r && r.getInput().test(CraftItemStack.asNMSCopy(bottle))).orElse(false);
     }
 
     /** Ends vanilla sleep and frees the bed. */

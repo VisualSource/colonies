@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -158,22 +159,28 @@ public final class Requests {
     private boolean canCraft(Crafter c, Request r, Map<Crafter, List<Request>> tasks) {
         if (c.hut.level < 1 || colony.worker(c) == null) return false;
         Recipe recipe = c.recipeFor(r.test());
-        return recipe != null && !Crafter.uses(recipe, r.test()) && !cycle(recipe, r, tasks, new java.util.HashSet<>());
+        return recipe != null && !Crafter.uses(recipe, r.test()) && !cycle(t -> Crafter.uses(recipe, t.test()), r, tasks, Requests::feeds, new java.util.HashSet<>());
     }
 
     /**
-     * Whether making {@code r} with {@code recipe} would use up something a crafter further up the chain is making
+     * Whether making {@code r} would use up ({@code usesUp}) something a crafter further up the chain is making
      * (the mod's createsCraftingCycle): r asks for an ingredient of a crafter's task, that task may be an ingredient of
      * another crafter's, and so on. Each request is looked at once: a crafter's own ingredient request is among its
-     * own tasks, and following it again would go round forever.
+     * own tasks, and following it again would go round forever. So are the other links of a chain it makes itself
+     * (awkward, then swiftness, then splash potions): only the tasks r {@code feeds} count, or all if it feeds none (fuel).
      */
-    private static boolean cycle(Recipe recipe, Request r, Map<Crafter, List<Request>> tasks, java.util.Set<Request> seen) {
+    static boolean cycle(Predicate<Request> usesUp, Request r, Map<Crafter, List<Request>> tasks, BiPredicate<Request, Request> feeds, java.util.Set<Request> seen) {
         if (!seen.add(r) || !(r.job instanceof Crafter up)) return false;
-        for (Request parent : tasks.getOrDefault(up, List.of())) {
-            if (parent == r) continue;
-            if (Crafter.uses(recipe, parent.test()) || cycle(recipe, parent, tasks, seen)) return true;
-        }
+        List<Request> others = tasks.getOrDefault(up, List.of()).stream().filter(t -> t != r).toList();
+        List<Request> fed = others.stream().filter(t -> feeds.test(r, t)).toList();
+        for (Request parent : fed.isEmpty() ? others : fed) if (usesUp.test(parent) || cycle(usesUp, parent, tasks, feeds, seen)) return true;
         return false;
+    }
+
+    /** Whether {@code r} is an ingredient of {@code task}, one of the same crafter's. */
+    private static boolean feeds(Request r, Request task) {
+        Recipe recipe = ((Crafter) r.job).recipeFor(task.test());
+        return recipe != null && Crafter.uses(recipe, r.test());
     }
 
     private void restore(Request r) {

@@ -38,7 +38,7 @@ public final class Studies {
     private static final Map<String, String> MISSING = Map.ofEntries(
             Map.entry("enchanter", "Enchanter's Tower"), Map.entry("stable", "Stable"),
             Map.entry("netherworker", "Nether Mine"), Map.entry("florist", "Flower Shop"),
-            Map.entry("alchemist", "Alchemist's Hut"), Map.entry("mysticalsite", "Mystical Site"));
+            Map.entry("mysticalsite", "Mystical Site"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
     /** What undoing a finished research costs: the mod's 1 ancient tome, which Colonies doesn't have (config). */
@@ -168,6 +168,7 @@ public final class Studies {
             case Effects.DOUBLE_ARROWS -> "Rangers shoot a second arrow " + pct + " of the time";
             case Effects.ARROW_PIERCE -> "Rangers' arrows pierce through two more mobs";
             case Effects.USE_ARROWS -> "Rangers ask for arrows, which add 2 damage to each shot";
+            case Effects.DRUID_POTIONS -> "The Alchemist makes magic potions; druids use them up for stronger potions of more kinds";
             case Effects.TELESCOPE -> "Guards rally to a banner up to 500 blocks from the town hall, outside the colony too";
             case Effects.SIFTER_STRING -> "The Fletcher makes string sifter meshes";
             case Effects.SIFTER_FLINT -> "The Stonemason makes flint sifter meshes";
@@ -216,7 +217,7 @@ public final class Studies {
                 : String.join(" or ", names) + " levels adding up to " + q.level();
     }
 
-    /** What a cost takes, or null if Colonies has no such item (the mod's compost, ancient tome, gates, mistletoe). */
+    /** What a cost takes, or null if Colonies has no such item (the mod's compost, ancient tome, gates). */
     static Predicate<ItemStack> matcher(ResearchTree.Cost c) {
         Predicate<ItemStack> any = i -> false;
         if (c.tag() != null) {
@@ -228,6 +229,7 @@ public final class Studies {
             Predicate<ItemStack> one;
             if (k.equals("minecp:rack")) one = dev.minecp.logistics.Rack::is;
             else if (k.equals("minecp:clipboard")) one = clipboard;
+            else if (k.equals("minecolonies:mistletoe")) one = dev.minecp.job.Alchemist::isMistletoe;
             else {
                 Material m = k.startsWith("minecraft:") ? Material.matchMaterial(k) : null;
                 if (m == null) return null;

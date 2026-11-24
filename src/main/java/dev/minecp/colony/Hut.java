@@ -1,6 +1,7 @@
 package dev.minecp.colony;
 
 import dev.minecp.job.ArcherTrainee;
+import dev.minecp.job.Alchemist;
 import dev.minecp.job.Beekeeper;
 import dev.minecp.job.Builder;
 import dev.minecp.job.Composter;
@@ -102,6 +103,9 @@ public final class Hut {
                 Sifter::new, false),
         CONCRETE_MIXER("Concrete Mixer", Material.CHEST, "craftsmanship/luxury/concretemixer", "concretemixer", "A concrete mixer makes concrete powder and concrete",
                 () -> new RecipeChoice.MaterialChoice(Material.WHITE_CONCRETE_POWDER), "Concrete Mixer", ConcreteMixer::new, false),
+        // Unlocked by research; the mod's recipe: a brewing stand in the middle
+        ALCHEMIST("Alchemist Tower", Material.CHEST, "craftsmanship/luxury/alchemist", "alchemist", "An alchemist brews potions, grows nether wart and cuts mistletoe",
+                () -> new RecipeChoice.MaterialChoice(Material.BREWING_STAND), "Alchemist", Alchemist::new, false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),
@@ -211,7 +215,8 @@ public final class Hut {
 
         /**
          * The baker knows the mod's own recipes for vanilla bread (level 1), cookies (2), pumpkin pie (3) and cake (4), as
-         * the vanilla crafting recipes: the mod's doughs and batters, baked in a furnace, are its own items.
+         * the vanilla crafting recipes: the mod's doughs and batters, baked in a furnace, are its own items. It also fills
+         * bottles with water (the mod's large bottles).
          */
         private static Job baker(Hut h, Colony c) {
             Crafter b = new Crafter(h, c, CraftRules.BAKER, "bread, cookies, pumpkin pie, cake, and other things made from wheat");
@@ -219,6 +224,7 @@ public final class Hut {
             vanilla(b, "cookie", 2);
             vanilla(b, "pumpkin_pie", 3);
             vanilla(b, "cake", 4);
+            b.builtIn.put(Crafter.own("baker_water_bottle", Alchemist.waterBottle(), java.util.Map.of(Material.GLASS_BOTTLE, 1)), 3); // no water needed
             return b;
         }
 

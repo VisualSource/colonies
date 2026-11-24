@@ -329,8 +329,8 @@ public final class Guard extends Job {
         List<Want> wants = new ArrayList<>();
         if (hut.level < 1) return wants;
         if (weapon() != null) wantTool(wants, weapon());
-        if (wantsPotions() && inChest(Guard::isSplashPotion) == 0)
-            wants.add(new Want("splash potions", Guard::isSplashPotion, POTIONS_ASKED, POTIONS_LOW));
+        if (wantsPotions() && inChest(Alchemist::isMagicPotion) == 0)
+            wants.add(new Want(PostBox.label(Alchemist.magicPotion()), Alchemist::isMagicPotion, POTIONS_ASKED, POTIONS_LOW));
         if (wantsArrows() && inChest(Guard::isArrow) == 0) wants.add(new Want("arrows", Guard::isArrow, ARROWS_TAKEN, ARROWS_LOW));
         for (EquipmentSlot slot : SLOTS) // the mod's guards ask for each missing piece; one the tower no longer allows counts as missing
             if (!fitsArmor(armor.get(slot), slot) && inChest(i -> fitsArmor(i, slot)) == 0)
@@ -343,7 +343,7 @@ public final class Guard extends Job {
     int keep(ItemStack item) {
         if (weapon() != null && fits(weapon(), item, null) || isShield(item)) return 1;
         if (isArrow(item) && arrowsResearched()) return ARROWS_KEPT;
-        if (isSplashPotion(item) && druid()) return POTIONS_KEPT;
+        if (Alchemist.isMagicPotion(item) && druid()) return POTIONS_KEPT;
         for (EquipmentSlot slot : SLOTS) if (fitsArmor(item, slot)) return 1;
         return 0;
     }
@@ -370,22 +370,19 @@ public final class Guard extends Job {
         return i != null && i.getType() == Material.ARROW;
     }
 
-    /**
-     * A druid under 8 splash potions. Ours: the mod's druid uses its magic potions (mistletoe and water, from the
-     * alchemist, with the Druid's Potion research, which costs mistletoe); MineCP's uses any vanilla splash potion, no research.
-     */
+    /** A druid that research lets use magic potions and has under 8. */
     private boolean wantsPotions() {
-        return druid() && has(Guard::isSplashPotion) < POTIONS_LOW;
+        return potionsResearched() && has(Alchemist::isMagicPotion) < POTIONS_LOW;
     }
 
-    private static boolean isSplashPotion(ItemStack i) {
-        return i != null && i.getType() == Material.SPLASH_POTION;
+    private boolean potionsResearched() {
+        return druid() && colony.research.effect(Effects.DRUID_POTIONS) > 0;
     }
 
     /** Its arrows and potions stay with it when it hands things in. */
     @Override
     boolean keepsOnHand(ItemStack i) {
-        return isArrow(i) && arrowsResearched() || isSplashPotion(i) && druid();
+        return isArrow(i) && arrowsResearched() || Alchemist.isMagicPotion(i) && druid();
     }
 
     static boolean isShield(ItemStack i) {
@@ -409,7 +406,7 @@ public final class Guard extends Job {
     private boolean gearWaiting() {
         if (weapon() != null && !hasTool(weapon(), null) && inChest(i -> fits(weapon(), i, null)) > 0) return true;
         if (wantsArrows() && inChest(Guard::isArrow) > 0) return true;
-        if (wantsPotions() && inChest(Guard::isSplashPotion) > 0) return true;
+        if (wantsPotions() && inChest(Alchemist::isMagicPotion) > 0) return true;
         if (wantsShield() && inChest(Guard::isShield) > 0) return true;
         for (EquipmentSlot slot : SLOTS) {
             ItemStack worn = armor.get(slot);
@@ -427,7 +424,7 @@ public final class Guard extends Job {
     private void gearUp() {
         if (weapon() != null && !hasTool(weapon(), null)) fetchTool(weapon(), null);
         if (wantsArrows()) fetch(Guard::isArrow, ARROWS_TAKEN - has(Guard::isArrow));
-        if (wantsPotions()) fetch(Guard::isSplashPotion, POTIONS_TAKEN - has(Guard::isSplashPotion));
+        if (wantsPotions()) fetch(Alchemist::isMagicPotion, POTIONS_TAKEN - has(Alchemist::isMagicPotion));
         Inventory chest = chest();
         if (chest == null) return;
         if (wantsShield()) for (int i = 0; i < chest.getSize() && shield == null; i++) {
@@ -729,13 +726,13 @@ public final class Guard extends Job {
     /**
      * A druid's fight (the mod's DruidCombatAI): it closes in to 3 blocks plus its tower level and throws a splash
      * potion every 2 s (4 after an instant one): at a monster slowness, at a player in a fight strength, both for 5 s.
-     * With a splash potion of its own used up, the potion is level III and may be weakness, or saturation, healing or
-     * resistance (ours: any vanilla splash potion stands in for the mod's magic potion).
+     * With a magic potion used up (research), the potion is level III and may be weakness, or saturation, healing or
+     * resistance.
      */
     private void throwPotion(Colonist w) {
         if (!readyFrom(w, druidRange())) return;
         var rnd = ThreadLocalRandom.current();
-        boolean hostile = target instanceof Enemy, strong = use(Guard::isSplashPotion, 1) > 0;
+        boolean hostile = target instanceof Enemy, strong = potionsResearched() && use(Alchemist::isMagicPotion, 1) > 0;
         var effect = hostile ? ADVERSE[rnd.nextInt(strong ? ADVERSE.length : 1)] : SUPPORT[rnd.nextInt(strong ? SUPPORT.length : 1)];
         attackIn = effect.isInstant() ? DRUID_DELAY * 2 : DRUID_DELAY;
         experience(w, XP_PER_POTION);

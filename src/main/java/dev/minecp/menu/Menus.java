@@ -169,6 +169,7 @@ public final class Menus {
             buttons.add(button("Recipes (" + cr.recipes.size() + " of " + cr.maxRecipes() + ")", p, c, h, player -> recipes(player, c, h, cr)));
             if (cr.crafts) buttons.add(button(cr.smelts ? "Teach a crafting recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
                     player -> plugin.teaching.start(player, c, cr)));
+            if (cr.brews) buttons.add(button("Teach a recipe", p, c, h, player -> teachBrewing(player, c, h, cr, Material.POTION)));
             if (cr.smelts) buttons.add(button(cr.crafts ? "Teach a furnace recipe" : "Teach a recipe", p, c, h, Action.MANAGE_HUTS,
                     player -> teachSmelting(player, c, h, cr)));
         }
@@ -811,7 +812,7 @@ public final class Menus {
             if (result == null) continue;
             body.add(DialogBody.item(result).description(DialogBody.plainMessage(Component.text(result.getAmount() + " × ")
                     .append(result.effectiveName()), 250)).showTooltip(true).build());
-            buttons.add(button("Forget " + Job.name(result.getType()), p, c, h, Action.MANAGE_HUTS, player -> {
+            buttons.add(button("Forget " + PostBox.label(result), p, c, h, Action.MANAGE_HUTS, player -> {
                 cr.recipes.remove(key);
                 plugin.save(c);
                 recipes(player, c, h, cr);
@@ -831,16 +832,39 @@ public final class Menus {
             if (!(r instanceof org.bukkit.inventory.CookingRecipe<?> cooking)) continue; // a crafter that also crafts: table recipes are taught at a table
             var in = cooking.getInputChoice().getItemStack();
             String label = Job.name(in.getType()) + " → " + Job.name(r.getResult().getType());
-            buttons.add(button(label, p, c, h, Action.MANAGE_HUTS, player -> {
-                String problem = cr.teach(r);
-                if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
-                else plugin.save(c);
-                teachSmelting(player, c, h, cr);
-            }));
+            buttons.add(teachButton(label, p, c, h, cr, r, player -> teachSmelting(player, c, h, cr)));
         }
+        showTeach(p, c, h, cr, buttons, 2);
+    }
+
+    /** Teaches {@code r}, then shows the list again. */
+    private ActionButton teachButton(String label, Player p, Colony c, Hut h, Crafter cr, org.bukkit.inventory.Recipe r, Consumer<Player> again) {
+        return button(label, p, c, h, Action.MANAGE_HUTS, player -> {
+            String problem = cr.teach(r);
+            if (problem != null) player.sendMessage(Component.text(problem, NamedTextColor.RED));
+            else plugin.save(c);
+            again.accept(player);
+        });
+    }
+
+    private void showTeach(Player p, Colony c, Hut h, Crafter cr, List<ActionButton> buttons, int columns) {
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, "Teach a recipe", List.of(text(Component.text(cr.recipes.size() + " of " + cr.maxRecipes()
-                + " recipes. Click one for the " + h.type.worker.toLowerCase() + " to learn.", NamedTextColor.GOLD))), List.of(), buttons, 2);
+                + " recipes. Click one for the " + h.type.worker.toLowerCase() + " to learn.", NamedTextColor.GOLD))), List.of(), buttons, columns);
+    }
+
+    /** The brewing recipes it can still learn that start from this kind of bottle, one button each, and buttons for the other kinds (ours: the mod shows a brewing stand). */
+    void teachBrewing(Player p, Colony c, Hut h, Crafter cr, Material bottle) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Material other : List.of(Material.POTION, Material.SPLASH_POTION, Material.LINGERING_POTION))
+            if (other != bottle) buttons.add(button("From a " + Job.name(other) + "…", p, c, h, player -> teachBrewing(player, c, h, cr, other)));
+        for (var r : cr.teachable()) {
+            ItemStack in = r instanceof org.bukkit.inventory.BrewingRecipe b ? dev.minecp.job.Alchemist.input(b) : null;
+            if (in == null || in.getType() != bottle) continue;
+            String label = PostBox.label(in) + " + " + Job.name(((org.bukkit.inventory.BrewingRecipe) r).getIngredient().getItemStack().getType()) + " → " + PostBox.label(r.getResult());
+            buttons.add(teachButton(label, p, c, h, cr, r, player -> teachBrewing(player, c, h, cr, bottle)));
+        }
+        showTeach(p, c, h, cr, buttons, 1);
     }
 
     private static DialogBody text(Component c) {

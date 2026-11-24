@@ -107,7 +107,7 @@ public final class Cook extends Job {
         if (scan-- <= 0) { furnaces = Furnaces.in(colony, hut, Material.FURNACE, Material.SMOKER); scan = 200; }
         if (furnaces.isEmpty()) { idle(w, "No furnace or smoker near the hut to cook with.", 40, hut.block); return; }
         if (Furnaces.tend(this, w, furnaces, chest, () -> Furnaces.first(chest, i -> Food.cooked().containsKey(i.getType())), Furnaces::isFuel, Integer.MAX_VALUE)) return;
-        idle(w, waiting.isEmpty() ? null : note, 40, hut.block);
+        idle(w, Furnaces.stuck(furnaces, chest) ? "The hut chest is full." : waiting.isEmpty() ? null : note, 40, hut.block);
     }
 
     /** Its worker speeds its furnaces up: its adaptability (main skill) / 10 x 2 ticks a second (the mod's AbstractEntityAIUsesFurnace). */

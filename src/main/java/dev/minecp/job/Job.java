@@ -97,6 +97,7 @@ public abstract class Job {
             case GLASSBLOWER -> sk(CREATIVITY, FOCUS);
             case CRUSHER -> sk(STAMINA, STRENGTH);
             case SIFTER, SHEPHERD -> sk(FOCUS, STRENGTH);
+            case ALCHEMIST -> sk(DEXTERITY, MANA);
             case CONCRETE_MIXER -> sk(STAMINA, DEXTERITY);
             case FISHERMAN -> sk(FOCUS, AGILITY);
             case CHICKEN_HERDER -> sk(ADAPTABILITY, AGILITY);

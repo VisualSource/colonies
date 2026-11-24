@@ -68,7 +68,7 @@ final class Furnaces {
         for (Block b : furnaces) {
             if (!(b.getState(false) instanceof Furnace f)) continue;
             FurnaceInventory inv = f.getInventory();
-            boolean collect = !empty(inv.getResult());
+            boolean collect = !empty(inv.getResult()) && fits(chest, inv.getResult());
             ItemStack in = empty(inv.getSmelting()) && busy < maxBusy ? input.get() : null;
             boolean burning = !empty(inv.getSmelting()) || in != null;
             ItemStack fuelItem = burning && empty(inv.getFuel()) && f.getBurnTime() <= 0 ? first(chest, fuel) : null;
@@ -109,8 +109,21 @@ final class Furnaces {
     private static final double CRAFTER_XP = 5, COOK_XP = 2;
     static final int SPEED_UP_PER_10 = 2; // accelerateFurnaces: 2 extra ticks a second per 10 skill levels
 
-    private static boolean empty(ItemStack i) {
+    static boolean empty(ItemStack i) {
         return i == null || i.isEmpty();
+    }
+
+    /** Whether the chest takes at least one of {@code item}. */
+    static boolean fits(Inventory chest, ItemStack item) {
+        for (ItemStack i : chest.getStorageContents()) if (empty(i) || i.isSimilar(item) && i.getAmount() < i.getMaxStackSize()) return true;
+        return false;
+    }
+
+    /** Whether one of the furnaces holds something it made that the chest has no room for. */
+    static boolean stuck(List<Block> furnaces, Inventory chest) {
+        for (Block b : furnaces)
+            if (b.getState(false) instanceof Furnace f && !empty(f.getInventory().getResult()) && !fits(chest, f.getInventory().getResult())) return true;
+        return false;
     }
 
     static ItemStack first(Inventory chest, Predicate<ItemStack> test) {

@@ -72,7 +72,7 @@ public final class Courier extends Job {
         }
         if (w.isMoving() || --cooldown > 0) return;
         Warehouse wh = colony.warehouse();
-        if (serving != null && (!colony.jobs.contains(serving) || crafted != null && !colony.jobs.contains(crafted.crafter))) drop();
+        if (serving != null && (!colony.jobs.contains(serving) || crafted != null && !loaded() && !colony.jobs.contains(crafted.crafter))) drop(); // loaded: the request lets go of its crafter once all is handed over
 
         if (loaded()) { // deliver what it carries
             // Where it goes: the hut it is for; else the warehouse; with neither (the hut is gone, no warehouse), its own hut.
@@ -185,10 +185,10 @@ public final class Courier extends Job {
     private static boolean hasSurplus(Job j) {
         Inventory chest = j.chest();
         if (chest == null) return false;
-        java.util.Map<org.bukkit.Material, Integer> seen = new java.util.EnumMap<>(org.bukkit.Material.class);
+        java.util.Map<ItemStack, Integer> seen = new java.util.HashMap<>(); // each kind of potion or MineCP item by itself
         for (ItemStack i : chest.getContents()) {
             if (i == null || i.isEmpty()) continue;
-            int total = seen.merge(i.getType(), i.getAmount(), Integer::sum);
+            int total = seen.merge(PostBox.orderable(i), i.getAmount(), Integer::sum);
             if (total > j.keptHere(i)) return true;
         }
         return false;
@@ -199,13 +199,14 @@ public final class Courier extends Job {
         List<ItemStack> taken = new ArrayList<>();
         Inventory chest = j.chest();
         if (chest == null) return taken;
-        java.util.Map<org.bukkit.Material, Integer> kept = new java.util.EnumMap<>(org.bukkit.Material.class);
+        java.util.Map<ItemStack, Integer> kept = new java.util.HashMap<>(); // as hasSurplus
         for (int slot = 0; slot < chest.getSize(); slot++) {
             ItemStack i = chest.getItem(slot);
             if (i == null || i.isEmpty()) continue;
-            int keep = j.keptHere(i), already = kept.getOrDefault(i.getType(), 0);
+            ItemStack kind = PostBox.orderable(i);
+            int keep = j.keptHere(i), already = kept.getOrDefault(kind, 0);
             int stays = (int) Math.min(i.getAmount(), Math.max(0L, (long) keep - already));
-            kept.put(i.getType(), already + stays);
+            kept.put(kind, already + stays);
             int n = Math.min(Warehouse.room(taken, i, maxStacks), i.getAmount() - stays);
             if (n <= 0) continue;
             taken.add(i.asQuantity(n));

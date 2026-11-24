@@ -29,6 +29,15 @@ class CrafterTest {
     }
 
     @Test
+    void ingredientsThatDontStackComeAFewCraftsAtATime() {
+        assertEquals(64, Crafter.batch(64, 0));
+        assertEquals(3, Crafter.batch(22, 3), "9 buckets");
+        assertEquals(2, Crafter.batch(2, 3), "no more than needed");
+        assertEquals(9, Crafter.batch(64, 1));
+        assertEquals(1, Crafter.batch(5, 12), "always one");
+    }
+
+    @Test
     void tagRuleDecidesInTheModsOrder() {
         Set<Material> product = Set.of(Material.STONE_BRICKS), productNo = Set.of(Material.TORCH),
                 ingredient = Set.of(Material.STONE), ingredientNo = Set.of(Material.STICK);
