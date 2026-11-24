@@ -404,7 +404,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [~] Magic potion (`ItemMagicPotion`): a trial key with a tag that looks like dragon's breath (the pack shows the mod's model), stacks to 16; can't be drunk, as the mod's
 - [~] Compost (`ItemCompost`): bone meal with a tag (named Compost, the pack shows the mod's model), so players use it as bone meal, as the mod's; stacks to 64. Crafting recipes refuse it, as all of MineCP's items
 - [~] Mistletoe (`ItemMistletoe`): a trial key with a tag that looks like a lily of the valley (the pack shows the mod's model); can't be placed. Not done: composting it (a compost list holds plain items only)
-- [ ] Santa hat (seasonal)
+- ~~Santa hat (seasonal)~~ (not planned)
 - [ ] Assistant hammers: gold, iron, diamond
 - [~] Sifter meshes: string, flint, iron, diamond: tagged paper with durability (see Sifter)
 - [~] Scrolls (`AbstractItemScroll`, `ItemScrollColonyTP`, `ItemScrollColonyAreaTP`, `ItemScrollGuardHelp`, `ItemScrollHighlight`, `ItemScrollBuff`), the mod's numbers unless noted: tagged paper stacking to 16, made by the Enchanter (the buff scroll found in chests). Sneak + right-click any hut of a colony binds a teleport, area or guard help scroll to it (no permission needed); using one is holding right-click (vanilla's consumable with the bow's pose: 1.6 s, the area scroll 3.2 s) and needs "Use other blocks" in that colony. Each goes wrong 1 time in 10
@@ -420,7 +420,7 @@ Everything the mod registers (`apiimp/initializer/ModBlocksInitializer.java` and
 - [ ] Armour: plate armour (helmet, chest, legs, boots), pirate outfits (hat, cap, top, chest, legs, leggings, shoes, boots)
   - Stand-in: the equivalent vanilla armour, with custom textures from an optional resource pack
 - ~~Spawn eggs for every raider~~ (skipped)
-- [ ] Large bottles: empty, water, milk, soy milk
+- [x] Large bottles: vanilla items stand in: a glass bottle for the empty one, a water bottle for the water one (the Baker fills them from glass bottles; the Alchemist's magic potion uses one and gives the bottle back), a milk bucket for the milk one (the cowhand milks into buckets). Soy milk is left out with the mod's soy bean crop (see Crops)
 
 ### Foods (listed for completeness; not planned)
 
