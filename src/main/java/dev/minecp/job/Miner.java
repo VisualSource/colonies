@@ -124,11 +124,10 @@ public final class Miner extends Job {
         super(hut, colony);
     }
 
-    /** The mod's Hot Boots: lava, magma, fire and burning (its four fire damage types, not campfires) don't hurt a miner. */
+    /** The mod's Hot Boots. */
     @Override
     public double reaching(double damage, DamageType type, Entity source, Colonist w) {
-        boolean fire = type == DamageType.LAVA || type == DamageType.HOT_FLOOR || type == DamageType.IN_FIRE || type == DamageType.ON_FIRE;
-        return fire && colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0 ? 0 : damage;
+        return hotBoots(type) ? 0 : damage;
     }
 
     @Override

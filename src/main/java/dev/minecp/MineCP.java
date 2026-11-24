@@ -274,6 +274,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (!c.permissions.has(p, tool ? Action.MANAGE_HUTS : Action.PLACE_HUTS))
             return "You can't place huts in " + c.name + ".";
         if (type.unique && c.hut(type) != null) return c.name + " already has a " + type.title + ".";
+        if (type == Hut.Type.NETHER_WORKER && at.getWorld().getEnvironment() == org.bukkit.World.Environment.NETHER) return "A Nether Mine can't be placed in the Nether."; // the mod breaks it
         String locked = c.research.lockReason(type); // the mod's research unlocks for some huts
         if (locked != null) return locked;
         if (box != null && !claims.ownsAll(c, at.getWorld(), box)) return "The " + type.title + "'s building would reach outside " + c.name + "'s border.";
@@ -324,6 +325,12 @@ public final class MineCP extends JavaPlugin implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onTrample(org.bukkit.event.entity.EntityInteractEvent e) {
         if (e.getBlock().getType() == Material.FARMLAND && e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) e.setCancelled(true);
+    }
+
+    /** Citizens don't go through portals (a Nether Mine's, on their way past). */
+    @EventHandler(ignoreCancelled = true)
+    public void onPortal(io.papermc.paper.event.entity.EntityPortalReadyEvent e) {
+        if (e.getEntity() instanceof org.bukkit.entity.Mannequin || e.getEntity().getScoreboardTags().contains(Colonist.LEGS_TAG)) e.setCancelled(true);
     }
 
     /**

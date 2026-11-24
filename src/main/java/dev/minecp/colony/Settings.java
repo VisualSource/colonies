@@ -59,7 +59,7 @@ public final class Settings {
             BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
-            MAKE_DIRT = "make_dirt", FERTILIZE = "fertilize",
+            MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
             BEE_MODE = "beekeeper_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     static final String HIRE_TRAINEE = "hire_trainee";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
@@ -105,6 +105,7 @@ public final class Settings {
             case BUILDER -> List.of(block(FILL_BLOCK, "Foundation fill block", org.bukkit.Material.DIRT));
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
+            case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));
             case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"));
             // ours: the mod's players assign its fields in a list; here each of its own kinds is a switch
             case PLANTATION -> List.of(bool(GROW_SUGAR, "Grow sugar cane"), bool(GROW_CACTUS, "Grow cactus"), bool(GROW_BAMBOO, "Grow bamboo (needs research)"));

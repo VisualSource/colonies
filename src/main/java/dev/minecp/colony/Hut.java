@@ -23,6 +23,7 @@ import dev.minecp.job.KnightTrainee;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Mesh;
 import dev.minecp.job.Miner;
+import dev.minecp.job.NetherWorker;
 import dev.minecp.job.Plantation;
 import dev.minecp.job.PostBox;
 import dev.minecp.job.Researcher;
@@ -111,6 +112,9 @@ public final class Hut {
         // The mod's recipe: an enchanting table in the middle; no research needed
         ENCHANTER("Enchanter's Tower", Material.CHEST, "mystic/enchanter", "enchanter", "An enchanter studies other workers and turns ancient tomes into enchanted books",
                 () -> new RecipeChoice.MaterialChoice(Material.ENCHANTING_TABLE), "Enchanter", Enchanter::new, false),
+        // Unlocked by research (Open the Nether); the mod's recipe: obsidian in the middle
+        NETHER_WORKER("Nether Mine", Material.CHEST, "mystic/netherworker", "netherworker", "A nether miner makes trips to the Nether",
+                () -> new RecipeChoice.MaterialChoice(Material.OBSIDIAN), "Nether Miner", NetherWorker::new, false),
         // Houses 4 citizens from level 1 (the mod's TavernLivingBuildingModule) and hosts visitors (Visitors); the mod's recipe: a barrel
         TAVERN("Tavern", Material.CHEST, "fundamentals/tavern", "tavern", "Houses 4 citizens; visitors stay here and can be recruited",
                 () -> new RecipeChoice.MaterialChoice(Material.BARREL), false),

@@ -167,6 +167,14 @@ public final class Menus {
                             + "all from 3. It may leave out " + (h.level <= 1 ? "none" : h.level >= 5 ? "any" : "up to " + dev.minecp.job.Florist.mostExcluded(h.level)) + " at this level.",
                     fl.excluded, m -> dev.minecp.job.Florist.allowed(h.level).contains(m) && fl.excluded.size() < dev.minecp.job.Florist.mostExcluded(h.level),
                     Job::name, "can't be left out: it isn't one it grows at this level, or no more can be left out here.")));
+        if (job instanceof dev.minecp.job.NetherWorker nw && h.level > 0) {
+            buttons.add(button("Food for the trips (" + nw.menu.size() + " of " + nw.mostFoods() + ")", p, c, h, player -> itemList(player, c, h, "food for the trips",
+                    "It asks for a stack of each and takes 16 along to the Nether, where it eats them to keep healing.", nw.menu,
+                    m -> Food.isMeal(new ItemStack(m)) && nw.menu.size() < nw.mostFoods(), Job::name, "can't be added: it isn't food it eats, or the list is full at this level.")));
+            if (c.research.effect(dev.minecp.research.Effects.NETHER_LOG) > 0)
+                buttons.add(button("Expedition log", p, c, h, player -> Dialogs.show(player, h.type.title + ": expedition log",
+                        nw.expedition().stream().map(Menus::text).toList(), List.of(), List.of(button("Back", player, c, h, q -> hut(q, c, h))), 1)));
+        }
         if (job instanceof PostBox pb) {
             buttons.add(button("Order items", p, c, h, Action.MANAGE_HUTS, player -> order(player, c, h, pb)));
             buttons.add(button("Minimum stock (" + pb.stock.size() + " of " + pb.maxStock() + ")", p, c, h, player -> stock(player, c, h, pb)));
@@ -196,20 +204,21 @@ public final class Menus {
             boolean offered = false; // one Hire button, for the first open job
             for (Job j : jobs) {
                 Colonist worker = c.worker(j);
-                if (worker != null) buttons.add(button("Fire " + worker.name, p, c, h, Action.MANAGE_HUTS, player -> {
-                    if (c.worker(j) != null) c.fire(j);
-                    plugin.save(c);
-                    hut(player, c, h);
-                }));
-                else if (!offered && c.canHire(j)) {
+                if (worker != null) {
+                    if (!j.away()) buttons.add(button("Fire " + worker.name, p, c, h, Action.MANAGE_HUTS, player -> { // not on a trip, as the mod
+                        if (c.worker(j) != null && !j.away()) c.fire(j);
+                        plugin.save(c);
+                        hut(player, c, h);
+                    }));
+                } else if (!offered && c.canHire(j)) {
                     offered = true;
                     buttons.add(button("Hire a " + h.type.worker.toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
                 }
             }
             if (h.type.isHome()) {
                 if (c.residents(h).size() < h.type.rooms(h.level)) buttons.add(button("Move someone in", p, c, h, player -> moveIn(player, c, h)));
-                for (Colonist x : c.residents(h)) buttons.add(button("Move out " + x.name, p, c, h, Action.MANAGE_HUTS, player -> {
-                    if (x.home == h) c.moveOut(x);
+                for (Colonist x : c.residents(h)) if (!away(c, x)) buttons.add(button("Move out " + x.name, p, c, h, Action.MANAGE_HUTS, player -> {
+                    if (x.home == h && !away(c, x)) c.moveOut(x);
                     plugin.save(c);
                     hut(player, c, h);
                 }));
@@ -376,13 +385,13 @@ public final class Menus {
 
     /** Manual hiring: the colony's adults, the jobless first; hiring one moves it from its old job. */
     private void hire(Player p, Colony c, Hut h, Job job) {
-        List<Colonist> adults = new ArrayList<>(c.colonists.stream().filter(x -> !x.child).toList());
+        List<Colonist> adults = new ArrayList<>(c.colonists.stream().filter(x -> !x.child && !away(c, x)).toList());
         adults.sort(java.util.Comparator.comparing((Colonist x) -> c.jobOf(x) != null).thenComparing(x -> x.name));
         List<ActionButton> buttons = new ArrayList<>();
         for (Colonist x : adults) {
             Job now = c.jobOf(x);
             buttons.add(button(x.name + " — " + (now == null ? "jobless" : now.hut.type.worker), p, c, h, Action.MANAGE_HUTS, player -> {
-                if (!c.fillsItself(h) && c.colonists.contains(x) && c.worker(job) == null && c.canHire(job)) c.hire(job, x);
+                if (!c.fillsItself(h) && c.colonists.contains(x) && !away(c, x) && c.worker(job) == null && c.canHire(job)) c.hire(job, x);
                 plugin.save(c);
                 hut(player, c, h);
             }));
@@ -390,6 +399,12 @@ public final class Menus {
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, "Hire a " + h.type.worker.toLowerCase(), List.of(text(Component.text(adults.isEmpty() ? "No adults in the colony yet."
                 : "Hiring someone with a job leaves that hut without a worker."))), List.of(), buttons, 1);
+    }
+
+    /** On a trip to the Nether: not to be fired, hired away or moved out (the mod's travelling citizens). */
+    private static boolean away(Colony c, Colonist x) {
+        Job job = c.jobOf(x);
+        return job != null && job.away();
     }
 
     /** Manual housing: citizens living elsewhere or nowhere, the homeless first. */

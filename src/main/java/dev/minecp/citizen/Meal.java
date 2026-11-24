@@ -57,7 +57,7 @@ public final class Meal {
     }
 
     /** What a point of food value is worth to a citizen of this colony (the mod's getFoodValue research bonus). */
-    private static double fills(Colony colony) {
+    public static double fills(Colony colony) {
         return 1 + colony.research.effect(Effects.SATURATION);
     }
 

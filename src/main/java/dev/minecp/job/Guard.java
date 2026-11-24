@@ -68,7 +68,7 @@ public final class Guard extends Job {
     private static final int SEARCH_TICKS = 20;        // ours: how often it looks for a target
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
     private static final int[][] ARMOR = {{0, 1}, {0, 2}, {0, 3}, {2, 4}, {3, 5}};
-    private static final EquipmentSlot[] SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
+    static final EquipmentSlot[] SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
     // Research (the mod's MeleeCombatAI, EntityCitizen and AbstractEntityAIGuard):
     private static final double CRIT = 1.5;            // a critical hit's damage
     private static final int SHIELD_UP = 8;            // MIN_TIME_TO_ATTACK: the shield is raised while its next swing is this far off
@@ -268,19 +268,29 @@ public final class Guard extends Job {
      * out; research skips it with chance 1 - 1 / (1 + strength). Not for fire or lightning, as the mod.
      */
     private void wearArmor(double hit, Colonist w) {
-        double durability = colony.research.effect(Effects.ARMOR_DURABILITY);
-        if (durability > 0 && ThreadLocalRandom.current().nextDouble() > 1 / (1 + durability)) return;
-        int wear = Math.max(1, (int) (hit / 4));
+        int wear = armorWear(hit, colony);
+        if (wear == 0) return;
         armor.replaceAll((slot, piece) -> piece.damage(wear, w.living())); // Unbreaking included
         armor.values().removeIf(ItemStack::isEmpty);
     }
 
+    /** How much a hit wears each piece: 0 when research skips it. */
+    static int armorWear(double hit, Colony colony) {
+        double durability = colony.research.effect(Effects.ARMOR_DURABILITY);
+        return durability > 0 && ThreadLocalRandom.current().nextDouble() > 1 / (1 + durability) ? 0 : Math.max(1, (int) (hit / 4));
+    }
+
     /** What reaches it through its armor (vanilla's armor formula with each piece's points and toughness; research adds points). */
     private double afterArmor(double damage) {
-        double points = 0, toughness = 0;
-        for (ItemStack piece : armor.values()) { points += stat(piece, Attribute.ARMOR); toughness += stat(piece, Attribute.ARMOR_TOUGHNESS); }
         String research = type().armorResearch;
-        points = (int) (points * (1 + (research == null ? 0 : colony.research.effect(research))));
+        return afterArmor(armor.values(), 1 + (research == null ? 0 : colony.research.effect(research)), damage);
+    }
+
+    /** The same through these pieces, their points times {@code factor}. */
+    static double afterArmor(java.util.Collection<ItemStack> armor, double factor, double damage) {
+        double points = 0, toughness = 0;
+        for (ItemStack piece : armor) { points += stat(piece, Attribute.ARMOR); toughness += stat(piece, Attribute.ARMOR_TOUGHNESS); }
+        points = (int) (points * factor);
         double cut = Math.min(20, Math.max(points / 5, points - damage / (2 + toughness / 4)));
         return damage * (1 - cut / 25);
     }
@@ -365,7 +375,7 @@ public final class Guard extends Job {
         if (wantsArrows() && inChest(Guard::isArrow) == 0) wants.add(new Want("arrows", Guard::isArrow, ARROWS_TAKEN, ARROWS_LOW));
         for (EquipmentSlot slot : SLOTS) // the mod's guards ask for each missing piece; one the tower no longer allows counts as missing
             if (!fitsArmor(armor.get(slot), slot) && inChest(i -> fitsArmor(i, slot)) == 0)
-                wants.add(new Want(slotName(slot) + " (" + armorName(tier()[0]) + " to " + armorName(tier()[1]) + ")", i -> fitsArmor(i, slot), 1));
+                wants.add(new Want(armorLabel(slot, tier()), i -> fitsArmor(i, slot), 1));
         if (wantsShield() && inChest(Guard::isShield) == 0) wants.add(new Want("a shield", Guard::isShield, 1)); // the mod's "nice to have"
         return wants;
     }
@@ -421,13 +431,28 @@ public final class Guard extends Job {
     }
 
     private int[] tier() {
-        return ARMOR[Math.max(1, Math.min(towerLevel(), Hut.MAX_LEVEL)) - 1];
+        return armorTiers(towerLevel());
     }
 
     private boolean fitsArmor(ItemStack i, EquipmentSlot slot) {
+        return armorFits(i, slot, tier());
+    }
+
+    /** Whether {@code i} is armor for {@code slot} of one of these tiers, lowest and highest. */
+    static boolean armorFits(ItemStack i, EquipmentSlot slot, int[] tiers) {
         if (i == null || i.isEmpty() || i.getType().getEquipmentSlot() != slot || stat(i, Attribute.ARMOR) <= 0) return false;
         int t = armorTier(i.getType());
-        return t >= tier()[0] && t <= tier()[1];
+        return t >= tiers[0] && t <= tiers[1];
+    }
+
+    /** The lowest and highest armor tier a guard (or nether miner: the mod's lists are the same) may wear at a hut level. */
+    static int[] armorTiers(int level) {
+        return ARMOR[Math.clamp(level, 1, Hut.MAX_LEVEL) - 1];
+    }
+
+    /** "a helmet (leather to gold)". */
+    static String armorLabel(EquipmentSlot slot, int[] tiers) {
+        return slotName(slot) + " (" + armorName(tiers[0]) + " to " + armorName(tiers[1]) + ")";
     }
 
     /**
@@ -1026,7 +1051,7 @@ public final class Guard extends Job {
     // ---- gear numbers --------------------------------------------------------------------------------------------
 
     /** An item's own value for an attribute when worn or held where it goes (vanilla's default modifiers). */
-    private static double stat(ItemStack i, Attribute attribute) {
+    static double stat(ItemStack i, Attribute attribute) {
         if (i == null || i.isEmpty()) return 0;
         EquipmentSlot slot = i.getType().getEquipmentSlot();
         double n = 0;
@@ -1035,7 +1060,7 @@ public final class Guard extends Job {
     }
 
     /** The tower-level rule's armor tiers (the mod's armor levels): leather 0, gold 1, chainmail 2, iron 3, diamond 4, netherite 5. */
-    private static int armorTier(Material m) {
+    static int armorTier(Material m) {
         String n = m.name();
         return n.startsWith("LEATHER_") ? 0 : n.startsWith("GOLDEN_") || n.startsWith("COPPER_") ? 1 : n.startsWith("CHAINMAIL_") ? 2
                 : n.startsWith("IRON_") ? 3 : n.startsWith("DIAMOND_") ? 4 : n.startsWith("NETHERITE_") ? 5 : -1; // copper (newer than the mod) as gold, as tools count it as stone

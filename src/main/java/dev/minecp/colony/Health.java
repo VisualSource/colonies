@@ -39,12 +39,14 @@ public final class Health {
         if (++c.healTicks < HEAL_TICKS) return;
         c.healTicks = 0;
         if (c.health >= max(c) || c.hurtTicks > 0) return;
-        // research lowers the saturation needed for the full rate (a negative strength) and speeds up both rates
-        double regen = 1 + colony.research.effect(Effects.REGENERATION);
-        double amount = c.saturation >= Food.MAX_SATURATION + colony.research.effect(Effects.HEALING_SATURATION) ? 2 * regen
-                : c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : regen;
+        double amount = c.saturation < Food.LOW_SATURATION ? c.saturation / Food.MAX_SATURATION / 2 : healing(c);
         // the mod's: the sick heal only while under a third of their health (the last heal can go a little past it)
         if (c.health < (c.disease != null ? max(c) / 3 : max(c))) c.health = Math.min(max(c), c.health + amount);
+    }
+
+    /** What a fed citizen heals at a time: 1, or 2 well fed. Research lowers the saturation that takes (a negative strength) and adds to both. */
+    public double healing(Colonist c) {
+        return (c.saturation >= Food.MAX_SATURATION + colony.research.effect(Effects.HEALING_SATURATION) ? 2 : 1) * (1 + colony.research.effect(Effects.REGENERATION));
     }
 
     /** Most health it can have: its job's (a knight has more), plus research's for every citizen. */
@@ -88,8 +90,17 @@ public final class Health {
         } else if (cause != DamageCause.FALL && c.fleeTicks == 0) c.flee(c.location(), 5);
     }
 
-    /** The mod's death: a message to the owner, a grave with what it carried, and its job and home freed. */
+    /** Killed on a trip to the Nether (the mod's): what it carried is gone, and there is no grave. */
+    public void lostInNether(Colonist c) {
+        die(c, null, "died in the Nether", false);
+    }
+
     void die(Colonist c, DamageCause cause, Entity source) {
+        die(c, source, deathCause(cause, source), true);
+    }
+
+    /** The mod's death: a message to the owner, a grave with what it carried, and its job and home freed. */
+    private void die(Colonist c, Entity source, String how, boolean grave) {
         Job job = colony.jobOf(c);
         if (c.meal != null) { c.meal.abandon(); c.meal = null; }
         List<ItemStack> items = new java.util.ArrayList<>(job != null ? job.takeCarried() : List.of());
@@ -110,17 +121,21 @@ public final class Health {
         at.getWorld().spawnParticle(Particle.POOF, at.clone().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
         Block spot = Grave.spot(at.getBlock());
         String where = " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ();
-        Colony.log.info(colony.where() + ": " + c.name + (job != null ? " (" + job.hut.type.worker + ")" : "") + " " + deathCause(cause, source) + where + ".");
+        Colony.log.info(colony.where() + ": " + c.name + (job != null ? " (" + job.hut.type.worker + ")" : "") + " " + how + where + ".");
+        if (!grave) {
+            colony.tell(c.name + " " + how + ". What they carried is lost." + mourn);
+            return;
+        }
         if (spot == null) {
             items.forEach(i -> at.getWorld().dropItemNaturally(at, i));
-            colony.tell(c.name + " " + deathCause(cause, source) + where + ". No grave could be made there." + mourn);
+            colony.tell(c.name + " " + how + where + ". No grave could be made there." + mourn);
             return;
         }
         spot.setType(Grave.BLOCK);
-        Grave grave = new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items);
-        grave.timer += (int) (colony.research.effect(Effects.GRAVE_DECAY) * 60 * 20); // research: minutes more before it decays
-        colony.graves.add(grave);
-        colony.tell(c.name + " " + deathCause(cause, source) + where + ". Their grave is at "
+        Grave g = new Grave(spot, c.name, job != null ? job.hut.type.worker : null, c.skin, items);
+        g.timer += (int) (colony.research.effect(Effects.GRAVE_DECAY) * 60 * 20); // research: minutes more before it decays
+        colony.graves.add(g);
+        colony.tell(c.name + " " + how + where + ". Their grave is at "
                 + spot.getX() + " " + spot.getY() + " " + spot.getZ() + "." + mourn);
     }
 

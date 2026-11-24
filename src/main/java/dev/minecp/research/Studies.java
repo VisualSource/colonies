@@ -36,8 +36,7 @@ public final class Studies {
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
     private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("stable", "Stable"),
-            Map.entry("netherworker", "Nether Mine"));
+            Map.entry("stable", "Stable"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
     /** What undoing a finished research costs (config): the mod's 1 ancient tome (null here), or a vanilla item. */
@@ -148,7 +147,8 @@ public final class Studies {
             case Effects.INVENTORY_SLOTS -> "Citizens carry " + n + " more stacks";
             case Effects.FISH_TREASURE -> "Fishermen find treasure anywhere, not only at sea";
             case Effects.LOOTING -> "Herders butcher as if with Looting I";
-            case Effects.MINER_FIRE_RESISTANCE -> "Miners aren't hurt by fire or lava";
+            case Effects.MINER_FIRE_RESISTANCE -> "Miners and nether miners aren't hurt by fire or lava";
+            case Effects.NETHER_LOG -> "The Nether Mine keeps a log of its last trip";
             case Effects.WORK_IN_RAIN -> "Every worker works in the rain";
             case Effects.MELEE_DAMAGE -> "Knights deal " + n + " more damage";
             case Effects.MELEE_ARMOR -> "Knights' armor protects " + pct + " more";

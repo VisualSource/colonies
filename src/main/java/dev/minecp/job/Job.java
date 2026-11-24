@@ -108,6 +108,7 @@ public abstract class Job {
             case GRAVEYARD -> sk(STRENGTH, MANA);
             case HOSPITAL, ENCHANTER -> sk(MANA, KNOWLEDGE);
             case UNIVERSITY, SCHOOL -> sk(KNOWLEDGE, MANA);
+            case NETHER_WORKER -> sk(ADAPTABILITY, STRENGTH);
             case LIBRARY -> sk(INTELLIGENCE, INTELLIGENCE);
             case PLANTATION -> sk(AGILITY, DEXTERITY);
             case BEEKEEPER -> sk(DEXTERITY, ADAPTABILITY);
@@ -264,6 +265,16 @@ public abstract class Job {
     /** Once a second, worker or not (the composter's barrels ferment on their own). */
     public void everySecond() {}
 
+    /** Its worker is out of the world (the nether miner on a trip): it has no body, and no day of its own. */
+    public boolean away() {
+        return false;
+    }
+
+    /** Each tick its worker is in the world, before all else (the nether miner back from a trip). @return true if that was its tick (it may have died). */
+    public boolean arrived(Colonist w) {
+        return false;
+    }
+
     /** Called each tick while work stops (night, rain). @return false while it is still getting out of its work place. */
     public boolean leaveWork(Colonist w) {
         return true;
@@ -281,6 +292,12 @@ public abstract class Job {
      */
     public double reaching(double damage, DamageType type, Entity source, Colonist w) {
         return damage;
+    }
+
+    /** The mod's Hot Boots (miners and nether miners): lava, magma, fire and burning (its four fire damage types, not campfires) do no harm. */
+    boolean hotBoots(DamageType type) {
+        return (type == DamageType.LAVA || type == DamageType.HOT_FLOOR || type == DamageType.IN_FIRE || type == DamageType.ON_FIRE)
+                && colony.research.effect(Effects.MINER_FIRE_RESISTANCE) > 0;
     }
 
     /** Fire (lava, magma, campfires, fireballs too) or lightning, by vanilla's damage type tags, as the mod's damage checks. */

@@ -707,9 +707,11 @@ public final class Colony {
         sickness.tick();
         double walking = 1 + research.effect(Effects.WALKING);
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
-            if (!c.tick()) continue;
-            c.pace = walking; // for its next tick's walk; working sets its job's pace below
             Job job = jobOf(c);
+            if (job != null && job.away()) { c.despawn(); continue; }
+            if (!c.tick()) continue;
+            if (job != null && job.arrived(c)) continue;
+            c.pace = walking; // for its next tick's walk; working sets its job's pace below
             if (colonyTick % 20 == 0) { // the mod's gatherXp, every 20 ticks: the jobless take orbs too, but learn nothing from them
                 double xp = c.gatherOrbs();
                 if (xp > 0 && job != null) job.absorb(c, xp);

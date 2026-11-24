@@ -14,7 +14,8 @@ public enum Tool {
     SWORD("a sword", Tag.ITEMS_SWORDS, null), // a guard's weapon: mines nothing
     BOW("a bow", m -> m == Material.BOW), // a ranger's (the mod's bow equipment: wood level, plus enchantments)
     ROD("a fishing rod", m -> m == Material.FISHING_ROD),
-    SHEARS("shears", m -> m == Material.SHEARS);
+    SHEARS("shears", m -> m == Material.SHEARS),
+    FLINT_AND_STEEL("flint and steel", m -> m == Material.FLINT_AND_STEEL);
 
     final String label;
     private final java.util.function.Predicate<Material> items;

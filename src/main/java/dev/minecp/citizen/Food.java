@@ -45,7 +45,7 @@ public final class Food {
         return m.isEdible() && !NEVER.contains(m) && !cooked().containsKey(m) && nutrition(item) > 0;
     }
 
-    static int nutrition(ItemStack item) {
+    public static int nutrition(ItemStack item) {
         var food = item.getData(DataComponentTypes.FOOD);
         return food == null ? 0 : food.nutrition();
     }
