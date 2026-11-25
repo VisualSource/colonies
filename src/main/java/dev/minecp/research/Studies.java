@@ -394,6 +394,11 @@ public final class Studies {
         started.forEach((id, e) -> s.set(id.replace('/', '|'), e.done ? -1 : e.progress)); // -1: finished
     }
 
+    /** How many researches are finished (the raid level counts them). */
+    public int completed() {
+        return (int) started.values().stream().filter(e -> e.done).count();
+    }
+
     public void load(ConfigurationSection s) {
         for (String k : s.getKeys(false)) {
             String id = k.replace('|', '/');

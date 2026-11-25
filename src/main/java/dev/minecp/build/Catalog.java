@@ -26,8 +26,8 @@ public final class Catalog {
     private static final String FIELDS = "agriculture/fields";
     /** Top folders of builds without a hut; huts the plugin doesn't have (barracks, school...) aren't offered. */
     private static final List<String> BUILDS = List.of("decorations", "infrastructure", "walls", FIELDS);
-    /** Not placed by hand: the miner's shafts, and the supply camp and ship (the mod places those from their items). */
-    private static final List<String> HIDDEN = List.of("infrastructure/mineshafts", "decorations/supplies");
+    /** Not placed by hand: the miner's shafts, the supply camp and ship (the mod places those from their items), and the raiders' ships. */
+    private static final List<String> HIDDEN = List.of("infrastructure/mineshafts", "decorations/supplies", "decorations/ships");
 
     /** One thing to place: its path in the pack without a level, what it is, and whether its files have levels. */
     public record Entry(String path, String name, Hut.Type hut, boolean leveled) {

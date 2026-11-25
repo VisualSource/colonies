@@ -1120,7 +1120,7 @@ public final class Guard extends Job {
 
     /** Alive, and not too far to chase (the mod's isWithinPersecutionDistance). */
     private boolean valid(LivingEntity e) {
-        return e != null && e.isValid() && !e.isDead() && e.getWorld().equals(hut.block.getWorld())
+        return e != null && e.isValid() && !e.isDead() && !dev.minecp.colony.Mercenaries.is(e) && e.getWorld().equals(hut.block.getWorld())
                 && inReach(e.getLocation(), ranged() ? range() : druid() ? druidRange() : reach());
     }
 

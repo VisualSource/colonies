@@ -88,6 +88,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         chunkLoading.strictness = Math.clamp(cfg.getInt("chunk-loading.strictness", 3), 1, 15);
         dev.minecp.colony.Raids.enabled = cfg.getBoolean("raids.enabled", true);
         dev.minecp.colony.Raids.breakDoors = cfg.getBoolean("raids.break-doors", true);
+        dev.minecp.colony.Raids.breakBlocks = cfg.getBoolean("raids.break-blocks", true);
         dev.minecp.colony.Raids.difficulty = Math.clamp(cfg.getInt("raids.difficulty", 5), 0, 10);
         dev.minecp.colony.Raids.maxRaiders = Math.clamp(cfg.getInt("raids.max-raiders", 80), 6, 400);
         dev.minecp.colony.Raids.averageNights = Math.clamp(cfg.getInt("raids.average-nights", 14), 1, 50);
@@ -525,7 +526,21 @@ public final class MineCP extends JavaPlugin implements Listener {
             var from = by.getDamager() instanceof org.bukkit.entity.Projectile pr && pr.getShooter() instanceof org.bukkit.entity.Entity s ? s : by.getDamager();
             if (from.getScoreboardTags().contains(dev.minecp.colony.Raids.TAG)) { e.setCancelled(true); return; }
         }
-        colonies.values().forEach(c -> c.raids.hurt(e.getEntity()));
+        colonies.values().forEach(c -> c.raids.hurt(e));
+    }
+
+    /**
+     * Mercenaries pick their own targets (monsters, and whoever hurts them): vanilla's vindicator goals are cancelled,
+     * and iron golems leave them be.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onMercenaryTarget(org.bukkit.event.entity.EntityTargetEvent e) {
+        var reason = e.getReason();
+        boolean own = reason == org.bukkit.event.entity.EntityTargetEvent.TargetReason.CUSTOM || reason == org.bukkit.event.entity.EntityTargetEvent.TargetReason.TARGET_ATTACKED_ENTITY
+                || reason == org.bukkit.event.entity.EntityTargetEvent.TargetReason.FORGOT_TARGET || reason == org.bukkit.event.entity.EntityTargetEvent.TargetReason.TARGET_DIED;
+        if (dev.minecp.colony.Mercenaries.is(e.getEntity()) && !own) e.setCancelled(true);
+        else if (e.getEntity() instanceof org.bukkit.entity.IronGolem && dev.minecp.colony.Mercenaries.is(e.getTarget())
+                && reason != org.bukkit.event.entity.EntityTargetEvent.TargetReason.TARGET_ATTACKED_ENTITY) e.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)

@@ -70,8 +70,11 @@ val convertTasks = packSources.keys.associateWith { pack ->
             if (!source.asFile.isDirectory) throw GradleException("No blueprints at ${source.asFile}: clone MineColonies into minecolonies/")
             out.get().asFile.deleteRecursively()
         }
-        commandLine("python3", "tools/convert_blueprints.py", source.asFile.path, out.get().asFile.path, report.asFile.path, "--version", v,
-                "--pack-name", packSources.getValue(pack)) // structures named minecp:<style>/<path>, as in the mod
+        // the original pack, which every server has, also carries the Raider's Bane enchantment (src/main/datapack)
+        val extra = if (pack == "original") listOf("--extra", layout.projectDirectory.dir("src/main/datapack").asFile.path) else listOf()
+        if (pack == "original") inputs.dir("src/main/datapack")
+        commandLine(listOf("python3", "tools/convert_blueprints.py", source.asFile.path, out.get().asFile.path, report.asFile.path, "--version", v,
+                "--pack-name", packSources.getValue(pack)) + extra) // structures named minecp:<style>/<path>, as in the mod
     }
 }
 

@@ -40,6 +40,8 @@ raids:
   minimum-nights: 10
   # Zombie raiders break doors (on Normal and Hard).
   break-doors: true
+  # Raiders stuck on their way break blocks in it (not hut blocks or containers).
+  break-blocks: true
 
 # Commands MineColonies' server config can open to players who aren't admins (minecp.admin); its defaults.
 commands:

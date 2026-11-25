@@ -112,8 +112,9 @@ public final class Enchanter extends Crafter {
 
     /**
      * The table for a hut level: the tiers' entries, plus Fortune I (level 3) and II (level 4) at 1, Infinity in tiers 4
-     * and 5, and tier 5's Mending, Multishot, Silk Touch and Fortune III. Ours: each tier as "level t or the
-     * enchantment's highest" for all 22 (the mod leaves a few out of some tiers), and no Raider's Bane.
+     * and 5, tier 5's Mending, Multishot, Silk Touch and Fortune III, and Raider's Bane I at 15 from level 3 and II at 1
+     * at level 5 (when the original style's pack, which adds it, is installed). Ours: each tier as "level t or the
+     * enchantment's highest" for all 22 (the mod leaves a few out of some tiers).
      */
     static List<Entry> table(int hutLevel) {
         List<Entry> out = new ArrayList<>();
@@ -125,6 +126,8 @@ public final class Enchanter extends Crafter {
             if (t == 5) for (String k : new String[]{"mending", "multishot", "silk_touch"}) add(out, k, 1, weights[t - 1]);
             if (t == 5) add(out, "fortune", 3, weights[t - 1]);
         }
+        if (hutLevel >= 3) add(out, "minecp:raiders_bane", 1, 15); // Raider's Bane, from the original style's pack
+        if (hutLevel == 5) add(out, "minecp:raiders_bane", 2, 1);
         if (hutLevel == 3) add(out, "fortune", 1, 1);
         if (hutLevel == 4) add(out, "fortune", 2, 1);
         return out;

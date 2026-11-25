@@ -15,6 +15,7 @@ import argparse
 import collections
 import json
 import os
+import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -77,7 +78,7 @@ STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
 SPOT_TAG = "minecp_spot_"  # + the mod's tag, on its sitting and standing spots: sit, sit_in, sit_out, stand_in, stand_out (BuildOrder.SPOT_TAG)
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "cocoa", "vine", "kelp", "seagrass", "seapickle", "glowb_vine", "weepv_vine", "twistv_vine",
-              "crimsonp_ground", "warpedp_ground", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
+              "crimsonp_ground", "warpedp_ground", "normal", "boss", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points, a raid ship's spawners: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
 WAYPOINT_TAG = "minecp_waypoint"  # marker on a waypoint (BuildOrder.WAYPOINT_TAG)
@@ -338,10 +339,13 @@ def main():
     ap.add_argument("--blocks", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "blocks-26.3.json"))
     ap.add_argument("--pack-name", default=None, help="structure path prefix, defaults to the pack folder name")
     ap.add_argument("--version", default=None, help="the plugin version the pack is built for, shown in its description")
+    ap.add_argument("--extra", default=None, help="a folder copied into the pack as it is (the original pack: the Raider's Bane enchantment)")
     a = ap.parse_args()
     blocks = json.load(open(a.blocks))
     pack = a.pack_name or os.path.basename(os.path.normpath(a.pack_dir))
     os.makedirs(a.datapack_dir, exist_ok=True)
+    if a.extra:
+        shutil.copytree(a.extra, a.datapack_dir, dirs_exist_ok=True)
     with open(os.path.join(a.datapack_dir, "pack.mcmeta"), "w") as f:
         json.dump({"pack": {"description": f"MineCP structures: {pack}" + (f" (Colonies {a.version})" if a.version else ""),
                             "min_format": DATA_FORMAT, "max_format": DATA_FORMAT}}, f, indent=2)

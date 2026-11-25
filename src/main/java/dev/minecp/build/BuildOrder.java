@@ -300,7 +300,7 @@ public final class BuildOrder {
      * instant placement of its supplies); foundation filler becomes dirt where the ground wasn't solid, and keeps the
      * ground where it was.
      */
-    void paste() {
+    public void paste() {
         java.util.Map<Block, BlockData> ground = new java.util.HashMap<>();
         for (Step s : steps) if (s.fill && s.block.getType().isSolid()) ground.put(s.block, s.block.getBlockData());
         var template = load(structure);
@@ -343,6 +343,15 @@ public final class BuildOrder {
     /** The box this order covers: minX, maxX+1, minZ, maxZ+1. */
     public int[] footprint() {
         return new int[]{minX, maxX + 1, minZ, maxZ + 1};
+    }
+
+    /** Where a structure's anchor (its primary offset's marker) is inside it, unturned, or null: a raid ship is placed by it. */
+    public static BlockVector anchorOf(String structure) {
+        var s = load(structure);
+        if (s == null) return null;
+        for (var e : s.getEntities())
+            if (e.getScoreboardTags().contains(ANCHOR_TAG)) return new BlockVector(e.getLocation().getBlockX(), e.getLocation().getBlockY(), e.getLocation().getBlockZ());
+        return null;
     }
 
     public static boolean exists(String structure) {

@@ -46,7 +46,7 @@ final class Commands implements TabExecutor {
     private static final String ADMIN = "minecp.admin";
     private static final int CITIZENS_ON_PAGE = 9;             // the mod's CommandCitizenList
     private static final int WALK_TICKS = 20 * 60 * 3, CLAIM_RANGE = 10; // the mod's: a walk gives up after 3 minutes; claim's range 0 to 10
-    private static final List<String> COLONY = List.of("info", "addOfficer", "setRank", "raid", "claim", "claiminfo", "chunkstatus", "reclaimchunks");
+    private static final List<String> COLONY = List.of("info", "addOfficer", "setRank", "raid", "raidhistory", "claim", "claiminfo", "chunkstatus", "reclaimchunks");
     private static final List<String> CITIZENS = List.of("list", "info", "kill", "teleport", "walk", "spawnNew", "reload", "modify", "trackPath", "trackPathType");
     private static final List<String> RANKS = List.of("officer", "friend", "neutral", "hostile");
 
@@ -303,6 +303,16 @@ final class Commands implements TabExecutor {
                 p.sendMessage("Citizens: " + c.colonists.size() + "/" + c.capacity());
                 p.sendMessage(Component.text("Town hall: x=" + th.getX() + " y=" + th.getY() + " z=" + th.getZ(), NamedTextColor.GREEN));
                 if (!dev.minecp.colony.Raids.enabled) p.sendMessage("This colony is unable to be raided");
+                String last = c.raids.lastRaid();
+                if (last != null) p.sendMessage("Last raid: " + last);
+            }
+            case "raidhistory" -> { // <owner> (CommandRaidHistory): ours, for whoever may see the colony's info, newest first
+                if (a.length != 1) return false;
+                Colony c = colonyNamed(p, a[0]);
+                if (c == null || !officer(p, c) || !allowed(p, "colony-info")) return true;
+                List<String> past = c.raids.history();
+                if (past.isEmpty()) p.sendMessage(c.name + " hasn't been raided yet.");
+                past.forEach(p::sendMessage);
             }
             case "addOfficer" -> { // <owner> <player> (CommandAddOfficer): the player must be online, as the mod's
                 if (a.length != 2) return false;
@@ -326,7 +336,7 @@ final class Commands implements TabExecutor {
                 plugin.save(c);
                 p.sendMessage("Set player: " + target.getName() + " to rank: " + a[2].toLowerCase());
             }
-            case "raid" -> { // <owner> <now|tonight> [type] [amount] (CommandRaid, operators; no ships: ours has land raids only)
+            case "raid" -> { // <owner> <now|tonight> [type] [amount] (CommandRaid, operators)
                 if (a.length < 2 || a.length > 4) return false;
                 if (!admin(p)) return true;
                 Colony c = colonyNamed(p, a[0]);

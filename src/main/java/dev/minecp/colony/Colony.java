@@ -116,6 +116,7 @@ public final class Colony {
     public final Happiness happiness = new Happiness(this);
     public final Visitors visitors = new Visitors(this);
     public final Raids raids = new Raids(this);
+    public final Mercenaries mercenaries = new Mercenaries(this);
     public final Leisure leisure = new Leisure(this);
     public final Connections connections = new Connections(this);
     public final dev.minecp.research.Studies research = new dev.minecp.research.Studies(this);
@@ -777,6 +778,7 @@ public final class Colony {
         if (colonyTick % 20 == 0) connections.tick();
         visitors.tick();
         raids.tick();
+        mercenaries.tick();
         sickness.tick();
         double walking = 1 + research.effect(Effects.WALKING);
         boolean vines = research.effect(Effects.VINES) > 0;
@@ -927,6 +929,7 @@ public final class Colony {
         colonists.forEach(Colonist::despawn);
         visitors.despawn();
         raids.despawn();
+        mercenaries.despawn();
         huts.forEach(Colony::removeTape);
     }
 
