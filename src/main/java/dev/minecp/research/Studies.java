@@ -35,8 +35,6 @@ public final class Studies {
     }
 
     /** Names of the mod's huts that Colonies doesn't have yet, for requirements and unlocks. */
-    private static final Map<String, String> MISSING = Map.ofEntries(
-            Map.entry("stable", "Stable"));
     /** Colonies' own items that research costs ask for; set by the plugin (Items isn't static). */
     public static Predicate<ItemStack> clipboard = i -> false;
     /** What undoing a finished research costs (config): the mod's 1 ancient tome (null here), or a vanilla item. */
@@ -115,7 +113,7 @@ public final class Studies {
     /** A hut by the mod's building id, as players read it. */
     private static String hutName(String modId) {
         Hut.Type t = hut(modId);
-        return t != null ? t.title : MISSING.getOrDefault(modId, modId) + " (not in Colonies yet)";
+        return t != null ? t.title : modId + " (not in Colonies yet)";
     }
 
     /** What an effect does, for the menus: hut unlocks by name; the rest by the mod's effect id until Colonies has them. */

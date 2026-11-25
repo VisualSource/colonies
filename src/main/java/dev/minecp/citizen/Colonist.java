@@ -192,6 +192,13 @@ public final class Colonist {
             if (!entitiesTicking(last)) return false;
             spawn();
         }
+        if (mount != null) { // on horseback: the horse is its legs, its own legs wait under it
+            if (!mount.isValid() || mount.isDead() || --rideKeep < 0 || !mount.getPassengers().contains(body)) { dismount(); return true; }
+            Location at = mount.getLocation();
+            legs.teleport(at);
+            last = at;
+            return true;
+        }
         if (bed != null) { // lying still: keep the body on the bed (respawning resets its pose)
             if (body.getPose() != Pose.SLEEPING) lieDown();
             return true;
@@ -539,7 +546,49 @@ public final class Colonist {
     }
 
     public boolean isMoving() {
+        if (mount != null) return mount.getPathfinder().hasPath();
         return climb != null || route != null;
+    }
+
+    // ---- on horseback (a cavalry guard: the horse is its legs, moved by vanilla's pathfinder, which knows its size) ----
+
+    private org.bukkit.entity.AbstractHorse mount;
+    private int rideKeep; // ticks it stays mounted unless its job keeps it riding
+
+    /** Gets on {@code horse}, which then carries it wherever it walks. @return false if it can't (not spawned, or the horse is taken). */
+    public boolean ride(org.bukkit.entity.AbstractHorse horse) {
+        if (body == null || seat != null || bed != null || !horse.getPassengers().isEmpty()) return false;
+        stopWalking();
+        if (!horse.addPassenger(body)) return false;
+        mount = horse;
+        rideKeep = 2;
+        return true;
+    }
+
+    /** Its job wants it to stay mounted this tick; any tick it doesn't (a meal, bed, a healer, fleeing), it gets off. */
+    public void keepRiding() {
+        rideKeep = 2;
+    }
+
+    /** The horse it rides, or null. */
+    public org.bukkit.entity.AbstractHorse mount() {
+        return mount;
+    }
+
+    /** Gets off where the horse stands; the horse stays there. */
+    private void dismount() {
+        if (mount == null) return;
+        org.bukkit.entity.AbstractHorse h = mount;
+        mount = null;
+        dev.minecp.job.CavalryHorse.dismounted(h);
+        if (body != null) h.removePassenger(body);
+        if (h.isValid()) h.getPathfinder().stopPathfinding();
+        if (legs != null) legs.teleport(h.isValid() ? h.getLocation() : last);
+    }
+
+    /** On horseback, walking anywhere is riding there. */
+    private boolean rideTo(Location to) {
+        return mount.getPathfinder().moveTo(to, 1.0);
     }
 
     /**
@@ -547,6 +596,7 @@ public final class Colonist {
      * @return false if no path gets that close, or it already stands at the closest point.
      */
     public boolean approach(Location to, double within) {
+        if (mount != null) return rideTo(to);
         // Partial paths can take turns ending in two dead ends near the target (a ledge and the pocket beside it),
         // each one far enough from the other to pass the check below: give up once they stop getting it closer.
         double now = legs.getLocation().distance(to);
@@ -876,6 +926,7 @@ public final class Colonist {
 
     /** Walks to exactly {@code to}. @return false if no full path leads there. */
     public boolean walk(Location to) {
+        if (mount != null) return rideTo(to);
         Block b = to.getBlock();
         int bx = b.getX(), by = b.getY(), bz = b.getZ();
         Route.Goal goal = (x, y, z) -> x == bx && y == by && z == bz;
@@ -890,6 +941,7 @@ public final class Colonist {
      * @return the spot it is walking to, or null if none can be reached.
      */
     public Location walkBeside(Block block) {
+        if (mount != null) return rideTo(block.getLocation().toCenterLocation()) ? block.getLocation().toCenterLocation() : null;
         Route.Goal goal = besideGoal(block);
         Route.Result r = plan(block.getX(), block.getY(), block.getZ(), goal);
         if (r == null || !r.reached()) return null;
@@ -900,6 +952,7 @@ public final class Colonist {
 
     /** Teleports the legs while walking (not into bed): counted, it's what better movement should make rare. */
     private void warp(Location to) {
+        dismount(); // the horse stays behind
         standUp();
         stats.teleports++;
         legs.teleport(to);
@@ -971,6 +1024,7 @@ public final class Colonist {
     }
 
     public void despawn() {
+        dismount();
         for (Block b : opened) // doors and fence gates it opened
             if (toggles(b) && b.getBlockData() instanceof org.bukkit.block.data.Openable d && d.isOpen()) { d.setOpen(false); b.setBlockData(d); }
         opened.clear();

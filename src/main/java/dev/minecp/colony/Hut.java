@@ -167,6 +167,10 @@ public final class Hut {
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A guard (knight or ranger) patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Guard", Guard::new, false),
+        // Unlocked by Mounted Combat; the mod's recipe: a golden apple in the middle. Cavalry (one a level) and a stablemaster
+        // (Colony.addJob); only the original style has it (FALLBACK_STYLE)
+        STABLE("Stable", Material.CHEST, "military/stable", "stable", "Cavalry ride out from here; a stablemaster keeps their horses",
+                () -> new RecipeChoice.MaterialChoice(Material.GOLDEN_APPLE), "Cavalry", Guard::new, false),
         // No research; the mod's recipe: an iron sword and a bow beside planks (Items). Two guards that each hold a spot;
         // colony connections start at it (Connections)
         GATE_HOUSE("Gatehouse", Material.CHEST, "military/gatehouse", "gatehouse", "Two guards stand watch at its gate; visitors arrive there",
@@ -312,7 +316,7 @@ public final class Hut {
 
         /** Its workers are guards (the mod's AbstractBuildingGuards). */
         boolean guards() {
-            return this == GUARD_TOWER || this == BARRACKS_TOWER || this == GATE_HOUSE;
+            return this == GUARD_TOWER || this == BARRACKS_TOWER || this == GATE_HOUSE || this == STABLE;
         }
 
         /** Its workers live there instead of in a house (the mod's WorkAtHomeBuildingModule). */
@@ -336,7 +340,7 @@ public final class Hut {
 
         /** How many work here at {@code level}: a barracks tower's guards, one per level (the mod's); one elsewhere. */
         int workers(int level) {
-            return this == GATE_HOUSE ? 2 : this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
+            return this == GATE_HOUSE ? 2 : this == STABLE ? level : this == BARRACKS_TOWER || this == ARCHERY || this == COMBAT_ACADEMY ? level : this == LIBRARY ? 2 * level : 1; // the mod's: a library's students 2 a level
         }
 
         /** Where some styles keep a hut instead: medieval birch's enchanter, cavern's gatehouse. */

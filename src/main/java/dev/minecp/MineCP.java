@@ -576,6 +576,14 @@ public final class MineCP extends JavaPlugin implements Listener {
             if (hit instanceof org.bukkit.entity.Enemy != adverse) e.setIntensity(hit, 0);
     }
 
+    /** Hits on a cavalry horse: the mod's rules for it, with its colony's barding research (CavalryHorse.hurt). */
+    @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
+    public void onCavalryHorseHurt(org.bukkit.event.entity.EntityDamageEvent e) {
+        if (!dev.minecp.job.CavalryHorse.is(e.getEntity())) return;
+        var home = dev.minecp.job.CavalryHorse.home((org.bukkit.entity.AbstractHorse) e.getEntity());
+        dev.minecp.job.CavalryHorse.hurt(e, home == null ? null : colonyAt(home));
+    }
+
     /** Hits on a citizen's body or legs hurt the citizen instead (Colony.hurt). */
     @EventHandler(ignoreCancelled = true, priority = org.bukkit.event.EventPriority.LOW)
     public void onDamage(org.bukkit.event.entity.EntityDamageEvent e) {

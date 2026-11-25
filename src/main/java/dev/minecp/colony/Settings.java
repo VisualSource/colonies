@@ -58,7 +58,7 @@ public final class Settings {
     public static final String MOVE_IN = "move_in", AUTO_HIRING = "auto_hiring", AUTO_HOUSING = "auto_housing",
             TAPE = "construction_tape", ENTER_LEAVE = "enter_leave_messages";
     public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
-            BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing",
+            BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing", PATROL_INTERVAL = "patrol_interval",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
@@ -133,6 +133,11 @@ public final class Settings {
             // ours: the mod picks the guard type with its hiring modules (knight, ranger, druid), here a choice
             case GUARD_TOWER -> TOWER;
             case BARRACKS_TOWER -> BARRACKS_TOWER;
+            // the mod's STABLE_SETTINGS: no mine to patrol; cavalry ride out every so many minutes
+            case STABLE -> List.of(words(GUARD_TASK, "Task", "PATROL", "GUARD", "FOLLOW"),
+                    words(PATROL_MODE, "Patrol points (manual: set with the Guard Scepter)", "AUTO", "MANUAL"), words(FOLLOW_MODE, "Follow", "TIGHT", "LOOSE"),
+                    bool(RETREAT, "Retreat when badly hurt (with research)"), BREED,
+                    number(PATROL_INTERVAL, "Minutes between patrols", 6, 1, 60));
             // the mod's: guard only, retreat, hire trainees; ours: a knight and a ranger by default (it has spots for 2 of each)
             case GATE_HOUSE -> List.of(guardType(0, "Guard 1 type", "KNIGHT", "RANGER"), guardType(1, "Guard 2 type", "RANGER", "KNIGHT"),
                     words(GUARD_TASK, "Task", "GUARD"), bool(RETREAT, "Retreat when badly hurt (with research)"), HIRE_TRAINEES);

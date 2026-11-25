@@ -54,6 +54,12 @@ public final class Guard extends Job {
     // The mod's numbers (GuardConstants, AbstractBuildingGuards, BuildingGuardTower):
     private static final int ATTACK_DELAY = 32, ATTACK_DELAY_MIN = 16; // KNIGHT_ATTACK_DELAY_BASE less adaptability / 3, at least KNIGHT_ATTACK_DELAY_MIN
     private static final double REACH = 2;             // MAX_DISTANCE_FOR_ATTACK
+    // Cavalry (the mod's EntityAICavalry, JobCavalry, BuildingStable):
+    private static final double CAVALRY_RANGE = 1.2;   // CAVALRY_RANGE_MULTIPLIER
+    private static final int MOUNT_TICKS = 50;         // GUARD_MOUNT_INTERVAL: how often it looks for a horse
+    private static final int HORSE_SEARCH = 50, HORSE_SEARCH_HEIGHT = 20; // HORSE_SEARCH_RADIUS, and 20 up and down
+    private static final double MOUNT_REACH = 2;
+    private static final int STABLE_REST_DISPERSION = 10, STABLE_REST_WANDER = 5, NO_HORSE_WANDER = 15;
     private static final double BASE_DAMAGE = 3;       // BASE_PHYSICAL_DAMAGE, on top of the sword's
     private static final int VISION_BASE = 15, VISION_PER_LEVEL = 3; // BASE_VISION_RANGE + VISION_RANGE_PER_LEVEL x level
     private static final int Y_VISION = 3;
@@ -150,7 +156,8 @@ public final class Guard extends Job {
         RANGER(Tool.BOW, 0, Effects.ARCHER_ARMOR, AGILITY, ADAPTABILITY),
         HUSCARL(Tool.AXE, 15, Effects.MELEE_ARMOR, ADAPTABILITY, STAMINA),
         MARKSMAN(Tool.CROSSBOW, 0, Effects.ARCHER_ARMOR, AGILITY, ADAPTABILITY),
-        DRUID(null, 12, null, MANA, FOCUS); // DRUID_HP_BONUS; it throws potions
+        DRUID(null, 12, null, MANA, FOCUS), // DRUID_HP_BONUS; it throws potions
+        CAVALRY(Tool.SPEAR, 20, Effects.MELEE_ARMOR, ADAPTABILITY, STAMINA); // CAVALRY_HP_BONUS; a Stable's, on horseback
 
         final Tool weapon;
         final int health;
@@ -201,13 +208,23 @@ public final class Guard extends Job {
 
     /** Its type, from its tower's setting for its slot. */
     private Type type() {
+        if (hut.type == Hut.Type.STABLE) return Type.CAVALRY; // a Stable's guards are all cavalry
         if (slot < 0) slot = colony.jobsAt(hut).indexOf(this); // stays -1 until it is one of the colony's jobs
         return Type.valueOf(hut.setting(Settings.guardTypeKey(Math.max(slot, 0))));
     }
 
-    /** A knight or a huscarl. */
+    /** A knight, a huscarl or cavalry (the mod's CavalryCombatAI is the knight's melee). */
     private boolean melee() {
-        return type() == Type.KNIGHT || huscarl();
+        return type() == Type.KNIGHT || huscarl() || cavalry();
+    }
+
+    private boolean cavalry() {
+        return type() == Type.CAVALRY;
+    }
+
+    /** How close it must be to strike: cavalry reach 1.2 times as far (CAVALRY_RANGE_MULTIPLIER). */
+    private double reach() {
+        return cavalry() ? REACH * CAVALRY_RANGE : REACH;
     }
 
     /** A ranger or a marksman. */
@@ -261,7 +278,7 @@ public final class Guard extends Job {
     @Override
     public double maxHealth() {
         double tower = hut.level < 1 ? 0 : HP_PER_LEVEL * towerLevel() + (hut.type == Hut.Type.GUARD_TOWER ? HP_TOWER : 0);
-        double skill = switch (type()) { case KNIGHT, HUSCARL -> level(STAMINA); case DRUID -> level(MANA) / 2.0; default -> 0; };
+        double skill = switch (type()) { case KNIGHT, HUSCARL, CAVALRY -> level(STAMINA); case DRUID -> level(MANA) / 2.0; default -> 0; };
         return Colonist.MAX_HEALTH + type().health + skill + tower;
     }
 
@@ -565,6 +582,10 @@ public final class Guard extends Job {
             w.wander(hut.block.getLocation().toCenterLocation());
             return;
         }
+        if (cavalry()) {
+            if (w.mount() == null && napTicks == 0 && !mountUp(w)) return; // the mod's FIND_MOUNT: no fight, patrol, guard or follow without a horse
+            if (napTicks == 0) w.keepRiding(); // a nap, a meal, bed or a healer has it get off
+        }
         if (attackIn > 0) attackIn--;
         if (target != null && target.isDead()) experience(w, XP_PER_KILL); // the mod's onTargetDied: what it fought died
         if (!valid(target)) target = null;
@@ -630,6 +651,7 @@ public final class Guard extends Job {
 
     /** To the point its hut's guards patrol now; together they go on from there. One whose chunk isn't loaded counts as reached. */
     private void patrol(Colonist w) {
+        if (hut.type == Hut.Type.STABLE && !hut.post.patrolDue()) { restAtStable(w); return; }
         w.setStatus(title() + ": patrolling");
         Block to = hut.post.point();
         if (to.getWorld().isChunkLoaded(to.getX() >> 4, to.getZ() >> 4) && !w.isBeside(to)) { walkTo(w, to); return; }
@@ -741,7 +763,7 @@ public final class Guard extends Job {
     private void fight(Colonist w) {
         w.setStatus(title() + ": fighting");
         Location at = w.location(), there = target.getLocation();
-        if (at.distance(there) > REACH) {
+        if (at.distance(there) > reach()) {
             // A new route only when it stopped or the target has moved away from where it was heading: each search costs time.
             if (!w.isMoving() || chasing == null || chasing.distance(there) > 2) { w.walk(there); chasing = there.clone(); }
             return;
@@ -1099,7 +1121,7 @@ public final class Guard extends Job {
     /** Alive, and not too far to chase (the mod's isWithinPersecutionDistance). */
     private boolean valid(LivingEntity e) {
         return e != null && e.isValid() && !e.isDead() && e.getWorld().equals(hut.block.getWorld())
-                && inReach(e.getLocation(), ranged() ? range() : druid() ? druidRange() : REACH);
+                && inReach(e.getLocation(), ranged() ? range() : druid() ? druidRange() : reach());
     }
 
     /** How far above and below it looks (the mod's: rangers and druids 25 more where they guard). */
@@ -1150,6 +1172,75 @@ public final class Guard extends Job {
         };
     }
 
+    // ---- cavalry: its horse ---------------------------------------------------------------------------------------
+
+    private java.util.UUID mountId;     // the horse it last rode (saved; the mod's mount)
+    private org.bukkit.entity.AbstractHorse horse; // the one it is on its way to
+    private boolean stableChecked;
+    private int mountIn;
+
+    /**
+     * The mod's FIND_MOUNT and FIND_STABLE, every 2.5 s: the horse it rode last if free, else the nearest cavalry horse fit
+     * to fight within 50 (20 up or down); reserved, walked to and mounted. With none it first goes to its stable to look,
+     * then waits about. @return whether it is mounted.
+     */
+    private boolean mountUp(Colonist w) {
+        if (horse != null && CavalryHorse.availableTo(horse, w.id)) {
+            if (w.location().getWorld() == horse.getWorld() && w.location().distance(horse.getLocation()) <= MOUNT_REACH + 1 && w.ride(horse)) {
+                CavalryHorse.unreserve(horse);
+                mountId = horse.getUniqueId();
+                horse = null;
+                stableChecked = false;
+                note = null;
+                return true;
+            }
+            if (!w.isMoving()) { CavalryHorse.reserve(horse, w.id); w.goBeside(horse.getLocation().getBlock()); }
+            return false;
+        }
+        horse = null;
+        if (w.isMoving() || --mountIn > 0) return false;
+        mountIn = MOUNT_TICKS;
+        horse = findHorse(w);
+        if (horse != null) {
+            CavalryHorse.reserve(horse, w.id);
+            w.setStatus(title() + ": fetching its horse");
+            w.goBeside(horse.getLocation().getBlock());
+            return false;
+        }
+        if (!stableChecked) { stableChecked = true; w.setStatus(title() + ": looking for a horse"); goToHut(w); return false; }
+        note = "No cavalry horse fit to ride: the stablemaster trains horses in the stable and readies them.";
+        w.setStatus(title() + ": no horse");
+        w.walkRandom(NO_HORSE_WANDER);
+        mountIn = 200;
+        return false;
+    }
+
+    private org.bukkit.entity.AbstractHorse findHorse(Colonist w) {
+        if (mountId != null && org.bukkit.Bukkit.getEntity(mountId) instanceof org.bukkit.entity.AbstractHorse h && CavalryHorse.is(h) && CavalryHorse.availableTo(h, w.id))
+            return h;
+        org.bukkit.entity.AbstractHorse best = null;
+        double bestD = Double.MAX_VALUE;
+        for (Entity e : w.location().getWorld().getNearbyEntities(w.location(), HORSE_SEARCH, HORSE_SEARCH_HEIGHT, HORSE_SEARCH)) {
+            if (!(e instanceof org.bukkit.entity.AbstractHorse h) || !CavalryHorse.is(h) || !CavalryHorse.availableTo(h, w.id)) continue;
+            double d = w.id.equals(CavalryHorse.reservedBy(h)) ? -1 : h.getLocation().distanceSquared(w.location()); // its own reservation first
+            if (d < bestD) { bestD = d; best = h; }
+        }
+        return best;
+    }
+
+    /**
+     * Between patrols cavalry rest about their stable (the mod's patrol override): each at its own spot 5 to 10 blocks
+     * off, by its id, wandering 5 about it.
+     */
+    private void restAtStable(Colonist w) {
+        w.setStatus(title() + ": resting at the stable");
+        if (w.isMoving() || ThreadLocalRandom.current().nextInt(4) != 0) return;
+        int hash = w.id.hashCode();
+        double angle = Math.toRadians(Math.floorMod(hash, 360)), r = STABLE_REST_DISPERSION / 2.0 + Math.floorMod(hash / 31, STABLE_REST_DISPERSION / 2 + 1);
+        Location centre = hut.block.getLocation().toCenterLocation().add(Math.cos(angle) * r, 0, Math.sin(angle) * r);
+        w.walkRandom(centre, STABLE_REST_WANDER);
+    }
+
     // ---- saving and ending ---------------------------------------------------------------------------------------
 
     @Override
@@ -1157,6 +1248,7 @@ public final class Guard extends Job {
         super.save(s, c);
         armor.forEach((slot, item) -> s.set("armor." + slot.name(), Base64.getEncoder().encodeToString(item.serializeAsBytes())));
         if (shield != null) s.set("shield", Base64.getEncoder().encodeToString(shield.serializeAsBytes()));
+        if (mountId != null) s.set("mount", mountId.toString());
     }
 
     @Override
@@ -1167,6 +1259,7 @@ public final class Guard extends Job {
             armor.put(EquipmentSlot.valueOf(slot), ItemStack.deserializeBytes(Base64.getDecoder().decode(as.getString(slot))));
         String saved = s.getString("shield");
         if (saved != null) shield = ItemStack.deserializeBytes(Base64.getDecoder().decode(saved));
+        if (s.getString("mount") instanceof String id) mountId = java.util.UUID.fromString(id);
     }
 
     @Override

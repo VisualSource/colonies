@@ -117,7 +117,10 @@ public final class Catalog {
     private static List<String> files(String style) {
         if (style.equals(Hut.Type.FALLBACK_STYLE)) return own(style);
         TreeSet<String> all = new TreeSet<>(own(style));
-        all.addAll(own(Hut.Type.FALLBACK_STYLE)); // what any style lacks it borrows from the original style (only its quarries are installed)
+        for (String f : own(Hut.Type.FALLBACK_STYLE)) { // a hut the style lacks it borrows from the original style (the quarries, the stable)
+            Entry e = entry(f);
+            if (e != null && e.hut() != null && e.hut().structure(style, 1).startsWith(Hut.Type.FALLBACK_STYLE + "/")) all.add(f);
+        }
         return List.copyOf(all);
     }
 

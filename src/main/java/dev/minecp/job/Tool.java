@@ -15,6 +15,7 @@ public enum Tool {
     BOW("a bow", m -> m == Material.BOW), // a ranger's (the mod's bow equipment: wood level, plus enchantments)
     CROSSBOW("a crossbow", m -> m == Material.CROSSBOW), // a marksman's
     ROD("a fishing rod", m -> m == Material.FISHING_ROD),
+    SPEAR("a spear", m -> m.name().endsWith("_SPEAR")), // a cavalry guard's weapon (the mod's spear): mines nothing
     SHEARS("shears", m -> m == Material.SHEARS),
     FLINT_AND_STEEL("flint and steel", m -> m == Material.FLINT_AND_STEEL);
 

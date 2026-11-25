@@ -27,7 +27,7 @@ class CatalogTest {
         assertEquals(Hut.Type.BARRACKS, Catalog.entry("military/barracks1").hut());
         assertNull(Catalog.entry("military/barrackstower1"), "comes with its barracks");
         assertEquals(Hut.Type.GATE_HOUSE, Catalog.entry("military/gatehouse1").hut());
-        assertNull(Catalog.entry("military/stable1"), "a hut MineCP doesn't have");
+        assertEquals(Hut.Type.STABLE, Catalog.entry("military/stable1").hut());
     }
 
     @Test

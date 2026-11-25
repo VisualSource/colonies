@@ -212,7 +212,8 @@ public final class Menus {
         if (job instanceof dev.minecp.job.Enchanter en && h.level > 0)
             buttons.add(button("Gather targets (" + en.targets.size() + ")", p, c, h, player -> gatherTargets(player, c, h, en)));
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
-            java.util.Set<String> offered = new java.util.HashSet<>(); // one Hire button for the first open job (a Mine: one for a miner, one for a quarrier)
+            java.util.Set<String> offered = new java.util.HashSet<>(); // one Hire button for the first open job (a Mine: one for a miner, one for a quarrier; a Stable: a stablemaster, cavalry)
+            boolean twoJobs = h.type == Hut.Type.MINER || h.type == Hut.Type.STABLE; // its jobs hired apart
             for (Job j : jobs) {
                 Colonist worker = c.worker(j);
                 if (worker != null) {
@@ -221,8 +222,8 @@ public final class Menus {
                         plugin.save(c);
                         hut(player, c, h);
                     }));
-                } else if (c.canHire(j) && offered.add(h.type == Hut.Type.MINER ? j.title() : "")) {
-                    buttons.add(button("Hire a " + (h.type == Hut.Type.MINER ? j.title() : h.type.worker).toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
+                } else if (c.canHire(j) && offered.add(twoJobs ? j.title() : "")) {
+                    buttons.add(button("Hire a " + (twoJobs ? j.title() : h.type.worker).toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
                 }
             }
             if (h.type.isHome()) {

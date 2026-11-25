@@ -72,7 +72,7 @@ GRAVE_TAG = "minecp_grave"                           # tag of the marker entity 
 STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"),
                  "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
-PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal: the mod's tags
+PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
 ANCHOR_TAG = "minecp_anchor"  # marker at the primary offset of a blueprint with no hut block (a quarry's shaft; BuildOrder.ANCHOR_TAG)

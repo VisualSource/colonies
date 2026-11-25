@@ -32,6 +32,7 @@ public final class GuardPost {
     private static final int PATROL_BASE = 50, PATROL_PER_LEVEL = 30; // PATROL_BASE_DIST, PATROL_DISTANCE
     private static final int WAIT = 1, TIMEOUT = 5;      // colony ticks: for the others once the first is there, and to get there at all
     private static final int FAR = 20;                   // PathJobRandomPos: a random patrol point is at least this far on
+    private static final double CAVALRY_RANGE = 1.5;     // CAVALRY_PATROL_RANGE_BOOST
     private static final int TELESCOPE_RANGE = 500;      // how far from the town hall that research lets them rally
 
     /** Whether an item is an active rally banner for this guard hut (the plugin's Items). */
@@ -48,6 +49,7 @@ public final class GuardPost {
     private int timer;
     private UUID rally;
     private Block rallyAt; // a colony banner, in place of a player
+    private long lastPatrol; // a Stable's: world time its cavalry last set off (saved; the mod's lastPatrolTime)
 
     GuardPost(Hut hut) {
         this.hut = hut;
@@ -61,7 +63,18 @@ public final class GuardPost {
 
     /** How far from the hut its patrol points and the spot it guards may be. */
     public int range() {
-        return PATROL_BASE + PATROL_PER_LEVEL * hut.level;
+        int r = PATROL_BASE + PATROL_PER_LEVEL * hut.level;
+        return hut.type == Hut.Type.STABLE ? (int) (r * CAVALRY_RANGE) : r;
+    }
+
+    /** A Stable's cavalry set off again once its patrol interval (minutes) has passed; other guards always patrol. */
+    public boolean patrolDue() {
+        return hut.type != Hut.Type.STABLE || hut.block.getWorld().getGameTime() - lastPatrol >= hut.number(Settings.PATROL_INTERVAL) * 1200L;
+    }
+
+    /** Its guards: who works there but a Stable's stablemaster. */
+    private List<Colonist> guards(Colony colony) {
+        return colony.jobsAt(hut).stream().filter(j -> !(j instanceof dev.minecp.job.Stablemaster)).map(colony::worker).filter(java.util.Objects::nonNull).toList();
     }
 
     // ---- patrolling -----------------------------------------------------------------------------------------------
@@ -80,26 +93,46 @@ public final class GuardPost {
     public void arrived(Colonist w, Colony colony) {
         if (arrived.isEmpty()) timer = WAIT;
         arrived.add(w.id);
-        if (colony.workersAt(hut).size() <= arrived.size() || timer <= 0) goOn(w, colony);
+        if (guards(colony).size() <= arrived.size() || timer <= 0) goOn(w, colony);
     }
 
     /** Each colony tick: they go on without those who are late. */
     void colonyTick(Colony colony) {
         if (timer <= 0 || task() != Task.PATROL || --timer > 0) return;
-        List<Colonist> guards = colony.workersAt(hut);
+        List<Colonist> guards = guards(colony);
         if (!guards.isEmpty()) goOn(guards.getFirst(), colony);
     }
 
     private void goOn(Colonist w, Colony colony) {
         timer = TIMEOUT;
         arrived.clear();
+        if (hut.type == Hut.Type.STABLE) { // the mod's startPatrolNext: one patrol each interval
+            if (!patrolDue()) return;
+            lastPatrol = hut.block.getWorld().getGameTime();
+        }
         if (next != null) { point = next; next = null; return; }
         if (hut.setting(Settings.PATROL_MODE).equals("MANUAL") && !patrol.isEmpty()) {
             point = patrol.get((patrol.indexOf(point) + 1) % patrol.size()); // the first, if it is none of them
             return;
         }
-        Block to = ThreadLocalRandom.current().nextBoolean() ? w.farSpot(FAR) : randomHut(colony);
+        Block to = ThreadLocalRandom.current().nextBoolean() ? w.farSpot(FAR) : hut.type == Hut.Type.STABLE ? cavalryPoint(colony) : randomHut(colony);
         if (to != null) point = to.getLocation().distance(hut.block.getLocation()) > range() ? hut.block : to;
+    }
+
+    /**
+     * A Stable's patrol target (the mod's cavalryPatrolFilter): a random stable or gatehouse, at one of its "patrol_point"
+     * tags, else one of its building's corners at its hut block's height.
+     */
+    private Block cavalryPoint(Colony colony) {
+        List<Hut> to = colony.huts.stream().filter(h -> h.level >= 1 && (h.type == Hut.Type.STABLE || h.type == Hut.Type.GATE_HOUSE)).toList();
+        if (to.isEmpty()) return null;
+        var rnd = ThreadLocalRandom.current();
+        Hut h = to.get(rnd.nextInt(to.size()));
+        List<Block> points = h.workSpots(colony.style, "patrol_point");
+        if (!points.isEmpty()) return points.get(rnd.nextInt(points.size()));
+        int[] f = colony.footprint(h);
+        if (f == null) return h.block;
+        return h.block.getWorld().getBlockAt(rnd.nextBoolean() ? f[0] : f[1] - 1, h.block.getY(), rnd.nextBoolean() ? f[2] : f[3] - 1);
     }
 
     private static Block randomHut(Colony colony) {
@@ -138,12 +171,12 @@ public final class GuardPost {
     /** Follow {@code p} for {@code ticks} of world time, then back to patrolling (the guard help scroll); saved, so a restart keeps it. */
     public void followFor(Player p, long ticks) {
         follow = p.getUniqueId();
-        followUntil = hut.block.getWorld().getFullTime() + ticks;
+        followUntil = hut.block.getWorld().getGameTime() + ticks;
     }
 
     /** Once a second: a scroll's time to follow is up. */
     void checkFollow() {
-        if (followUntil <= 0 || hut.block.getWorld().getFullTime() < followUntil) return;
+        if (followUntil <= 0 || hut.block.getWorld().getGameTime() < followUntil) return;
         followUntil = 0;
         if (task() == Task.FOLLOW) hut.set(Settings.GUARD_TASK, "PATROL");
     }
@@ -210,7 +243,7 @@ public final class GuardPost {
         if (rally == null && rallyAt == null) return;
         rally = null;
         rallyAt = null;
-        for (Colonist w : colony.workersAt(hut))
+        for (Colonist w : guards(colony))
             if (w.saturation < Food.LOW_SATURATION) w.saturation = Math.max(0, w.saturation - Food.LOW_SATURATION);
     }
 
@@ -253,6 +286,7 @@ public final class GuardPost {
         if (follow != null) s.set("follow", follow.toString());
         if (followUntil > 0) s.set("follow-until", followUntil);
         if (mine != null) s.set("mine", saved(mine));
+        if (lastPatrol > 0) s.set("last-patrol", lastPatrol);
     }
 
     void load(ConfigurationSection s) {
@@ -261,6 +295,7 @@ public final class GuardPost {
         if (s.getString("follow") instanceof String id) follow = UUID.fromString(id);
         followUntil = s.getLong("follow-until");
         mine = blockAt(s.getString("mine"));
+        lastPatrol = s.getLong("last-patrol");
     }
 
     private static String saved(Block b) {

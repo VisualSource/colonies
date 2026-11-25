@@ -25,6 +25,7 @@ import java.util.List;
 public final class Health {
     private static final int HEAL_TICKS = 100;     // the mod's HEAL_CITIZENS_AFTER
     private static final double MAX_HIT = 0.2;     // a hit takes at most this share of max health, as in the mod
+    private static final double MOUNT_SHARE = 0.2; // JobCavalry.MOUNT_DAMAGE_SPLIT
 
     private final Colony colony;
 
@@ -70,6 +71,10 @@ public final class Health {
         Job job = colony.jobOf(c);
         var type = e.getDamageSource().getDamageType();
         double capped = Math.min(e.getDamage(), max(c) * MAX_HIT); // the mod caps the hit first; the job's research, shield and armor act on that
+        if (c.mount() != null && cause != DamageCause.VOID && cause != DamageCause.KILL) { // on horseback: the horse takes a fifth (the mod's MOUNT_DAMAGE_SPLIT)
+            if (source != null) c.mount().damage(capped * MOUNT_SHARE, source); else c.mount().damage(capped * MOUNT_SHARE);
+            capped *= 1 - MOUNT_SHARE;
+        }
         double damage = cause == DamageCause.VOID || cause == DamageCause.KILL ? c.health
                 : job != null ? job.reaching(capped, type, source, c) : capped;
         if (damage <= 0) return;

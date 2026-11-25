@@ -408,7 +408,11 @@ public final class Colony {
     /** Gives the hut as many jobs as its level allows (at least one), keeping those it has. */
     void addJob(Hut hut) {
         if (hut.type.job == null) return;
-        for (int n = jobsAt(hut).size(); n < Math.max(1, hut.type.workers(hut.level)); n++) {
+        // a Stable's stablemaster first, so its place among the hut's jobs (which keys their saves) never moves as cavalry are added
+        if (hut.type == Hut.Type.STABLE && jobsAt(hut).stream().noneMatch(j -> j instanceof dev.minecp.job.Stablemaster))
+            jobs.add(new dev.minecp.job.Stablemaster(hut, this));
+        int own = (int) jobsAt(hut).stream().filter(j -> !(j instanceof dev.minecp.job.Stablemaster || j instanceof dev.minecp.job.Quarrier)).count();
+        for (int n = own; n < Math.max(1, hut.type.workers(hut.level)); n++) {
             Job job = hut.type.job.apply(hut, this);
             if (job instanceof Builder b) wire(builder = b);
             jobs.add(job);
@@ -747,6 +751,7 @@ public final class Colony {
             }
             if (c.meal != null && job != null && !job.interruptible()) { c.meal.abandon(); c.meal = null; } // not now (the mod's canAIBeInterrupted)
             if (c.meal != null) { // eating comes before work
+                if (c.mount() != null && ridesToEat(c)) c.keepRiding(); // cavalry ride to the restaurant, getting off near it
                 if (c.meal.tick(this, job)) {
                     c.hungerNote = c.meal.why;
                     if (c.meal.why != null) c.foodRetry = Routine.FOOD_RETRY_TICKS;
@@ -784,6 +789,21 @@ public final class Colony {
         }
         return null;
     }
+
+    /**
+     * A mounted citizen going to eat stays on its horse until it is within 40 blocks of the restaurant, counted along each
+     * axis (the mod's DININGHALL_HORSE_PARKING_RANGE, a Manhattan distance); without a restaurant it gets off where it is.
+     */
+    private boolean ridesToEat(Colonist c) {
+        Cook r = restaurant();
+        if (r == null) return false;
+        Location at = c.location();
+        Block to = r.hut.block;
+        return at.getWorld() == to.getWorld()
+                && Math.abs(at.getBlockX() - to.getX()) + Math.abs(at.getBlockY() - to.getY()) + Math.abs(at.getBlockZ() - to.getZ()) > HORSE_PARKING;
+    }
+
+    private static final int HORSE_PARKING = 40; // DININGHALL_HORSE_PARKING_RANGE
 
     /** A Cook's Hut that is built and has a cook, where hungry citizens can be served; null if none. */
     public Cook restaurant() {

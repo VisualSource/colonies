@@ -46,9 +46,9 @@ tasks.runServer {
 // description naming the plugin version, and refreshes docs/structures/<style>.md; `./gradlew installDatapacks` also
 // puts them in run/world/datapacks for the dev server (restart it or /reload to load them). Neither touches the jar.
 val packStyles = listOf("medievaloak", "medievalspruce", "medievalbirch", "medievaldarkoak", "cavern")
-// Each pack and the blueprint folder it is made from. The quarries pack: only the original style's quarries, which every
-// colony borrows (the mod falls back to another pack when a style has no quarry; none of ours have one).
-val packSources = packStyles.associateWith { it } + ("quarries" to "original/infrastructure/mineshafts")
+// Each pack and the blueprint folder it is made from. The original style isn't one to choose: every style borrows the
+// huts it lacks from it (the mod falls back to another pack too), the quarries and the stable among them.
+val packSources = (packStyles + "original").associateWith { it }
 val blueprints = layout.projectDirectory.dir("minecolonies/src/main/resources/blueprints/minecolonies")
 
 val convertTasks = packSources.keys.associateWith { pack ->
