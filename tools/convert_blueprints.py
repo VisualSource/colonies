@@ -75,6 +75,7 @@ SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the taver
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
+WAYPOINT_TAG = "minecp_waypoint"  # marker on a waypoint (BuildOrder.WAYPOINT_TAG)
 ANCHOR_TAG = "minecp_anchor"  # marker at the primary offset of a blueprint with no hut block (a quarry's shaft; BuildOrder.ANCHOR_TAG)
 CONTROLLER_TAG = "minecp_controller"  # tag of the marker entity there (BuildOrder.CONTROLLER_TAG), plus minecp_facing_<facing>
 OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
@@ -230,6 +231,8 @@ def convert(path, blocks, siblings=()):
         name, props, note = convert_state(state["Name"], state.get("Properties", {}), te, blocks)
         if note:
             notes[note].append(pos)
+        if state["Name"] == "minecolonies:blockwaypoint":  # a waypoint: air, marked for the colony to record
+            out_entities.append(marker(pos, [WAYPOINT_TAG]))
         if state["Name"] == "minecolonies:composted_dirt":  # a florist's plant spot: dirt, marked as a work spot
             out_entities.append(marker(pos, [PLANT_TAG + "compost"]))
         if state["Name"] == GRAVE:  # the undertaker buries citizens here, facing this way

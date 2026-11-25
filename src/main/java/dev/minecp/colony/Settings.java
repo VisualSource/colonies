@@ -58,7 +58,7 @@ public final class Settings {
     public static final String MOVE_IN = "move_in", AUTO_HIRING = "auto_hiring", AUTO_HOUSING = "auto_housing",
             TAPE = "construction_tape", ENTER_LEAVE = "enter_leave_messages";
     public static final String FILL_BLOCK = "fill_block", MAX_DEPTH = "max_depth", REPLANT = "replant", MIN_ORE = "min_ore",
-            BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing", PATROL_INTERVAL = "patrol_interval",
+            RESTRICT = "restrict", BREEDING = "breeding", SHEARING = "shearing", DYEING = "dyeing", PATROL_INTERVAL = "patrol_interval",
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
@@ -117,7 +117,7 @@ public final class Settings {
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));
-            case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"));
+            case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"), bool(RESTRICT, "Only cut trees in the zone set with its Forest Tool", false));
             // ours: the mod's players assign its fields in a list; here each of its own kinds is a switch
             case PLANTATION -> List.of(bool(GROW_SUGAR, "Grow sugar cane"), bool(GROW_CACTUS, "Grow cactus"), bool(GROW_BAMBOO, "Grow bamboo (needs research)"));
             case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));

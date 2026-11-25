@@ -107,6 +107,9 @@ public final class ColonyStore {
         s.set("child-pool", colony.childPool);
         colony.visitors.save(s.createSection("visitors"));
         colony.raids.save(s.createSection("raids"));
+        s.set("free-blocks", colony.freeBlocks.stream().map(Material::name).toList());
+        s.set("free-positions", colony.freePositions.stream().map(ColonyStore::spot).toList());
+        s.set("waypoints", colony.waypoints.stream().map(ColonyStore::spot).toList());
         colony.connections.save(s.createSection("connections"));
         colony.research.save(s.createSection("research"));
     }
@@ -232,6 +235,9 @@ public final class ColonyStore {
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
         if (s.isConfigurationSection("raids")) colony.raids.load(s.getConfigurationSection("raids"));
+        for (String m : s.getStringList("free-blocks")) { Material x = Material.matchMaterial(m); if (x != null) colony.freeBlocks.add(x); }
+        for (String p : s.getStringList("free-positions")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.freePositions.add(b);
+        for (String p : s.getStringList("waypoints")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.waypoints.add(b);
         if (s.isConfigurationSection("connections")) colony.connections.load(s.getConfigurationSection("connections"));
         if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
         colony.assignHomes();
@@ -239,6 +245,22 @@ public final class ColonyStore {
         return colony;
     }
 
+
+    /** A block as "world;x;y;z", for saves and items. */
+    public static String spot(org.bukkit.block.Block b) {
+        return b.getWorld().getName() + ";" + b.getX() + ";" + b.getY() + ";" + b.getZ();
+    }
+
+    /** The block of a {@link #spot}, or null: missing, its world not loaded, or not a spot at all. */
+    public static org.bukkit.block.Block spotAt(String s) {
+        String[] p = s == null ? new String[0] : s.split(";");
+        World w = p.length == 4 ? Bukkit.getWorld(p[0]) : null;
+        try {
+            return w == null ? null : w.getBlockAt(Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     // Plain fields, not Bukkit's Location serialization: that one drops the value at file load when the world is missing.
     public static void putLocation(ConfigurationSection s, String key, Location l) {

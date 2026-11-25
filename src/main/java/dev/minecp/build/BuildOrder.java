@@ -224,11 +224,12 @@ public final class BuildOrder {
         for (var e : entities) { // marker entities the converter put on MineColonies' scarecrows and named graves
             var tags = e.getScoreboardTags();
             String spot = tags.stream().filter(t -> t.startsWith(WORK_SPOT_TAG)).findFirst().orElse(null);
-            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && spot == null) continue;
+            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && !tags.contains(WAYPOINT_TAG) && spot == null) continue;
             var l = e.getLocation(); // relative to the structure's corner
             BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
             Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
             if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
+            if (tags.contains(WAYPOINT_TAG)) { order.waypoints.add(block); continue; }
             if (tags.contains(SIT_TAG)) { order.seats.add(block); continue; }
             if (spot != null) { order.workSpots.put(block, spot.substring(WORK_SPOT_TAG.length())); continue; }
             order.graves.add(new GraveSpot(block, facing(tags, rotation, mirror)));
@@ -263,6 +264,10 @@ public final class BuildOrder {
     static final String FIELD_TAG = "minecp_field";
     /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
     public final List<Block> fields = new ArrayList<>();
+    /** Tag of the marker entities on a structure's waypoints (the mod's waypoint blocks, built as air). */
+    static final String WAYPOINT_TAG = "minecp_waypoint";
+    /** Where the structure has a waypoint, for the colony to record once built. */
+    public final List<Block> waypoints = new ArrayList<>();
     /** Tag of the marker entities on a graveyard's burial spots (MineColonies' named graves), with minecp_facing_<facing>. */
     static final String GRAVE_TAG = "minecp_grave";
     /** Tag of the marker entity on a build's decoration controller, with minecp_facing_<the way its sign faces>. */

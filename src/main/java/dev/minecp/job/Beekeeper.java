@@ -1,6 +1,5 @@
 package dev.minecp.job;
 
-import dev.minecp.build.BuildOrder;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.colony.Colony;
 import dev.minecp.colony.Hut;
@@ -51,22 +50,28 @@ public final class Beekeeper extends Job {
     private boolean lastBottle; // "both": it takes turns
     private Bee mate;           // the fed bee's partner, fed next
     private int actions;
-    private List<Block> spots = List.of();
-    private int spotsLevel = -1;
 
     public Beekeeper(Hut hut, Colony colony) {
         super(hut, colony);
     }
 
-    /** Its hives: the beehives and nests of its building as built, the first 2^(level - 1) (the mod's getMaximumHives). */
+    /** The hives players linked to it with its Hive Tool (the mod's: only those; saved). */
+    public final java.util.Set<Block> linked = new java.util.LinkedHashSet<>();
+
+    /** How many hives it may have: 2^(level - 1) (the mod's getMaximumHives). */
+    public int maxHives() {
+        return 1 << Math.max(0, hut.level - 1);
+    }
+
+    /** Its hives: those linked that are still hives (the mod drops the others). */
     private List<Block> hives() {
-        if (spotsLevel != hut.level) {
-            spotsLevel = hut.level;
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
-            spots = o == null ? List.of() : o.steps.stream().filter(s -> isHive(s.data().getMaterial())).map(BuildOrder.Step::block)
-                    .limit(1L << Math.max(0, hut.level - 1)).toList();
-        }
-        return spots.stream().filter(b -> isHive(b.getType())).toList();
+        linked.removeIf(b -> b.getWorld().isChunkLoaded(b.getX() >> 4, b.getZ() >> 4) && !isHive(b.getType()));
+        return List.copyOf(linked);
+    }
+
+    /** A beehive or bee nest. */
+    public static boolean hive(Material m) {
+        return isHive(m);
     }
 
     private static boolean isHive(Material m) {
@@ -96,7 +101,7 @@ public final class Beekeeper extends Job {
             actions = 0;
         }
         List<Block> hives = hives();
-        if (hives.isEmpty()) { idle(w, "Its building has no beehives.", NONE_TICKS, hut.block); return; }
+        if (hives.isEmpty()) { idle(w, "No hives: link some with its Hive Tool (a button in this hut's menu).", NONE_TICKS, hut.block); return; }
         boolean breeding = hut.on(Settings.BREEDING);
         if (breeding && flowers.isEmpty()) { idle(w, "Choose the flowers it breeds bees with: Flower list in the hut menu (or turn breeding off).", NONE_TICKS, hut.block); return; }
         Block full = hives.stream().filter(h -> honey(h) >= FULL).findFirst().orElse(null);
@@ -234,7 +239,7 @@ public final class Beekeeper extends Job {
         if (hut.level == 0) return List.of(Component.text("The beekeeper starts once level 1 is built.", NamedTextColor.GRAY));
         List<Component> lines = new ArrayList<>();
         String takes = switch (mode()) { case "HONEY" -> "honey bottles (glass bottles)"; case "BOTH" -> "honeycomb and honey bottles in turn"; default -> "honeycomb (shears)"; };
-        lines.add(Component.text("Takes " + takes + " from its building's full hives (up to " + (1 << Math.max(0, hut.level - 1))
+        lines.add(Component.text("Takes " + takes + " from its full hives (link up to " + maxHives() + " with its Hive Tool)"
                 + "), and breeds the bees around them, up to " + hut.level * BEES_PER_LEVEL + ", with the flowers on its list.", NamedTextColor.GRAY));
         List<Block> hives = hives();
         lines.add(Component.text("Hives: " + hives.size() + (hives.isEmpty() ? "" : " (honey " + String.join(", ", hives.stream().map(h -> honey(h) + "/5").toList()) + ")")));
@@ -247,11 +252,13 @@ public final class Beekeeper extends Job {
     public void save(ConfigurationSection s, Colony c) {
         super.save(s, c);
         s.set("flowers", flowers.stream().map(Enum::name).toList());
+        s.set("hives", linked.stream().map(dev.minecp.colony.ColonyStore::spot).toList());
     }
 
     @Override
     public void load(ConfigurationSection s, Colony c) {
         super.load(s, c);
+        for (String h : s.getStringList("hives")) if (dev.minecp.colony.ColonyStore.spotAt(h) instanceof Block b) linked.add(b);
         for (String m : s.getStringList("flowers")) { Material mat = Material.matchMaterial(m); if (mat != null) flowers.add(mat); }
     }
 }

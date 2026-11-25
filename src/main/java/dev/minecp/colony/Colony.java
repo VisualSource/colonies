@@ -60,6 +60,16 @@ public final class Colony {
     public Decoration building; // the build without a hut the builder works on; saved
     public final List<Job> jobs = new ArrayList<>(); // one per worker (a barracks tower has one a level)
     public final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
+    /** Blocks of these kinds, and these spots, anyone but the hostile may use (the mod's free blocks and positions; the permission tool). Saved. */
+    public final java.util.Set<Material> freeBlocks = java.util.EnumSet.noneOf(Material.class);
+    public final java.util.Set<Block> freePositions = new java.util.LinkedHashSet<>();
+    /** Waypoints its builder built (the mod's colony waypoints): recorded, for citizens' long walks later. Saved. */
+    public final java.util.Set<Block> waypoints = new java.util.LinkedHashSet<>();
+
+    /** Whether anyone but the hostile may right-click it here (the mod's isFreeToInteractWith). */
+    public boolean freeToUse(Block b) {
+        return freeBlocks.contains(b.getType()) || freePositions.contains(b);
+    }
     public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     public static final String DEFAULT_STYLE = "medievaloak";
     public final Flag flag = new Flag();
@@ -180,6 +190,16 @@ public final class Colony {
     public Hut hutAt(Block block) {
         for (Hut h : huts) if (h.block.equals(block)) return h;
         return null;
+    }
+
+    private static final int WAYPOINT_CHECK = 100; // CHECK_WAYPOINT_EVERY
+
+    /** One loaded waypoint at random: gone once something stands in it or the ground under it is (the mod's updateWayPoints). */
+    private void checkWaypoint() {
+        List<Block> loaded = waypoints.stream().filter(b -> b.getWorld().isChunkLoaded(b.getX() >> 4, b.getZ() >> 4)).toList();
+        if (loaded.isEmpty()) return;
+        Block b = loaded.get(ThreadLocalRandom.current().nextInt(loaded.size()));
+        if (!b.isPassable() || b.getRelative(org.bukkit.block.BlockFace.DOWN).isEmpty()) waypoints.remove(b);
     }
 
     /** A gate spot of a built gatehouse picked at random (the mod's "gate" tag; the hut block if it has none), or null without one. */
@@ -529,6 +549,7 @@ public final class Colony {
         b.onFinish((done, order) -> {
             // A chest that already stood in a rack spot (kept rather than broken, so nothing in it is lost) becomes a rack.
             for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
+            waypoints.addAll(order.waypoints); // the mod's: a builder's waypoint is registered, not left as a block
             for (Block f : order.fields) // a field that came with the building (the farmer's scarecrow)
                 if (hutAt(f) == null && f.getType() == Hut.Type.FIELD.block) {
                     addHut(Hut.Type.FIELD, f);
@@ -716,6 +737,7 @@ public final class Colony {
         if (colonyTick % 20 == 0) graves.removeIf(g -> g.isLoaded() && !g.decay(20)); // the mod's grave ticks only while loaded
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         if (colonyTick % 20 == 0) for (Job j : jobs) j.everySecond();
+        if (colonyTick % WAYPOINT_CHECK == 0) checkWaypoint();
         if (colonyTick % 20 == 0) for (Hut h : huts) if (h.post != null) h.post.checkFollow();
         if (colonyTick % 20 == 0) connections.tick();
         visitors.tick();

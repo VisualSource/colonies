@@ -67,6 +67,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public final GuardTools guardTools = new GuardTools(this);
     public final Flags flags = new Flags(this);
     final Scrolls scrolls = new Scrolls(this);
+    public final Scepters scepters = new Scepters(this);
     public final ColonySigns colonySigns = new ColonySigns(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
@@ -115,6 +116,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(guardTools, this);
         getServer().getPluginManager().registerEvents(flags, this);
         getServer().getPluginManager().registerEvents(scrolls, this);
+        getServer().getPluginManager().registerEvents(scepters, this);
         getServer().getPluginManager().registerEvents(colonySigns, this);
         getServer().getPluginManager().registerEvents(new Decorations(this), this);
         getServer().getPluginManager().registerEvents(placement, this);
@@ -402,7 +404,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
         if (items.isBuildTool(e.getItem()) || items.supplyKind(e.getItem()) != null) return; // the build tool and supplies (Placement)
         if (items.isGuardScepter(e.getItem()) || items.isRallyBanner(e.getItem())) return; // GuardTools
-        if (Scrolls.kind(e.getItem()) != null) return; // Scrolls
+        if (Scrolls.kind(e.getItem()) != null || Scepters.kind(e.getItem()) != null) return; // Scrolls, Scepters
         Colony c = colonyAt(e.getClickedBlock());
         if (c == null) return;
         Player p = e.getPlayer();
@@ -574,6 +576,12 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (!adverse && !tags.contains(dev.minecp.job.Guard.SUPPORT_POTION)) return;
         for (var hit : e.getAffectedEntities())
             if (hit instanceof org.bukkit.entity.Enemy != adverse) e.setIntensity(hit, 0);
+    }
+
+    /** The mod's fire arrow, shot from a bow or crossbow: the arrow burns, setting what it hits alight (ours: its burning time is a Flame bow's). */
+    @EventHandler(ignoreCancelled = true)
+    public void onShoot(org.bukkit.event.entity.EntityShootBowEvent e) {
+        if (dev.minecp.colony.Raids.isFireArrow(e.getConsumable())) e.getProjectile().setFireTicks(100);
     }
 
     /** Hits on a cavalry horse: the mod's rules for it, with its colony's barding research (CavalryHorse.hurt). */

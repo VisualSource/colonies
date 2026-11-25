@@ -208,6 +208,10 @@ public final class Menus {
             }));
         }
         if (h.type == Hut.Type.MINER && h.level > 0) buttons.add(button("Guards", p, c, h, player -> mineGuards(player, c, h)));
+        if (h.type == Hut.Type.LUMBERJACK && h.level > 0) // the mod's "forester zone" button
+            buttons.add(button("Forest Tool", p, c, h, Action.MANAGE_HUTS, player -> plugin.scepters.give(player, dev.minecp.Scepters.Kind.FOREST, c, h)));
+        if (h.type == Hut.Type.BEEKEEPER && h.level > 0)
+            buttons.add(button("Hive Tool", p, c, h, Action.MANAGE_HUTS, player -> plugin.scepters.give(player, dev.minecp.Scepters.Kind.HIVE, c, h)));
         if (h.type.isQuarry() && h.level > 0) buttons.add(button("Quarrier", p, c, h, player -> quarriers(player, c, h)));
         if (job instanceof dev.minecp.job.Enchanter en && h.level > 0)
             buttons.add(button("Gather targets (" + en.targets.size() + ")", p, c, h, player -> gatherTargets(player, c, h, en)));
@@ -952,6 +956,26 @@ public final class Menus {
 
     // ---- permissions --------------------------------------------------------------------------------------
 
+    /** The colony's free blocks and spots (the mod's lists on its permissions page), each with a Remove button. */
+    private void freeToUse(Player p, Colony c, Hut townHall) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (Material m : List.copyOf(c.freeBlocks))
+            buttons.add(button("Remove block " + Job.name(m), p, c, townHall, Action.EDIT_PERMISSIONS, player -> {
+                c.freeBlocks.remove(m);
+                plugin.save(c);
+                freeToUse(player, c, townHall);
+            }));
+        for (org.bukkit.block.Block b : List.copyOf(c.freePositions))
+            buttons.add(button("Remove location " + b.getX() + " " + b.getY() + " " + b.getZ(), p, c, townHall, Action.EDIT_PERMISSIONS, player -> {
+                c.freePositions.remove(b);
+                plugin.save(c);
+                freeToUse(player, c, townHall);
+            }));
+        buttons.add(button("Back", p, c, townHall, player -> permissions(player, c, townHall)));
+        Dialogs.show(p, "Free to use", List.of(text(Component.text("Anyone but the hostile may use these blocks here, or the blocks at these spots, "
+                + "whatever their rank may do (not break them). Add more with the Permission Tool.", NamedTextColor.GRAY))), List.of(), buttons, 1);
+    }
+
     /** The colony's members and their ranks, from the town hall menu (needs EDIT_PERMISSIONS). */
     void permissions(Player p, Colony c, Hut townHall) {
         List<DialogBody> body = new ArrayList<>();
@@ -963,6 +987,8 @@ public final class Menus {
                 player -> member(player, c, townHall, id, m))));
         buttons.add(button("Add a player", p, c, townHall, Action.EDIT_PERMISSIONS, player -> addMember(player, c, townHall)));
         buttons.add(button("What each rank may do", p, c, townHall, Action.EDIT_PERMISSIONS, player -> ranks(player, c, townHall)));
+        buttons.add(button("Permission Tool", p, c, townHall, Action.EDIT_PERMISSIONS, player -> plugin.scepters.give(player, dev.minecp.Scepters.Kind.PERMISSION, c, townHall)));
+        buttons.add(button("Free to use (" + (c.freeBlocks.size() + c.freePositions.size()) + ")", p, c, townHall, Action.EDIT_PERMISSIONS, player -> freeToUse(player, c, townHall)));
         buttons.add(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
         Dialogs.show(p, "Permissions", body, List.of(), buttons, 1);
     }

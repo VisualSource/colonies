@@ -75,6 +75,12 @@ final class Protection implements Listener {
         return false;
     }
 
+    /** A free block or spot of the colony there, for anyone but its hostile (the mod's isFreeToInteractWith). */
+    private boolean free(Player p, Block b) {
+        Colony c = enabled ? plugin.claims.colonyAt(b.getLocation()) : null;
+        return c != null && c.freeToUse(b) && c.permissions.rank(p.getUniqueId()) != dev.minecp.colony.Rank.HOSTILE;
+    }
+
     void deny(Player p, Colony c, Action action) {
         long now = System.currentTimeMillis();
         Long last = told.get(p.getUniqueId());
@@ -127,6 +133,7 @@ final class Protection implements Listener {
             if (e.getHand() == EquipmentSlot.OFF_HAND) e.setUseInteractedBlock(Event.Result.DENY); // not the chest behind it
             return;
         }
+        if (free(e.getPlayer(), b)) return; // the permission tool's free blocks and spots
         Action action = b.getState(false) instanceof BlockInventoryHolder ? Action.OPEN_CONTAINER
                 : b.getBlockData() instanceof Openable ? Action.ACCESS_TOGGLEABLES
                 : b.getType().isInteractable() ? Action.RIGHTCLICK_BLOCK : null;
@@ -163,6 +170,8 @@ final class Protection implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onUseEntity(PlayerInteractEntityEvent e) {
         if (isCitizen(e.getRightClicked())) return;
+        Colony at = enabled ? plugin.claims.colonyAt(e.getRightClicked().getLocation()) : null; // the mod: a free spot only, for entities
+        if (at != null && at.freePositions.contains(e.getRightClicked().getLocation().getBlock()) && at.permissions.rank(e.getPlayer().getUniqueId()) != dev.minecp.colony.Rank.HOSTILE) return;
         if (!allowed(e.getPlayer(), e.getRightClicked().getLocation(), Action.RIGHTCLICK_ENTITY)) e.setCancelled(true);
     }
 

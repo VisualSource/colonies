@@ -74,6 +74,8 @@ public final class Raids {
 
     private static final java.util.function.DoubleUnaryOperator D1 = d -> d; // the mod's armor: the difficulty modifier
     private static final Object TOME = "ancient tome"; // in a drop table: the Enchanter's ancient tome
+    // in a drop table: the mod's own raider items (raiderItem)
+    private static final Object CHIEF_SWORD = "chief sword", PHARAOH_SCEPTER = "pharaoh scepter", SPEAR = "spear", FIRE_ARROW = "fire arrow";
 
     /**
      * The mod's land cultures. Ours: vanilla mobs stand in for its raider models (zombies and husks for melee, skeletons,
@@ -87,14 +89,14 @@ public final class Raids {
                         new Object[]{97, Material.DIAMOND_AXE, 1, Material.GOLDEN_AXE, 2, Material.IRON_AXE, 5, Material.STONE_AXE, 6, TOME, 3}),
                 new Spec(Skeleton.class, Material.BOW, null, set("LEATHER", 2), 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Zombie.class, Material.IRON_SWORD, null, set("CHAINMAIL", 4), 1.5, d -> 2 * d, 1, // the mod's chief sword and chainmail
-                        new Object[]{121, Material.DIAMOND_SWORD, 5, Material.GOLDEN_SWORD, 5, Material.IRON_SWORD, 11, Material.STONE_SWORD, 20, TOME, 30})),
+                        new Object[]{121, Material.DIAMOND_SWORD, 5, Material.GOLDEN_SWORD, 5, Material.IRON_SWORD, 10, CHIEF_SWORD, 1, Material.STONE_SWORD, 20, TOME, 30})),
         MUMMIES("Mummies",
                 new Spec(Husk.class, null, null, new Material[0], 1, D1, 0, new Object[]{95, TOME, 15}),
                 new Spec(Skeleton.class, Material.BOW, null, new Material[0], 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Skeleton.class, Material.BOW, null, set("GOLDEN", 2), 4.5, d -> 2 * d, 1, // the pharaoh's fire-arrow scepter: a Flame bow
-                        new Object[]{113, Material.BOW, 3, Material.ARROW, 30, TOME, 30})),
+                        new Object[]{113, PHARAOH_SCEPTER, 3, Material.ARROW, 20, FIRE_ARROW, 10, TOME, 30})),
         AMAZONS("Amazons",
-                new Spec(Zombie.class, Material.STONE_SPEAR, null, set("LEATHER", 2), 1, D1, 0, new Object[]{100, Material.STONE_SPEAR, 15, TOME, 5}),
+                new Spec(Zombie.class, Material.STONE_SPEAR, null, set("LEATHER", 2), 1, D1, 0, new Object[]{100, SPEAR, 15, TOME, 5}),
                 new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 1), 1, D1, 0, new Object[]{100, Material.BOW, 15, TOME, 5}),
                 new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 4), 1.5, d -> 4 * d, 1, new Object[]{190, Material.BOW, 80, TOME, 30})),
         NORSEMEN("Norsemen",
@@ -405,8 +407,7 @@ public final class Raids {
                 e.setItem(slots[i], s == Culture.BARBARIANS.chief ? piece : looks(piece));
             }
             if (s.weapon() != null) {
-                ItemStack weapon = new ItemStack(s.weapon());
-                if (s == Culture.MUMMIES.chief) weapon.addEnchantment(Enchantment.FLAME, 1);
+                ItemStack weapon = weaponOf(s);
                 e.setItemInMainHand(weapon.getType() == Material.BOW ? weapon : looks(weapon)); // a bow's damage is its arrows'
             }
             if (s.offhand() != null) e.setItemInOffHand(looks(new ItemStack(s.offhand())));
@@ -568,13 +569,13 @@ public final class Raids {
                 int roll = rnd.nextInt((int) d[0]);
                 for (int i = 1; i < d.length; i += 2) {
                     if ((roll -= (int) d[i + 1]) >= 0) continue;
-                    ItemStack drop = d[i] == TOME ? dev.minecp.job.Enchanter.ancientTome() : new ItemStack((Material) d[i]);
+                    ItemStack drop = drop(d[i]);
                     if (drop.getType() == Material.ARROW) drop.setAmount(Math.min(64, rnd.nextInt(1, 17) + looting * rnd.nextInt(1, 33)));
                     e.getDrops().add(drop);
                     break;
                 }
             }
-            if (killer != null) for (Material m : equipped(s)) // vanilla: only when a player killed it
+            if (killer != null) for (ItemStack m : equipped(s)) // vanilla: only when a player killed it
                 if (rnd.nextFloat() - looting * 0.01f < EQUIPMENT_DROP_CHANCE) e.getDrops().add(worn(m));
             return;
         }
@@ -583,20 +584,64 @@ public final class Raids {
     private static final float EQUIPMENT_DROP_CHANCE = 0.085f; // vanilla's for equipment a mob is given; the mod doesn't change it
 
     /**
-     * What the mod equips a raider with, which drops as a vanilla mob's equipment does: the weapon (our iron sword for the
-     * barbarian chief's sword; not the pharaoh's scepter, the mod's own item), and the barbarian chief's chainmail. The
-     * rest of what ours wear is only for looks and never drops.
+     * What the mod equips a raider with, which drops as a vanilla mob's equipment does: the weapon (the chief's sword,
+     * the spearman's spear; not the pharaoh's scepter, which the mod's own loot gives), and the barbarian chief's
+     * chainmail. The rest of what ours wear is only for looks and never drops.
      */
-    private static List<Material> equipped(Spec s) {
-        List<Material> out = new ArrayList<>();
-        if (s.weapon() != null && s != Culture.MUMMIES.chief) out.add(s.weapon());
-        if (s == Culture.BARBARIANS.chief) out.addAll(List.of(s.armor()));
+    private static List<ItemStack> equipped(Spec s) {
+        List<ItemStack> out = new ArrayList<>();
+        if (s.weapon() != null && s != Culture.MUMMIES.chief) out.add(weaponOf(s));
+        if (s == Culture.BARBARIANS.chief) for (Material m : s.armor()) out.add(new ItemStack(m));
         return out;
     }
 
-    /** A dropped piece of equipment, worn down as vanilla's: max durability less a random 1 to (max - 3) left. */
-    private static ItemStack worn(Material m) {
+    // ---- the mod's raider items: vanilla ones with a tag (the optional resource pack shows the mod's models) -------
+
+    private static final org.bukkit.NamespacedKey RAIDER_ITEM = new org.bukkit.NamespacedKey(dev.minecp.MineCP.NAMESPACE, "raider_item");
+
+    /** A loot table entry as an item: a vanilla item, the ancient tome, or one of the mod's raider items. */
+    private static ItemStack drop(Object o) {
+        if (o == TOME) return dev.minecp.job.Enchanter.ancientTome();
+        if (o == CHIEF_SWORD) return raiderItem(Material.IRON_SWORD, "chief_sword", "Chief Sword");
+        if (o == PHARAOH_SCEPTER) return pharaohScepter();
+        if (o == SPEAR) return raiderItem(Material.STONE_SPEAR, "spear", "Spear");
+        if (o == FIRE_ARROW) return raiderItem(Material.ARROW, "fire_arrow", "Fire Arrow");
+        return new ItemStack((Material) o);
+    }
+
+    /** What a raider holds: the mod's own weapon where it has one (ours: a vanilla item with its model), else the vanilla one. */
+    private static ItemStack weaponOf(Spec s) {
+        if (s == Culture.BARBARIANS.chief) return drop(CHIEF_SWORD);
+        if (s == Culture.MUMMIES.chief) return pharaohScepter();
+        if (s == Culture.AMAZONS.melee) return drop(SPEAR);
+        return new ItemStack(s.weapon());
+    }
+
+    /** The pharaoh's scepter: a bow with Flame (its shots set fire, as the mod's fire-arrow scepter). */
+    private static ItemStack pharaohScepter() {
+        ItemStack bow = raiderItem(Material.BOW, "pharaoh_scepter", "Pharaoh Scepter");
+        bow.addEnchantment(Enchantment.FLAME, 1);
+        return bow;
+    }
+
+    private static ItemStack raiderItem(Material m, String id, String name) {
         ItemStack item = new ItemStack(m);
+        item.editMeta(meta -> {
+            meta.itemName(Component.text(name));
+            meta.getPersistentDataContainer().set(RAIDER_ITEM, org.bukkit.persistence.PersistentDataType.STRING, id);
+        });
+        dev.minecp.Items.model(item, id);
+        return item;
+    }
+
+    /** Whether it is the mod's fire arrow. */
+    public static boolean isFireArrow(ItemStack item) {
+        return item != null && "fire_arrow".equals(item.getPersistentDataContainer().get(RAIDER_ITEM, org.bukkit.persistence.PersistentDataType.STRING));
+    }
+
+    /** A dropped piece of equipment, worn down as vanilla's: max durability less a random 1 to (max - 3) left. */
+    private static ItemStack worn(ItemStack item) {
+        Material m = item.getType();
         int max = m.getMaxDurability();
         if (max > 0) {
             var rnd = ThreadLocalRandom.current();

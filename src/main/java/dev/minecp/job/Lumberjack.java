@@ -81,11 +81,69 @@ public final class Lumberjack extends Job {
     @Override
     public List<Component> info(Colony c) {
         return List.of(Component.text(hut.level == 0 ? "The lumberjack starts once level 1 is built."
+                : restricted() ? "Cuts natural trees in its zone (" + zoneA.getX() + " " + zoneA.getY() + " " + zoneA.getZ() + " to "
+                        + zoneB.getX() + " " + zoneB.getY() + " " + zoneB.getZ() + ") and replants them."
                 : "Cuts natural trees within " + radius() + " blocks and replants them.", NamedTextColor.GRAY));
     }
 
     int radius() {
         return 16 + 8 * Math.max(0, hut.level - 1);
+    }
+
+    // ---- its zone (the mod's restricted area, set with the Forest Tool) -------------------------------------------
+
+    /** The largest zone: 2 × 50³ (the mod's 2 × SEARCH_RANGE³, its corners' plain differences multiplied). */
+    public static final int MAX_ZONE = 2 * 50 * 50 * 50;
+    private Block zoneA, zoneB; // its corners (saved)
+
+    /** The zone's corners, or null. */
+    public Block zoneA() { return zoneA; }
+    public Block zoneB() { return zoneB; }
+
+    /** Sets its zone and turns its "only in the zone" setting on (the mod's setRestrictedArea). */
+    public void zone(Block a, Block b) {
+        zoneA = a;
+        zoneB = b;
+        hut.set(dev.minecp.colony.Settings.RESTRICT, "true");
+    }
+
+    /** Its zone's size as the mod counts it: the corners' differences multiplied (a flat zone counts 0). */
+    public static long volume(Block a, Block b) {
+        return volume(Math.abs(a.getX() - b.getX()), Math.abs(a.getY() - b.getY()), Math.abs(a.getZ() - b.getZ()));
+    }
+
+    static long volume(int dx, int dy, int dz) {
+        return (long) dx * dy * dz;
+    }
+
+    /**
+     * The columns a zone covers, which its tree search walks: ours, also at most {@link #MAX_ZONE}, so a flat zone (0 by
+     * the mod's count) can't spread across the world.
+     */
+    public static long columns(Block a, Block b) {
+        return columns(Math.abs(a.getX() - b.getX()), Math.abs(a.getZ() - b.getZ()));
+    }
+
+    static long columns(int dx, int dz) {
+        return (dx + 1L) * (dz + 1L);
+    }
+
+    /** Whether a zone may be set: within the mod's volume and our column limit. */
+    public static boolean zoneFits(Block a, Block b) {
+        return volume(a, b) <= MAX_ZONE && columns(a, b) <= MAX_ZONE;
+    }
+
+    /** It cuts only in its zone: the setting is on and both corners are set. */
+    private boolean restricted() {
+        return zoneA != null && zoneB != null && zoneA.getWorld() == hut.block.getWorld() && hut.on(dev.minecp.colony.Settings.RESTRICT)
+                && zoneFits(zoneA, zoneB);
+    }
+
+    /** Within the zone, a block of slack all round (the mod's isInArea). */
+    private boolean inZone(Block b) {
+        return b.getX() >= Math.min(zoneA.getX(), zoneB.getX()) - 1 && b.getX() <= Math.max(zoneA.getX(), zoneB.getX()) + 1
+                && b.getY() >= Math.min(zoneA.getY(), zoneB.getY()) - 1 && b.getY() <= Math.max(zoneA.getY(), zoneB.getY()) + 1
+                && b.getZ() >= Math.min(zoneA.getZ(), zoneB.getZ()) - 1 && b.getZ() <= Math.max(zoneA.getZ(), zoneB.getZ()) + 1;
     }
 
 
@@ -104,7 +162,7 @@ public final class Lumberjack extends Job {
                 if (!getTools(w)) return;
                 if (!findTree()) {
                     unreachable.clear(); // nothing left: give skipped trees another go after the pause
-                    note = "No natural trees within " + radius() + " blocks.";
+                    note = restricted() ? "No natural trees in its zone." : "No natural trees within " + radius() + " blocks.";
                     w.setStatus("Lumberjack: idle");
                     w.wander(hut.block.getLocation().toCenterLocation());
                     cooldown = 200;
@@ -252,15 +310,19 @@ public final class Lumberjack extends Job {
     private boolean findTree() {
         Block hutBlock = hut.block;
         var world = hutBlock.getWorld();
+        boolean zone = restricted(); // the mod: only trees in its zone, wherever that is; else within its range
         int r = radius();
+        int x0 = zone ? Math.min(zoneA.getX(), zoneB.getX()) : hutBlock.getX() - r, x1 = zone ? Math.max(zoneA.getX(), zoneB.getX()) : hutBlock.getX() + r;
+        int z0 = zone ? Math.min(zoneA.getZ(), zoneB.getZ()) : hutBlock.getZ() - r, z1 = zone ? Math.max(zoneA.getZ(), zoneB.getZ()) : hutBlock.getZ() + r;
         Set<Block> bases = new LinkedHashSet<>();
-        for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) {
+        for (int x = x0; x <= x1; x++) for (int z = z0; z <= z1; z++) {
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) continue; // the mod's: trees in loaded chunks only
             // The top block ignoring leaves is a log for every column with a tree trunk in the open.
-            Block top = world.getHighestBlockAt(hutBlock.getX() + dx, hutBlock.getZ() + dz, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+            Block top = world.getHighestBlockAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
             if (!Tag.LOGS.isTagged(top.getType())) continue;
             Block b = top;
             while (Tag.LOGS.isTagged(b.getRelative(0, -1, 0).getType())) b = b.getRelative(0, -1, 0);
-            if (Tag.DIRT.isTagged(b.getRelative(0, -1, 0).getType()) && !unreachable.contains(b)) bases.add(b);
+            if (Tag.DIRT.isTagged(b.getRelative(0, -1, 0).getType()) && !unreachable.contains(b) && (!zone || inZone(b))) bases.add(b);
         }
         List<Block> sorted = new ArrayList<>(bases);
         sorted.sort(Comparator.comparingDouble(b -> b.getLocation().distanceSquared(hutBlock.getLocation())));
@@ -323,5 +385,22 @@ public final class Lumberjack extends Job {
         List<Block> list = new ArrayList<>(seen);
         list.sort(Comparator.comparingInt(Block::getY));
         return list;
+    }
+
+    @Override
+    public void save(org.bukkit.configuration.ConfigurationSection s, Colony c) {
+        super.save(s, c);
+        if (zoneA != null && zoneB != null) {
+            dev.minecp.colony.ColonyStore.putLocation(s, "zone-a", zoneA.getLocation());
+            dev.minecp.colony.ColonyStore.putLocation(s, "zone-b", zoneB.getLocation());
+        }
+    }
+
+    @Override
+    public void load(org.bukkit.configuration.ConfigurationSection s, Colony c) {
+        super.load(s, c);
+        var a = dev.minecp.colony.ColonyStore.getLocation(s, "zone-a");
+        var b = dev.minecp.colony.ColonyStore.getLocation(s, "zone-b");
+        if (a != null && b != null) { zoneA = a.getBlock(); zoneB = b.getBlock(); }
     }
 }
