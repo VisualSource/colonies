@@ -50,18 +50,18 @@ public final class Food {
         return food == null ? 0 : food.nutrition();
     }
 
-    static boolean hasMeal(Inventory inv) {
+    static boolean hasMeal(Inventory inv, java.util.function.Predicate<ItemStack> may) {
         if (inv == null) return false;
-        for (ItemStack i : inv.getContents()) if (isMeal(i)) return true;
+        for (ItemStack i : inv.getContents()) if (isMeal(i) && may.test(i)) return true;
         return false;
     }
 
-    /** Takes meals from {@code inv} worth at least {@code need} nutrition (fewer if there isn't that much). */
-    public static java.util.List<ItemStack> take(Inventory inv, double need) {
+    /** Takes meals {@code may} allows (a worker's canEat) from {@code inv}, worth at least {@code need} nutrition (fewer if there isn't that much). */
+    public static java.util.List<ItemStack> take(Inventory inv, double need, java.util.function.Predicate<ItemStack> may) {
         java.util.List<ItemStack> taken = new java.util.ArrayList<>();
         for (int slot = 0; slot < inv.getSize() && need > 0; slot++) {
             ItemStack i = inv.getItem(slot);
-            if (!isMeal(i)) continue;
+            if (!isMeal(i) || !may.test(i)) continue;
             int per = nutrition(i), n = Math.min(i.getAmount(), (int) Math.ceil(need / per));
             taken.add(i.asQuantity(n));
             need -= (double) n * per;

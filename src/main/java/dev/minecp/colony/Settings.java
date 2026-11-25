@@ -113,7 +113,7 @@ public final class Settings {
     /** The mod's crafters' recipe mode (its CrafterRecipeSetting): the first recipe found, or the one whose main ingredient the warehouse has most of (research). */
     private static final Setting RECIPE = words(RECIPE_MODE, "Recipe to use when several make it (most in warehouse: research)", "PRIORITY", "MAX_STOCK");
     /** The huts with the mod's recipe mode (BuildingModules' crafter settings): crafters that can be taught, and the crusher's and nether mine's. */
-    private static final java.util.Set<Hut.Type> RECIPE_HUTS = java.util.EnumSet.of(Hut.Type.SAWMILL, Hut.Type.STONEMASON, Hut.Type.STONE_SMELTERY,
+    private static final java.util.Set<Hut.Type> RECIPE_HUTS = java.util.EnumSet.of(Hut.Type.PLANTATION, Hut.Type.SAWMILL, Hut.Type.STONEMASON, Hut.Type.STONE_SMELTERY,
             Hut.Type.BLACKSMITH, Hut.Type.MECHANIC, Hut.Type.GLASSBLOWER, Hut.Type.BAKER, Hut.Type.FLETCHER, Hut.Type.DYER, Hut.Type.CONCRETE_MIXER, Hut.Type.CRUSHER, Hut.Type.NETHER_WORKER);
 
     /** The settings a hut of this type has, in menu order. */

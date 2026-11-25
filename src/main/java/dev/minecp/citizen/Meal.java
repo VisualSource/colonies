@@ -61,22 +61,27 @@ public final class Meal {
         return 1 + colony.research.effect(Effects.SATURATION);
     }
 
+    /** What its job lets it eat (the mod's canEat): not the planter's crops. */
+    public static java.util.function.Predicate<ItemStack> may(Job job) {
+        return job == null ? i -> true : job::canEat;
+    }
+
     /** @return true when the meal is over: eaten, or no food could be had ({@link #why} says why). */
     public boolean tick(Colony colony, Job job) {
         Colonist c = colonist;
         switch (state) {
             case FIND -> {
                 Inventory own = c.inventory();
-                if (Food.hasMeal(own)) { // its own food first, as the mod's citizens eat from their inventory
+                if (Food.hasMeal(own, may(job))) { // its own food first, as the mod's citizens eat from their inventory
                     fromOwn = true;
-                    food.addAll(Food.take(own, hunger(colony)));
+                    food.addAll(Food.take(own, hunger(colony), may(job)));
                     c.setStatus("Eating");
                     state = State.EAT;
                     timer = 0;
                     return false;
                 }
                 for (Block chest : new Block[]{job == null ? null : job.hut.block, c.home == null ? null : c.home.block}) {
-                    if (chest != null && Food.hasMeal(inventory(chest))) {
+                    if (chest != null && Food.hasMeal(inventory(chest), may(job))) {
                         source = chest;
                         c.setStatus("Eating");
                         c.goBeside(chest);
@@ -97,7 +102,7 @@ public final class Meal {
                 if (c.isMoving()) return false;
                 if (!c.isBeside(source)) { c.goBeside(source); return false; }
                 Inventory inv = inventory(source);
-                if (inv != null) food.addAll(Food.take(inv, hunger(colony)));
+                if (inv != null) food.addAll(Food.take(inv, hunger(colony), may(job)));
                 if (food.isEmpty()) { state = State.FIND; return false; } // someone took it first
                 state = State.EAT;
                 timer = 0;

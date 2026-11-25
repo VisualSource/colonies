@@ -310,6 +310,11 @@ public abstract class Job {
         return false;
     }
 
+    /** Whether its worker may eat {@code item} from its own inventory or chests (the mod's canEat: not what it works with). */
+    public boolean canEat(ItemStack item) {
+        return true;
+    }
+
     /** Whether its worker goes to bed at night (the knight stays on duty). */
     public boolean sleepsAtNight() {
         return true;

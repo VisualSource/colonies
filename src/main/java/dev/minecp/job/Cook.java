@@ -87,7 +87,7 @@ public final class Cook extends Job {
             Meal next = waiting.peek();
             if (serving.isEmpty()) {
                 if (!atHut(w)) { w.setStatus("Cook: working"); goToHut(w); return; }
-                serving.addAll(Food.take(chest, next.hunger(colony)));
+                serving.addAll(Food.take(chest, next.hunger(colony), dev.minecp.citizen.Meal.may(colony.jobOf(next.colonist)))); // what that worker may eat
                 if (serving.isEmpty()) note = "No food to serve: put food in the chest, or raw food and fuel to cook.";
             }
             if (!serving.isEmpty()) {

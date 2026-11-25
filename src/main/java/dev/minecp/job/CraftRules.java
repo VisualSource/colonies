@@ -153,6 +153,8 @@ public final class CraftRules {
             any(of(Material.DIAMOND_BLOCK, Material.EMERALD_BLOCK), NUGGETS, INGOTS),
             any(CROPS, DYES, MECHANIC_INGREDIENT, of(Material.BRICK, Material.NETHER_BRICK)));
 
+    // the mod's plantation tags: books, paper and sugar made; anything made from bamboo
+    static final Rule PLANTATION_TAGS = new Rule(of(Material.BOOK, Material.PAPER, Material.SUGAR, Material.WRITABLE_BOOK), NONE, of(Material.BAMBOO), NONE);
     static final Rule MECHANIC_TAGS = new Rule(MECHANIC_PRODUCT, of(Material.SPECTRAL_ARROW, Material.HAY_BLOCK, Material.LEAD),
             MECHANIC_INGREDIENT, NONE);
 
@@ -207,6 +209,9 @@ public final class CraftRules {
         Material out = r.getResult().getType();
         return tags != null ? tags : out.name().endsWith("MINECART") || out == Material.HOPPER;
     };
+
+    /** The Plantation (BuildingPlantation.CraftingModule): only what its tags allow (the mod's plantation_product and _ingredient). */
+    public static final Predicate<Recipe> PLANTATION = r -> crafting(r) && Boolean.TRUE.equals(PLANTATION_TAGS.decide(r));
 
     /** The Bakery (BuildingBaker): crafting recipes its tags allow (anything else made from wheat). */
     public static final Predicate<Recipe> BAKER = r -> crafting(r) && Boolean.TRUE.equals(BAKER_TAGS.decide(r));

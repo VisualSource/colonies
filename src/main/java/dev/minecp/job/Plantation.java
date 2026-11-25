@@ -39,9 +39,10 @@ import java.util.function.Predicate;
  * noted. It works fields: its building's own plots of sugar cane, cactus and bamboo, and the colony's plantation fields
  * (built from their blueprints), up to half its level rounded up (one more with research), of as many kinds. Each field
  * is worked once a colony day, up to its kind's number of actions: plant where a plot is bare, clear what doesn't
- * belong, harvest what has grown, or bone meal the ground.
+ * belong, harvest what has grown, or bone meal the ground. It is also a crafter (the mod's plantation crafting module),
+ * crafting first: paper, books and sugar, and what is made from bamboo. It doesn't eat what its fields grow.
  */
-public final class Plantation extends Job {
+public final class Plantation extends Crafter {
     private static final int STEP_TICKS = 20;        // the mod's TICKS_20 between the planter's steps
     private static final int MAX_PLOTS = 20;         // AbstractPlantationModule.DEFAULT_MAX_PLANTS
     private static final int BONEMEAL_TO_KEEP = 16;  // EntityAIWorkPlanter.BONEMEAL_TO_KEEP
@@ -182,7 +183,7 @@ public final class Plantation extends Job {
     private int ownLevel = -1;
 
     public Plantation(Hut hut, Colony colony) {
-        super(hut, colony);
+        super(hut, colony, CraftRules.PLANTATION, "paper, books, sugar and things of bamboo");
     }
 
     /**
@@ -387,26 +388,24 @@ public final class Plantation extends Job {
 
     // ---- the worker -------------------------------------------------------------------------------------------
 
+    /**
+     * Its fields, when no crafting request is ready (the mod's planter crafts first, as its crafting AI decides): a step
+     * a second. @return true: it always does something or waits here.
+     */
     @Override
-    public void tick(Colonist w) {
-        if (hut.level < 1) {
-            w.setStatus("Planter: idle");
-            w.wander(hut.block.getLocation().toCenterLocation());
-            return;
-        }
-        if (w.isMoving() || --cooldown > 0) return;
+    boolean otherWork(Colonist w, org.bukkit.inventory.Inventory chest) {
         cooldown = STEP_TICKS;
         if (delivering || bagFull() && loaded()) { // the mod dumps after a field's actions
             delivering = true;
-            if (!atHut(w)) { w.setStatus("Planter: bringing the harvest"); goToHut(w); return; }
-            if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return; }
+            if (!atHut(w)) { w.setStatus("Planter: bringing the harvest"); goToHut(w); return true; }
+            if (!deliver()) { idle(w, "The hut chest is full.", 100, hut.block); return true; }
             delivering = false;
         }
         List<Colony.PlantField> fields = fields();
         if (fields.isEmpty()) {
             idle(w, own().isEmpty() && colony.plantFields.isEmpty() ? "No fields: build plantation fields (Build Tool: Agriculture, Fields)."
                     : "Nothing it may grow: check its settings and research.", 100, hut.block);
-            return;
+            return true;
         }
         if (current != null && !fields.contains(current)) current = null;
         if (current == null) { // the field not yet done today that was done longest ago
@@ -415,15 +414,15 @@ public final class Plantation extends Job {
             work = null;
         }
         if (current == null) {
-            if (loaded()) { delivering = true; return; }
+            if (loaded()) { delivering = true; return true; }
             idle(w, "Every field has had its work today.", 100, hut.block);
-            return;
+            return true;
         }
         Colony.PlantField f = current;
         if (!f.block().equals(hut.block) && f.block().getType() != FIELD_BLOCK) { // its field block is gone: so is the field
             colony.plantFields.removeIf(x -> x.block().equals(f.block()));
             current = null;
-            return;
+            return true;
         }
         Kind k = f.kind();
         if (work == null) {
@@ -434,29 +433,29 @@ public final class Plantation extends Job {
                 if (!canPlant && k.plants()) note = "Needs " + name(k.item) + " to plant.";
                 else if (!canFeed && k.shape == Shape.BONEMEAL) note = "Needs " + k.feed() + ".";
                 fieldDone(f);
-                return;
+                return true;
             }
         }
         Action act = work.act;
         if (act == Action.PLANT && has(k.item) == 0) { // the mod goes back for the plant, and asks for it
-            if (!atHut(w)) { w.setStatus("Planter: getting " + name(k.item)); goToHut(w); return; }
-            if (fetch(k.item, plantsToKeep(k)) == 0) { note = "Needs " + name(k.item) + " to plant."; fieldDone(f); return; }
+            if (!atHut(w)) { w.setStatus("Planter: getting " + name(k.item)); goToHut(w); return true; }
+            if (fetch(k.item, plantsToKeep(k)) == 0) { note = "Needs " + name(k.item) + " to plant."; fieldDone(f); return true; }
         }
         if (act == Action.BONEMEAL && has(k::fertilizer) == 0) {
-            if (!atHut(w)) { w.setStatus("Planter: getting bone meal"); goToHut(w); return; }
-            if (fetch(k::fertilizer, BONEMEAL_TO_KEEP) == 0) { note = "Needs " + k.feed() + "."; fieldDone(f); return; }
+            if (!atHut(w)) { w.setStatus("Planter: getting bone meal"); goToHut(w); return true; }
+            if (fetch(k::fertilizer, BONEMEAL_TO_KEEP) == 0) { note = "Needs " + k.feed() + "."; fieldDone(f); return true; }
         }
         if (act == Action.HARVEST && k.tool() != null && !hasTool(k.tool(), null)) {
-            if (!atHut(w)) { w.setStatus("Planter: getting " + toolLabel(k.tool())); goToHut(w); return; }
-            if (!fetchTool(k.tool(), null)) { note = "Needs " + toolLabel(k.tool()) + " to cut " + name(k.item) + "."; fieldDone(f); return; }
+            if (!atHut(w)) { w.setStatus("Planter: getting " + toolLabel(k.tool())); goToHut(w); return true; }
+            if (!fetchTool(k.tool(), null)) { note = "Needs " + toolLabel(k.tool()) + " to cut " + name(k.item) + "."; fieldDone(f); return true; }
         }
         note = null;
         w.setStatus("Planter: working");
         Block at = work.at;
         Block stand = k.water() ? surface(at) : at; // the mod walks to the first air above a water plant
-        if (w.location().getWorld() != at.getWorld() || w.location().distance(stand.getLocation().toCenterLocation()) > REACH) { w.goBeside(stand); return; }
+        if (w.location().getWorld() != at.getWorld() || w.location().distance(stand.getLocation().toCenterLocation()) > REACH) { w.goBeside(stand); return true; }
         Work now = decide(k, work.plot, false); // the plot may have changed while it walked (a player built there, or cut the plant)
-        if (now == null || now.act != act || !now.at.equals(at)) { work = null; return; }
+        if (now == null || now.act != act || !now.at.equals(at)) { work = null; return true; }
         Material empty = k.empty();
         switch (act) {
             case PLANT -> {
@@ -498,6 +497,7 @@ public final class Plantation extends Job {
             w.workedLittle(); // decreaseSaturationForContinuousAction
             if (++actions >= k.shape.actions) fieldDone(f);
         }
+        return true;
     }
 
     /** The block a plant starts as: cocoa facing a jungle log beside it, a vine on the sides that hold it (getPlantingBlockState). */
@@ -537,7 +537,7 @@ public final class Plantation extends Job {
 
     @Override
     public List<Want> wants() {
-        List<Want> wants = new ArrayList<>();
+        List<Want> wants = new ArrayList<>(super.wants()); // a crafter's ingredients
         if (hut.level < 1) return wants;
         boolean fed = false;
         for (Kind k : kinds()) {
@@ -554,18 +554,26 @@ public final class Plantation extends Job {
     /** An axe, shears, a quarter stack of each plant it grows and 16 bone meal stay; the harvest goes to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        if (fits(Tool.AXE, item, null) || fits(Tool.SHEARS, item, null)) return 1;
+        int crafting = super.keep(item); // a crafter's ingredients
+        if (fits(Tool.AXE, item, null) || fits(Tool.SHEARS, item, null)) return Math.max(crafting, 1);
         for (Kind k : kinds()) {
-            if (item.getType() == k.item) return plantsToKeep(k);
-            if (k.shape == Shape.BONEMEAL && k.fertilizer(item)) return BONEMEAL_TO_KEEP;
+            if (item.getType() == k.item) return Math.max(crafting, plantsToKeep(k));
+            if (k.shape == Shape.BONEMEAL && k.fertilizer(item)) return Math.max(crafting, BONEMEAL_TO_KEEP);
         }
-        return 0;
+        return crafting;
+    }
+
+    /** It doesn't eat what its fields grow (the mod's BuildingPlantation.canEat): glow berries stay for planting. */
+    @Override
+    public boolean canEat(ItemStack item) {
+        for (Kind k : kinds()) if (item.getType() == k.item) return false;
+        return true;
     }
 
     @Override
     public List<Component> info(Colony c) {
         if (hut.level == 0) return List.of(Component.text("The planter starts once level 1 is built.", NamedTextColor.GRAY));
-        List<Component> lines = new ArrayList<>();
+        List<Component> lines = new ArrayList<>(super.info(c)); // what it crafts
         int allowed = allowed(), room = room();
         lines.add(Component.text("Works up to " + room + (room == 1 ? " field" : " fields") + " of up to " + allowed + (allowed == 1 ? " kind" : " kinds")
                 + ", each once a day: its building's own plots, then the colony's plantation fields (Build Tool: Agriculture, Fields)."
