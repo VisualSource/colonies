@@ -29,7 +29,7 @@ import java.util.List;
 /** The plugin's items: the Build Tool, hut items, and their recipes (the Build Tool is kept when crafting). */
 public final class Items implements Listener {
     private final Plugin plugin;
-    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey, supplyKey, starterKey, scepterKey, scepterLastKey, bannerKey, rallyingKey;
+    private final NamespacedKey hutKey, buildToolKey, gogglesKey, clipboardKey, scrollKey, supplyKey, starterKey, scepterKey, scepterLastKey, bannerKey, rallyingKey, mapKey;
     private final List<NamespacedKey> recipes = new ArrayList<>();
 
     Items(Plugin plugin) {
@@ -45,6 +45,7 @@ public final class Items implements Listener {
         scepterLastKey = new NamespacedKey(MineCP.NAMESPACE, "guard_scepter_last"); // the block it was used on last
         bannerKey = new NamespacedKey(MineCP.NAMESPACE, "rally_banner");         // value: its guard huts, separated by ";"
         rallyingKey = new NamespacedKey(MineCP.NAMESPACE, "rallying");
+        mapKey = new NamespacedKey(MineCP.NAMESPACE, "colony_map");
     }
 
     /**
@@ -128,6 +129,12 @@ public final class Items implements Listener {
         flag.setIngredient('W', new RecipeChoice.MaterialChoice(Tag.WOOL));
         flag.setIngredient('T', tool);
         add(flag);
+        // MineColonies' colony map: maps around the build tool.
+        ShapedRecipe map = new ShapedRecipe(key("colony_map"), colonyMap());
+        map.shape("XXX", "XTX", "XXX");
+        map.setIngredient('X', new RecipeChoice.MaterialChoice(Material.MAP));
+        map.setIngredient('T', tool);
+        add(map);
         // MineColonies' supply camp (chests) and supply ship (boats): a row of three under two corners. Plain items only
         // (chests or trapped chests; any boat): hut items and racks are chests too, and a Supply Ship is a boat.
         ShapedRecipe camp = new ShapedRecipe(key("supply_camp"), supply(false));
@@ -232,6 +239,28 @@ public final class Items implements Listener {
     /** A Builder's Hut's material list (Menus.resourceScroll); bound by right-clicking the Builder's Hut. */
     private ItemStack resourceScroll() {
         return note(Material.PAPER, "Resource Scroll", "Right-click a Builder's Hut to link its materials", scrollKey, "resource_scroll");
+    }
+
+    /** Becomes a colony's map (below) when used on one of its huts. Paper, as an empty map would fill in where it's used. */
+    private ItemStack colonyMap() {
+        return note(Material.PAPER, "Colony Map", "Right-click a colony's hut to map it", mapKey, "colony_map");
+    }
+
+    /** A colony's map: a vanilla map with the borders on it (MapBorders). */
+    ItemStack colonyMap(dev.minecp.colony.Colony c, org.bukkit.map.MapView view) {
+        ItemStack item = new ItemStack(Material.FILLED_MAP);
+        item.editMeta(org.bukkit.inventory.meta.MapMeta.class, m -> {
+            m.itemName(Component.text("Colony Map", NamedTextColor.GOLD));
+            m.lore(List.of(Component.text("Map of " + c.name + ", " + dev.minecp.build.MapBorders.across(view) + " blocks across", NamedTextColor.GRAY),
+                    Component.text("Right-click a hut to zoom in or out", NamedTextColor.GRAY)));
+            m.setMapView(view);
+            m.getPersistentDataContainer().set(mapKey, PersistentDataType.STRING, "");
+        });
+        return item;
+    }
+
+    boolean isColonyMap(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().has(mapKey);
     }
 
     private ItemStack note(Material base, String name, String hint, NamespacedKey key, String model) {
@@ -388,10 +417,34 @@ public final class Items implements Listener {
     public void onPrepareCraft(org.bukkit.event.inventory.PrepareItemCraftEvent e) {
         if (e.getRecipe() instanceof org.bukkit.Keyed k && recipes.contains(k.getKey())) return;
         for (ItemStack it : e.getInventory().getMatrix())
-            if (it != null && it.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(MineCP.NAMESPACE))) {
+            if (ours(it)) {
                 e.getInventory().setResult(null);
                 return;
             }
+    }
+
+    /** The Crafter block too; nor may it make our own recipes with the Build Tool, which it wouldn't give back. */
+    @EventHandler(ignoreCancelled = true)
+    public void onCrafter(org.bukkit.event.block.CrafterCraftEvent e) {
+        if (!(e.getBlock().getState(false) instanceof org.bukkit.block.Crafter crafter)) return;
+        boolean ownRecipe = recipes.contains(e.getRecipe().getKey());
+        for (ItemStack it : crafter.getInventory().getContents())
+            if (ours(it) && (!ownRecipe || isBuildTool(it))) {
+                e.setCancelled(true);
+                return;
+            }
+    }
+
+    private static boolean ours(ItemStack item) {
+        return item != null && item.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(MineCP.NAMESPACE));
+    }
+
+    /** A Cartography Table only copies a Colony Map: zoomed or locked it would be another map, without borders. Nor does it use up our paper items. */
+    @EventHandler
+    public void onPrepareMap(com.destroystokyo.paper.event.inventory.PrepareResultEvent e) {
+        if (!(e.getInventory() instanceof org.bukkit.inventory.CartographyInventory table)) return;
+        ItemStack map = table.getItem(0), added = table.getItem(1);
+        if (ours(added) || isColonyMap(map) && added != null && added.getType() != Material.MAP) e.setResult(null);
     }
 
     /** Recipes keep their Build Tool: it goes back into the grid (or to the player) after each craft. */

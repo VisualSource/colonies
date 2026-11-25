@@ -1,6 +1,7 @@
 package dev.minecp;
 
 import dev.minecp.build.BuildOrder;
+import dev.minecp.build.MapBorders;
 import dev.minecp.build.Placement;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.build.Border;
@@ -58,6 +59,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public final ClaimMap claims = new ClaimMap();
     private final Set<UUID> tickFailed = new HashSet<>();
     public final Items items = new Items(this);
+    private final MapBorders mapBorders = new MapBorders(this);
     private Saves saves;
     final Menus menus = new Menus(this);
     public final Teaching teaching = new Teaching(this);
@@ -113,6 +115,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(scrolls, this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
+        getServer().getPluginManager().registerEvents(mapBorders, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
         Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this)); // a TabExecutor: Bukkit uses it for suggestions too
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
@@ -188,7 +191,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     }
 
     /** Every colony. */
-    java.util.Collection<Colony> allColonies() {
+    public java.util.Collection<Colony> allColonies() {
         return colonies.values();
     }
 
@@ -411,6 +414,15 @@ public final class MineCP extends JavaPlugin implements Listener {
                     : "Linked to the Builder's Hut of " + c.name + ".", NamedTextColor.GREEN));
             return;
         }
+        if (items.isColonyMap(held)) {
+            e.setCancelled(true);
+            if (!mayAccess(p, c)) return;
+            var map = mapBorders.next(c, held);
+            p.getInventory().setItemInMainHand(items.colonyMap(c, map).asQuantity(held.getAmount()));
+            save(c); // its maps' numbers
+            p.sendMessage(Component.text("This is now a map of " + c.name + ", " + MapBorders.across(map) + " blocks across.", NamedTextColor.GREEN));
+            return;
+        }
         // The block's own use (a chest), which Protection checks: sneaking, and always for a stash, which opens as the mod's.
         if (p.isSneaking() || c.hutAt(e.getClickedBlock()).type == Hut.Type.STASH) return;
         e.setCancelled(true);
@@ -432,6 +444,10 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (e.getHand() != EquipmentSlot.HAND || !(a == org.bukkit.event.block.Action.RIGHT_CLICK_AIR
                 || a == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK && colonyAt(e.getClickedBlock()) == null)) return;
         ItemStack held = e.getItem();
+        if (items.isColonyMap(held) && held.getType() != Material.FILLED_MAP) { // not a colony's yet
+            if (e.getClickedBlock() == null || !e.getClickedBlock().getType().isInteractable()) e.getPlayer().sendMessage(Component.text("Right-click a hut of a colony to map it first.", NamedTextColor.RED));
+            return;
+        }
         boolean clipboard = items.isClipboard(held);
         if (!clipboard && !items.isResourceScroll(held)) return;
         e.setCancelled(true);

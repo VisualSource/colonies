@@ -98,13 +98,14 @@ MODELS = {
     "build_tool": "structurize:item/sceptergold",
     "clipboard": "minecolonies:item/clipboard",
     "resource_scroll": "minecolonies:item/resourcescroll",
+    "colony_map": "minecolonies:item/colonymap",
     "guard_scepter": "minecolonies:item/scepterguard",
     "supply_camp": "minecolonies:item/supplycampdeployer",
     "supply_ship": "minecolonies:item/supplychestdeployer",
 }
 # The vanilla item each MineCP item is made from (Hut.Type.block, Rack, Items) or looks like (Alchemist): its definition gets the override.
 BASE = {"hut/town_hall": "bell", "hut/field": "hay_block", "build_goggles": "leather_helmet", "build_tool": "stick",
-        "clipboard": "paper", "resource_scroll": "paper", "supply_camp": "paper", "supply_ship": "paper",
+        "clipboard": "paper", "resource_scroll": "paper", "colony_map": "paper", "supply_camp": "paper", "supply_ship": "paper",
         "mesh/string": "paper", "mesh/flint": "paper", "mesh/iron": "paper", "mesh/diamond": "paper", "compost": "bone_meal", "guard_scepter": "blaze_rod",
         "mistletoe": "lily_of_the_valley", "magic_potion": "dragon_breath", "ancient_tome": "enchanted_book",
         "scroll_tp": "paper", "scroll_area_tp": "paper", "scroll_guard_help": "paper", "scroll_highlight": "paper", "scroll_buff": "paper"}  # the rest: chest

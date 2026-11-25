@@ -62,6 +62,7 @@ public final class Colony {
     public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     public static final String DEFAULT_STYLE = "medievaloak";
     public final Flag flag = new Flag();
+    public final int[] mapIds = {-1, -1}; // its near and far Colony Map's numbers (MapBorders), -1 until made
     public String style = DEFAULT_STYLE; // structure pack hut buildings come from
     /** The style packs MineCP knows of (tools/convert_blueprints.py makes their data packs). */
     private static final String[] STYLES = {"medievaloak", "medievalspruce", "medievalbirch", "medievaldarkoak", "cavern"};
