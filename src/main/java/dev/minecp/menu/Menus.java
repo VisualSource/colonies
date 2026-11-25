@@ -127,10 +127,13 @@ public final class Menus {
         List<Job> jobs = c.jobsAt(h); // a barracks tower has a guard a level
         Job job = jobs.isEmpty() ? null : jobs.getFirst();
         if (job != null) { // every worker hut: who works it and what it is doing, then what that job shows
+            boolean mine = h.type == Hut.Type.MINER; // a miner or a quarrier: only the one hired shows, or one line for neither
+            boolean anyone = jobs.stream().anyMatch(o -> c.worker(o) != null);
             for (Job j : jobs) {
                 Colonist worker = c.worker(j);
-                String who = jobs.size() > 1 ? j.title() + ": " : "";
-                if (h.type.worker != null) body.add(text(Component.text(who + (worker == null ? "No " + h.type.worker.toLowerCase()
+                if (mine && worker == null && (anyone || j != jobs.getFirst())) continue;
+                String who = jobs.size() > 1 && !(mine && worker == null) ? j.title() + ": " : "";
+                if (h.type.worker != null) body.add(text(Component.text(who + (worker == null ? "No " + (mine ? "miner or quarrier" : h.type.worker.toLowerCase())
                         + (h.level < 1 && j != c.builder ? " until level 1 is built." : ": every citizen has a job.")
                         : worker.name + " — " + worker.status()))));
                 if (j.note != null) body.add(text(Component.text(j.note, NamedTextColor.YELLOW)));
@@ -205,10 +208,11 @@ public final class Menus {
             }));
         }
         if (h.type == Hut.Type.MINER && h.level > 0) buttons.add(button("Guards", p, c, h, player -> mineGuards(player, c, h)));
+        if (h.type.isQuarry() && h.level > 0) buttons.add(button("Quarrier", p, c, h, player -> quarriers(player, c, h)));
         if (job instanceof dev.minecp.job.Enchanter en && h.level > 0)
             buttons.add(button("Gather targets (" + en.targets.size() + ")", p, c, h, player -> gatherTargets(player, c, h, en)));
         if (h.hiring != Settings.Hiring.LOCKED && Settings.hires(h.type) && !c.fillsItself(h)) { // the mod's hire and assign windows: players choose
-            boolean offered = false; // one Hire button, for the first open job
+            java.util.Set<String> offered = new java.util.HashSet<>(); // one Hire button for the first open job (a Mine: one for a miner, one for a quarrier)
             for (Job j : jobs) {
                 Colonist worker = c.worker(j);
                 if (worker != null) {
@@ -217,9 +221,8 @@ public final class Menus {
                         plugin.save(c);
                         hut(player, c, h);
                     }));
-                } else if (!offered && c.canHire(j)) {
-                    offered = true;
-                    buttons.add(button("Hire a " + h.type.worker.toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
+                } else if (c.canHire(j) && offered.add(h.type == Hut.Type.MINER ? j.title() : "")) {
+                    buttons.add(button("Hire a " + (h.type == Hut.Type.MINER ? j.title() : h.type.worker).toLowerCase(), p, c, h, player -> hire(player, c, h, j)));
                 }
             }
             if (h.type.isHome()) {
@@ -331,6 +334,30 @@ public final class Menus {
         buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
         Dialogs.show(p, "Gather targets", List.of(text(Component.text("While its mana is short of 10 per hut level, the enchanter studies these huts, "
                 + "each once a day, with a book from its hut: +1 mana each time."))), List.of(), buttons, 1);
+    }
+
+    /**
+     * The quarriers to assign to this quarry (the mod's quarry window): hired at Miner's Huts; one a quarry, and one taken
+     * from another quarry leaves it. Without a choice a quarry takes any quarrier without one.
+     */
+    private void quarriers(Player p, Colony c, Hut h) {
+        List<ActionButton> buttons = new ArrayList<>();
+        String here = null;
+        for (Job j : c.jobs) {
+            if (!(j instanceof dev.minecp.job.Quarrier q) || c.worker(q) == null) continue;
+            Hut at = q.quarry();
+            String name = c.worker(q).name;
+            if (at == h) { here = name; continue; } // no Unassign: a quarrier without a quarry takes a free one, this one again
+            buttons.add(button("Assign " + name + (at != null ? " (from another quarry)" : ""), p, c, h, Action.MANAGE_HUTS, player -> {
+                q.assign(h);
+                plugin.save(c);
+                quarriers(player, c, h);
+            }));
+        }
+        buttons.add(button("Back", p, c, h, player -> hut(player, c, h)));
+        String text = h.dugOut ? "This quarry is dug out." : here != null ? here + " digs this quarry."
+                : buttons.size() == 1 ? "No quarriers: hire one at a Miner's Hut (in place of its miner)." : "Nobody digs this quarry yet.";
+        Dialogs.show(p, h.type.title + ": quarrier", List.of(text(Component.text(text))), List.of(), buttons, 1);
     }
 
     /** The guard huts whose task is to patrol a mine, to assign to this one (the mod's miner guard window): 1 to 3 of them by its level. */

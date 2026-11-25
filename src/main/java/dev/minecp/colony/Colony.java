@@ -349,6 +349,7 @@ public final class Colony {
 
     /** Whether the hut can take a worker now (the mod's canAssignCitizens): built to level 1, or the Builder's Hut. */
     public boolean canHire(Job j) {
+        if (j.hut.type == Hut.Type.MINER && jobsAt(j.hut).stream().anyMatch(o -> o != j && worker(o) != null)) return false; // a miner or a quarrier, not both
         return j.hut.type.worker != null && (j.hut.level >= 1 || j == builder);
     }
 
@@ -412,6 +413,9 @@ public final class Colony {
             if (job instanceof Builder b) wire(builder = b);
             jobs.add(job);
         }
+        // a Miner's Hut hires a miner or a quarrier (the mod's two work modules; one worker in all)
+        if (hut.type == Hut.Type.MINER && jobsAt(hut).stream().noneMatch(j -> j instanceof dev.minecp.job.Quarrier))
+            jobs.add(new dev.minecp.job.Quarrier(hut, this));
     }
 
     /** The fields a farmer works: farmers, oldest hut first, each take the oldest fields left, one per hut level. */

@@ -23,7 +23,6 @@ import dev.minecp.job.KnightTrainee;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Mesh;
 import dev.minecp.job.Miner;
-import dev.minecp.job.Quarrier;
 import dev.minecp.job.NetherWorker;
 import dev.minecp.job.Plantation;
 import dev.minecp.job.PostBox;
@@ -155,11 +154,14 @@ public final class Hut {
         MYSTICAL_SITE("Mystical Site", Material.CHEST, "mystic/mysticalsite", "mysticalsite", "Its level makes citizens happier and helps the undertaker bring the dead back",
                 () -> new RecipeChoice.MaterialChoice(Material.DIAMOND), false),
         // The mod's quarries: one level, no research; recipes with an iron or diamond pickaxe over a barrel (Items). Their pit
-        // (the shaft blueprint) is dug by the quarrier who works there. Only the original style has them (FALLBACK_STYLE)
+        // (the shaft blueprint) is dug by a quarrier hired at a Miner's Hut and assigned here; nobody works at the quarry
+        // itself, and couriers take what is put in its chest (a stash's job). Only the original style has them (FALLBACK_STYLE)
         SIMPLE_QUARRY("Simple Quarry", Material.CHEST, "infrastructure/mineshafts/simplequarry", "simplequarry",
-                "A quarrier digs out a pit a chunk across below it", () -> new RecipeChoice.MaterialChoice(Material.IRON_PICKAXE), "Quarrier", Quarrier::new, false),
+                "A quarrier from a Miner's Hut digs out a pit a chunk across below it", () -> new RecipeChoice.MaterialChoice(Material.IRON_PICKAXE),
+                null, null, Stash::new, false),
         MEDIUM_QUARRY("Medium Quarry", Material.CHEST, "infrastructure/mineshafts/mediumquarry", "mediumquarry",
-                "A quarrier digs out a pit two chunks across below it", () -> new RecipeChoice.MaterialChoice(Material.DIAMOND_PICKAXE), "Quarrier", Quarrier::new, false),
+                "A quarrier from a Miner's Hut digs out a pit two chunks across below it", () -> new RecipeChoice.MaterialChoice(Material.DIAMOND_PICKAXE),
+                null, null, Stash::new, false),
         // Unlocked by research; the mod's recipe: a carrot in the middle
         HOSPITAL("Hospital", Material.CHEST, "fundamentals/hospital", "hospital", "A healer cures the colony's sick and heals the hurt",
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
@@ -412,6 +414,8 @@ public final class Hut {
     // How the building is turned and mirrored, chosen with the build tool; rotation null: from the hut block's facing.
     public StructureRotation rotation;
     public boolean mirror;
+    // Quarries only: dug out (the mod's QuarryModule.isFinished); saved. Its quarrier then moves on.
+    public boolean dugOut;
     int[] footprint;          // minX, maxX+1, minZ, maxZ+1 of the building at footprintLevel, for the particle tape
     int footprintLevel = -1;
     final java.util.List<org.bukkit.entity.BlockDisplay> tape = new java.util.ArrayList<>(); // shown while waiting for the builder

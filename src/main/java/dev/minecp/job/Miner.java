@@ -124,6 +124,11 @@ public final class Miner extends Job {
         super(hut, colony);
     }
 
+    /** Its mine's worker is a quarrier (the mod's: a miner or a quarrier): the miner's stock isn't needed. */
+    private boolean quarrierHere() {
+        return colony.worker(this) == null && colony.jobsAt(hut).stream().anyMatch(j -> j instanceof Quarrier && colony.worker(j) != null);
+    }
+
     /** The mod's Hot Boots. */
     @Override
     public double reaching(double damage, DamageType type, Entity source, Colonist w) {
@@ -610,7 +615,7 @@ public final class Miner extends Job {
     @Override
     public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
-        if (hut.level < 1) return wants;
+        if (hut.level < 1 || quarrierHere()) return wants;
         for (Material m : stockBlocks()) {
             int have = inChest(i -> i.getType() == m) + has(m);
             if (have < BLOCK_STOCK / 2) wants.add(new Want(name(m), i -> i.getType() == m, BLOCK_STOCK - have, 1)); // minimum 1, as the mod
@@ -631,6 +636,7 @@ public final class Miner extends Job {
     /** Tools, cobblestone, the fill block, ladders and the current structure's materials stay; the ore and stone go to the warehouse. */
     @Override
     int keep(ItemStack item) {
+        if (quarrierHere()) return 0; // the quarrier's keep counts instead
         if (isDiggingTool(item)) return Integer.MAX_VALUE;
         Material m = item.getType();
         if (stockBlocks().contains(m)) return BLOCK_STOCK;

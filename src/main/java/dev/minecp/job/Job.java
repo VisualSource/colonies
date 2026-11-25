@@ -87,7 +87,7 @@ public abstract class Job {
             case FLORIST -> sk(DEXTERITY, AGILITY);
             case COOK -> sk(ADAPTABILITY, KNOWLEDGE);
             case COURIER -> sk(AGILITY, ADAPTABILITY);
-            case MINER, SIMPLE_QUARRY, MEDIUM_QUARRY -> sk(STRENGTH, STAMINA); // the quarrier's are the miner's
+            case MINER -> sk(STRENGTH, STAMINA); // its quarrier's too (the mod's)
             case SAWMILL, BAKER -> sk(KNOWLEDGE, DEXTERITY);
             case STONEMASON, DYER -> sk(CREATIVITY, DEXTERITY);
             case STONE_SMELTERY -> sk(ATHLETICS, DEXTERITY);

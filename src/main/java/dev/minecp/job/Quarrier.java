@@ -22,20 +22,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A quarry's quarrier (the mod's EntityAIQuarrier, the builder's structure work on the quarry's shaft blueprint), the
- * mod's rules unless noted: the pit is dug top-down a layer at a time. On each layer it first lays the layer's solid
- * blocks (walls and supports; where the blueprint keeps the ground, an ore is mined and replaced by the fill block, and a
- * gap filled), then the layer above's torches, ladders and the rest, then mines out every block that should be air.
- * What it digs goes to the quarry's chest. Ours: it is hired at the quarry, not at a mine (see parity.md).
+ * The quarrier (the mod's JobQuarrier and EntityAIQuarrier, the builder's structure work on a quarry's shaft blueprint),
+ * the mod's rules unless noted: hired at a Miner's Hut instead of its miner, it is assigned to a quarry and digs the pit
+ * below it top-down a layer at a time. On each layer it first lays the layer's solid blocks (walls and supports; where
+ * the blueprint keeps the ground, an ore is mined and replaced by the mine's fill block, and a gap filled), then the
+ * layer above's torches, ladders and the rest, then mines out every block that should be air. Its tools and materials
+ * come from its Miner's Hut (whose level limits them); what it digs goes to the quarry's chest.
  */
 public final class Quarrier extends Job {
-    private static final int MAX_BLOCKS_MINED = 128;    // blocks dug before it empties its inventory, times its mine's level
+    private static final int MAX_BLOCKS_MINED = 128;    // blocks dug before it empties its inventory, times its Miner's Hut's level
     private static final double XP_EACH_BUILDING = 8;   // the quarry dug out
     private static final double REACH = 4;              // ours: works on a block this close
     private static final int FILL_KEPT = 64;            // a stack of the fill block, to seal liquids (the mod's mine keeps one)
 
-    private int layer = Integer.MIN_VALUE;              // the world y it is digging; MIN_VALUE: not started (saved)
-    private boolean finished;                           // the whole pit is dug (saved; the mod's QuarryModule.isFinished)
+    private Hut quarry;                                 // the quarry it is assigned to (saved), or null
+    private int layer = Integer.MIN_VALUE;              // the world y it is digging (saved); MIN_VALUE: from the top (the mod resets it on a new quarry)
     private int dug;                                    // blocks dug since it last emptied its inventory
     private Map<Integer, List<BuildOrder.Step>> layers; // the shaft's steps by world y, read once found
     private int top, bottom;
@@ -62,15 +63,30 @@ public final class Quarrier extends Job {
 
     // ---- the pit --------------------------------------------------------------------------------------------------
 
-    /** The level of the colony's best Miner's Hut: the mod's quarrier works from a mine, whose level sets its tools and trips. */
-    private int mineLevel() {
-        return colony.huts.stream().filter(h -> h.type == Hut.Type.MINER).mapToInt(h -> h.level).max().orElse(0);
+    @Override
+    public String title() {
+        return "Quarrier";
     }
 
-    @Override
-    int maxToolTier() {
-        int mine = mineLevel();
-        return mine >= Hut.MAX_LEVEL ? Integer.MAX_VALUE : Math.max(mine, 1);
+    /** Its quarry, or null: gone, dug out, or never assigned. */
+    public Hut quarry() {
+        if (quarry != null && (!colony.huts.contains(quarry) || quarry.dugOut)) assign(null);
+        return quarry;
+    }
+
+    /** Assigns it to a quarry (null: none); one quarrier a quarry, so one already there is unassigned. The work starts from the top. */
+    public void assign(Hut q) {
+        if (q != null) for (Job j : colony.jobs) if (j instanceof Quarrier o && o != this && o.quarry == q) o.assign(null);
+        quarry = q;
+        layer = Integer.MIN_VALUE;
+        layers = null;
+    }
+
+    /** The mod's QuarryModule hiring: a built quarry not dug out and without a quarrier takes any quarrier without a quarry. */
+    private Hut freeQuarry() {
+        for (Hut h : colony.huts)
+            if (h.type.isQuarry() && h.level >= 1 && !h.dugOut && colony.jobs.stream().noneMatch(j -> j instanceof Quarrier o && o.quarry == h)) return h;
+        return null;
     }
 
     /**
@@ -80,10 +96,11 @@ public final class Quarrier extends Job {
      */
     private Map<Integer, List<BuildOrder.Step>> layers() {
         if (layers != null) return layers;
-        String quarry = hut.structure(colony.style, 1);
-        BuildOrder built = BuildOrder.create(quarry, hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
-        BuildOrder shaft = built == null ? null : BuildOrder.create(quarry.replaceFirst("1$", "shaft1"), hut.block.getLocation(),
-                built.rotation, hut.mirror, hut.block.getRelative(0, -2, 0));
+        Hut q = quarry;
+        String name = q.structure(colony.style, 1);
+        BuildOrder built = BuildOrder.create(name, q.block.getLocation(), q.rotation, q.mirror, q.block);
+        BuildOrder shaft = built == null ? null : BuildOrder.create(name.replaceFirst("1$", "shaft1"), q.block.getLocation(),
+                built.rotation, q.mirror, q.block.getRelative(0, -2, 0));
         if (shaft == null) return Map.of();
         Map<Integer, List<BuildOrder.Step>> out = new LinkedHashMap<>();
         top = Integer.MIN_VALUE;
@@ -96,6 +113,7 @@ public final class Quarrier extends Job {
         return layers = out;
     }
 
+    /** Its Miner's Hut's fill block (the mod's: the quarrier uses its mine's). */
     private Material fill() {
         return hut.block(Settings.FILL_BLOCK);
     }
@@ -145,33 +163,37 @@ public final class Quarrier extends Job {
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
-        if (finished) { idle(w, "This quarry is dug out: place a new one to dig more.", 200, hut.block); return; }
-        if (layers().isEmpty()) { idle(w, "No pit for this quarry: the data packs need rebuilding (./gradlew datapacks).", 200, hut.block); return; }
+        if (quarry() == null) {
+            Hut q = freeQuarry();
+            if (q == null) { idle(w, "Assign it to a quarry, or place one: every quarry is dug out or has its quarrier.", 200, hut.block); return; }
+            assign(q);
+        }
+        if (layers().isEmpty()) { idle(w, "No pit for its quarry: the data packs need rebuilding (./gradlew datapacks).", 200, hut.block); return; }
         if (layer == Integer.MIN_VALUE) layer = top;
-        // shortcut: without a Miner's Hut its trips are 128 blocks, as a level 1 mine's
-        if (dug >= Math.max(1, mineLevel()) * MAX_BLOCKS_MINED || bagFull() && loaded()) { // to the quarry's chest
-            if (!atHut(w)) { w.setStatus("Quarrier: bringing up what it dug"); goToHut(w); return; }
-            if (!deliver()) { idle(w, "The quarry's chest is full.", 100, hut.block); return; }
+        if (dug >= hut.level * MAX_BLOCKS_MINED || bagFull() && loaded()) { // to the quarry's chest (the mod dumps there, not at the mine)
+            if (!w.isBeside(quarry.block)) { w.setStatus("Quarrier: bringing up what it dug"); w.goBeside(quarry.block); return; }
+            if (!dump()) { idle(w, "The quarry's chest is full.", 100, quarry.block); return; }
             dug = 0;
         }
         BuildOrder.Step step = pending(layer);
         while (step == null && layer >= bottom) step = pending(--layer); // this layer is done: the next one down (its step 2 covers the last layer's torches)
         if (step == null) {
-            finished = true;
+            quarry.dugOut = true;
             experience(w, XP_EACH_BUILDING);
-            colony.tell("The quarrier finished digging the " + hut.type.title + "."); // ours, for the mod's "finished" message to its players
+            colony.tell("The quarrier finished digging the " + quarry.type.title + "."); // ours, for the mod's "finished" message to its players
+            assign(null);
             return;
         }
         Block b = step.block();
         Tool tool = b.isEmpty() || b.isLiquid() ? null : Tool.forBlock(b.getType(), false);
         if (tool != null && !hasTool(tool, b)) {
             if (!atHut(w)) { w.setStatus("Quarrier: fetching a tool"); goToHut(w); return; }
-            if (!fetchTool(tool, b)) { idle(w, "Needs " + toolLabel(tool) + " good enough for " + name(b.getType()) + " in the quarry's chest.", 100, hut.block); return; }
+            if (!fetchTool(tool, b)) { idle(w, "Needs " + toolLabel(tool) + " good enough for " + name(b.getType()) + " in the Miner's Hut chest.", 100, hut.block); return; }
         }
         ItemStack need = cost(step);
         if (need != null && has(need::isSimilar) == 0) {
             if (!atHut(w)) { w.setStatus("Quarrier: fetching materials"); goToHut(w); return; }
-            if (fetch(need::isSimilar, need.getMaxStackSize()) == 0) { idle(w, "Waiting for " + name(need.getType()) + " in the quarry's chest.", 100, hut.block); return; }
+            if (fetch(need::isSimilar, need.getMaxStackSize()) == 0) { idle(w, "Waiting for " + name(need.getType()) + " in the Miner's Hut chest.", 100, hut.block); return; }
         }
         note = null;
         w.setStatus("Quarrier: digging");
@@ -206,10 +228,20 @@ public final class Quarrier extends Job {
         cooldown = Math.max(1, ticks);
     }
 
+    /** Hands what it carries (but what it keeps on hand) into the quarry's chest; the rest stays with it. @return true if all fit. */
+    private boolean dump() {
+        var chest = quarry.block.getState(false) instanceof org.bukkit.block.Container c ? c.getInventory() : null;
+        var bag = bag();
+        if (chest == null || bag == null) return false;
+        var left = chest.addItem(unload().toArray(ItemStack[]::new)).values();
+        left.forEach(bag::addItem);
+        return left.isEmpty();
+    }
+
     /** What the layers it works on (this one and the one above, and the one below) still need placed. */
     private Map<Material, Integer> needed() {
         Map<Material, Integer> out = new EnumMap<>(Material.class);
-        if (layers().isEmpty() || finished) return out;
+        if (quarry == null || colony.worker(this) == null || layers().isEmpty()) return out;
         int from = layer == Integer.MIN_VALUE ? top : layer;
         for (int y = from + 1; y >= Math.max(bottom, from - 1); y--)
             for (BuildOrder.Step s : layers().getOrDefault(y, List.of())) {
@@ -223,7 +255,7 @@ public final class Quarrier extends Job {
     @Override
     public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
-        if (hut.level < 1 || finished) return wants;
+        if (hut.level < 1 || colony.worker(this) == null) return wants; // a mine whose worker is its miner asks for nothing of the quarrier's
         for (Tool t : new Tool[]{Tool.PICKAXE, Tool.SHOVEL, Tool.AXE}) wantTool(wants, t);
         Map<Material, Integer> needed = needed();
         needed.merge(fill(), FILL_KEPT, Math::max); // always a stack of fill, to seal liquids
@@ -241,9 +273,10 @@ public final class Quarrier extends Job {
         return out;
     }
 
-    /** Its tools, a stack of fill and what the pit still needs stay in the quarry's chest; the rest of what it digs couriers take to the warehouse. */
+    /** Its tools, a stack of fill and what the pit still needs stay in its Miner's Hut chest (what it digs goes to the quarry's). */
     @Override
     int keep(ItemStack item) {
+        if (colony.worker(this) == null) return 0; // the miner's keep counts there instead
         if (isDiggingTool(item)) return 1;
         if (item.getType() == fill()) return FILL_KEPT + needed().getOrDefault(fill(), 0);
         return needed().getOrDefault(item.getType(), 0);
@@ -264,27 +297,27 @@ public final class Quarrier extends Job {
 
     @Override
     public List<Component> info(Colony c) {
-        if (hut.level < 1) return List.of(Component.text("The quarrier starts once the quarry's surface is built.", NamedTextColor.GRAY));
-        if (finished) return List.of(Component.text("The pit is dug out.", NamedTextColor.GRAY));
-        if (layers().isEmpty()) return List.of(Component.text("No pit blueprint for this quarry: rebuild the data packs.", NamedTextColor.GRAY));
+        if (colony.worker(this) == null) return List.of(); // the mine has its miner, or nobody yet
+        if (quarry() == null) return List.of(Component.text("Its quarrier waits for a quarry: place one, or assign it from a quarry's menu.", NamedTextColor.GRAY));
+        if (layers().isEmpty()) return List.of(Component.text("No pit blueprint for its quarry: rebuild the data packs.", NamedTextColor.GRAY));
         int done = layer == Integer.MIN_VALUE ? 0 : top - layer;
-        return List.of(Component.text("Digging the pit top-down: layer " + (done + 1) + " of " + (top - bottom + 1)
-                + ". Its tools and trips go by the colony's best Miner's Hut (level " + mineLevel() + ").", NamedTextColor.GRAY));
+        return List.of(Component.text("Its quarrier digs the pit of the " + quarry.type.title + " at " + quarry.block.getX() + " " + quarry.block.getY() + " "
+                + quarry.block.getZ() + ", top-down: layer " + (done + 1) + " of " + (top - bottom + 1) + ".", NamedTextColor.GRAY));
     }
 
     @Override
     public void save(ConfigurationSection s, Colony c) {
         super.save(s, c);
         if (layer != Integer.MIN_VALUE) s.set("layer", layer);
-        s.set("finished", finished);
+        if (quarry != null) s.set("quarry", c.huts.indexOf(quarry));
         s.set("dug", dug);
     }
 
     @Override
     public void load(ConfigurationSection s, Colony c) {
         super.load(s, c);
+        quarry = c.hutByIndex(s.getInt("quarry", -1));
         layer = s.getInt("layer", Integer.MIN_VALUE);
-        finished = s.getBoolean("finished");
         dug = s.getInt("dug");
     }
 }

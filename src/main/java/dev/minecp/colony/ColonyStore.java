@@ -59,6 +59,7 @@ public final class ColonyStore {
             if (h.hiring != Settings.Hiring.DEFAULT) hs.set("hiring", h.hiring.name());
             h.settings.forEach((k, v) -> hs.set("settings." + k, v));
             if (h.post != null) h.post.save(hs.createSection("post"));
+            if (h.dugOut) hs.set("dug-out", true);
             if (h.type == Hut.Type.FIELD) {
                 if (h.seed != null) hs.set("seed", h.seed.name());
                 hs.set("extent", java.util.Arrays.stream(h.extent).boxed().toList());
@@ -132,6 +133,7 @@ public final class ColonyStore {
             for (int k = 0; k < Math.min(4, extent.size()); k++) h.extent[k] = extent.get(k);
             h.stage = hs.getInt("stage");
             h.workedDay = hs.getInt("worked-day", -1);
+            h.dugOut = hs.getBoolean("dug-out");
             huts.add(h);
         }
         Colony colony = new Colony(owner, s.getString("name"), huts.getFirst().block, huts.getFirst().level);
