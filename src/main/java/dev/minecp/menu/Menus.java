@@ -265,7 +265,7 @@ public final class Menus {
                     .initial(h.setting(s.key())).width(250).build());
             case CHOICE -> {
                 List<SingleOptionDialogInput.OptionEntry> options = new ArrayList<>();
-                for (String o : s.options())
+                for (String o : s.options()) if (Settings.unlocked(o, c) || o.equals(h.setting(s.key())))
                     options.add(SingleOptionDialogInput.OptionEntry.create(o, Component.text(choiceLabel(o)), o.equals(h.setting(s.key()))));
                 inputs.add(DialogInput.singleOption(s.key(), Component.text(s.label()), options).width(250).build());
             }
@@ -292,7 +292,7 @@ public final class Menus {
                 }
                 case CHOICE -> {
                     String o = view.getText(s.key());
-                    if (!s.options().contains(o)) continue;
+                    if (!s.options().contains(o) || !Settings.unlocked(o, c) && !o.equals(h.setting(s.key()))) continue;
                     if (s.key().equals(Settings.GUARD_TASK) && o.equals("FOLLOW") && h.post.task() != GuardPost.Task.FOLLOW) h.post.follow(player); // whoever told them to
                     h.set(s.key(), o);
                 }

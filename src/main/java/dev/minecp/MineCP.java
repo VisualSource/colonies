@@ -549,8 +549,10 @@ public final class MineCP extends JavaPlugin implements Listener {
     /** A guard's arrows hit only monsters: they fly on through citizens, players, pets and other animals (ours). */
     @EventHandler(ignoreCancelled = true)
     public void onGuardArrow(org.bukkit.event.entity.ProjectileHitEvent e) {
-        if (e.getHitEntity() != null && !(e.getHitEntity() instanceof org.bukkit.entity.Enemy)
-                && e.getEntity().getScoreboardTags().contains(dev.minecp.job.Guard.GUARD_ARROW)) e.setCancelled(true);
+        if (e.getHitEntity() == null || !e.getEntity().getScoreboardTags().contains(dev.minecp.job.Guard.GUARD_ARROW)) return;
+        if (!(e.getHitEntity() instanceof org.bukkit.entity.Enemy)) e.setCancelled(true);
+        else if (e.getEntity() instanceof org.bukkit.entity.AbstractArrow a && e.getHitEntity() instanceof org.bukkit.entity.LivingEntity hit)
+            dev.minecp.job.Guard.arrowHit(this, a, hit);
     }
 
     /** A druid's potions: harmful ones touch only monsters, helpful ones only the rest (the mod's DruidPotionEntity predicate). */

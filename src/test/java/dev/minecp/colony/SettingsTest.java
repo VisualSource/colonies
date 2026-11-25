@@ -34,6 +34,25 @@ class SettingsTest {
     }
 
     @Test
+    void researchUnlocksGuardTypes() {
+        Colony colony = new Colony(java.util.UUID.randomUUID(), "Test", null, 1);
+        assertTrue(Settings.unlocked("KNIGHT", colony));
+        assertFalse(Settings.unlocked("HUSCARL", colony));
+        assertFalse(Settings.unlocked("MARKSMAN", colony));
+        research(colony, "combat|slicedanddecided");
+        assertTrue(Settings.unlocked("HUSCARL", colony));
+        assertFalse(Settings.unlocked("MARKSMAN", colony));
+        research(colony, "combat|thathitthemark");
+        assertTrue(Settings.unlocked("MARKSMAN", colony));
+    }
+
+    private static void research(Colony colony, String id) {
+        var saved = new org.bukkit.configuration.file.YamlConfiguration();
+        saved.set(id, -1); // finished
+        colony.research.load(saved);
+    }
+
+    @Test
     void whoHires() {
         assertTrue(Settings.hires(Hut.Type.LUMBERJACK));
         assertTrue(Settings.hires(Hut.Type.HOUSE));

@@ -1,5 +1,7 @@
 package dev.minecp.colony;
 
+import dev.minecp.research.Effects;
+
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -73,15 +75,24 @@ public final class Settings {
             words(PATROL_MODE, "Patrol points (manual: set with the Guard Scepter)", "AUTO", "MANUAL"),
             words(FOLLOW_MODE, "Follow", "TIGHT", "LOOSE"), bool(RETREAT, "Retreat when badly hurt (with research)"), HIRE_TRAINEES);
 
-    private static final List<Setting> TOWER = Stream.concat(Stream.of(guardType(0, "Guard type", "KNIGHT", "RANGER")), GUARDS.stream()).toList(); // the mod's: druids only in barracks towers
+    private static final List<Setting> TOWER = Stream.concat(Stream.of(guardType(0, "Guard type", "KNIGHT", "RANGER", "MARKSMAN", "HUSCARL")), GUARDS.stream()).toList(); // the mod's: druids only in barracks towers
     private static final List<Setting> BARRACKS_TOWER = Stream.concat(java.util.stream.IntStream.range(0, Hut.MAX_LEVEL)
-            .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID")), GUARDS.stream()).toList();
+            .mapToObj(i -> guardType(i, "Guard " + (i + 1) + " type (from level " + (i + 1) + ")", "KNIGHT", "RANGER", "DRUID", "HUSCARL", "MARKSMAN")), GUARDS.stream()).toList();
 
     private Settings() {}
 
     /** The guard type of a hut's {@code slot}th guard (from 0): knight by default. */
     public static String guardTypeKey(int slot) {
         return slot == 0 ? GUARD_TYPE : GUARD_TYPE + "_" + (slot + 1);
+    }
+
+    /** Whether players may pick this option: the guard types research unlocks, once it has (the mod's hiring modules). */
+    public static boolean unlocked(String option, Colony c) {
+        return switch (option) {
+            case "MARKSMAN" -> c.research.effect(Effects.MARKSMAN) > 0;
+            case "HUSCARL" -> c.research.effect(Effects.HUSCARL) > 0;
+            default -> true;
+        };
     }
 
     private static Setting guardType(int slot, String label, String... types) {

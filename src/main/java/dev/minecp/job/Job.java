@@ -538,7 +538,7 @@ public abstract class Job {
     /** What to ask for: the tool kind and, below the top level, the best tier this hut allows. */
     String toolLabel(Tool kind) {
         int max = maxToolTier();
-        if (max == Integer.MAX_VALUE) return kind.label;
+        if (max == Integer.MAX_VALUE || kind == Tool.CROSSBOW) return kind.label; // a crossbow may have any enchantment
         if (!kind.digs() && kind != Tool.SWORD) // rods and shears have no material: only their enchantments count
             return kind.label + " (enchanted up to level " + (max + 1) + " until the hut is upgraded)";
         return kind.label + " (" + Tool.tierName(max) + " or lower until the hut is upgraded)";

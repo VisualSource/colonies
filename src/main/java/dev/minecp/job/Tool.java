@@ -13,6 +13,7 @@ public enum Tool {
     HOE("a hoe", Tag.ITEMS_HOES, Tag.MINEABLE_HOE),
     SWORD("a sword", Tag.ITEMS_SWORDS, null), // a guard's weapon: mines nothing
     BOW("a bow", m -> m == Material.BOW), // a ranger's (the mod's bow equipment: wood level, plus enchantments)
+    CROSSBOW("a crossbow", m -> m == Material.CROSSBOW), // a marksman's
     ROD("a fishing rod", m -> m == Material.FISHING_ROD),
     SHEARS("shears", m -> m == Material.SHEARS),
     FLINT_AND_STEEL("flint and steel", m -> m == Material.FLINT_AND_STEEL);
@@ -53,9 +54,10 @@ public enum Tool {
 
     /**
      * The mod's equipment level of a tool: wood and gold 0, stone 1 (copper too: it mines what stone does; the mod
-     * predates it), iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1.
+     * predates it), iron 2, diamond 3, netherite 4, plus its highest enchantment level minus 1. A crossbow's is always 1.
      */
     static int tier(ItemStack tool) {
+        if (tool.getType() == Material.CROSSBOW) return 1; // the mod's goes by its durability
         String n = tool.getType().name();
         int tier = n.startsWith("NETHERITE_") ? 4 : n.startsWith("DIAMOND_") ? 3 : n.startsWith("IRON_") ? 2
                 : n.startsWith("STONE_") || n.startsWith("COPPER_") ? 1 : 0;

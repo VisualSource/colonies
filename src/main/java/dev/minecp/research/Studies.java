@@ -167,6 +167,8 @@ public final class Studies {
             case Effects.DOUBLE_ARROWS -> "Rangers shoot a second arrow " + pct + " of the time";
             case Effects.ARROW_PIERCE -> "Rangers' arrows pierce through two more mobs";
             case Effects.USE_ARROWS -> "Rangers ask for arrows, which add 2 damage to each shot";
+            case Effects.MARKSMAN -> "Guard towers and barracks towers can have marksmen: crossbows whose arrows pierce armor (a hut's Settings)";
+            case Effects.HUSCARL -> "Guard towers and barracks towers can have huscarls: axes that cut through armor, but no shield (a hut's Settings)";
             case Effects.DRUID_POTIONS -> "The Alchemist makes magic potions; druids use them up for stronger potions of more kinds";
             case Effects.TELESCOPE -> "Guards rally to a banner up to 500 blocks from the town hall, outside the colony too";
             case Effects.STANDARD -> "Guards can be rallied to a standing colony banner"; // the rally banner used on it
