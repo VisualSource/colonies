@@ -225,13 +225,16 @@ public final class BuildOrder {
             var tags = e.getScoreboardTags();
             String spot = tags.stream().filter(t -> t.startsWith(WORK_SPOT_TAG)).findFirst().orElse(null);
             if (tags.contains(LEISURE_TAG)) { order.leisure = true; continue; }
-            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && !tags.contains(WAYPOINT_TAG) && spot == null) continue;
+            String stand = tags.stream().filter(t -> t.startsWith(SPOT_TAG)).findFirst().orElse(null);
+            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && !tags.contains(WAYPOINT_TAG) && spot == null && stand == null) continue;
             var l = e.getLocation(); // relative to the structure's corner
             BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
             Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
             if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
             if (tags.contains(WAYPOINT_TAG)) { order.waypoints.add(block); continue; }
+            if (stand != null) order.spots.computeIfAbsent(stand.substring(SPOT_TAG.length()), k -> new ArrayList<>()).add(block);
             if (tags.contains(SIT_TAG)) { order.seats.add(block); continue; }
+            if (stand != null) continue;
             if (spot != null) { order.workSpots.put(block, spot.substring(WORK_SPOT_TAG.length())); continue; }
             order.graves.add(new GraveSpot(block, facing(tags, rotation, mirror)));
         }
@@ -313,6 +316,10 @@ public final class BuildOrder {
     static final String SIT_TAG = "minecp_sit";
     /** Where the structure has a seat. */
     public final List<Block> seats = new ArrayList<>();
+    /** Tag prefix of the markers on a blueprint's sitting and standing spots, + the mod's tag (sit, sit_in, sit_out, stand_in, stand_out). */
+    static final String SPOT_TAG = "minecp_spot_";
+    /** Its sitting and standing spots by the mod's tag (for free time: Leisure). Empty in packs converted before they were marked. */
+    public final Map<String, List<Block>> spots = new java.util.HashMap<>();
 
     /** Prefix of the marker entities on a building's work spots, + the mod's tag (a plantation's "sugar", "cactus", "bamboo"; "work"). */
     static final String WORK_SPOT_TAG = "minecp_plant_";

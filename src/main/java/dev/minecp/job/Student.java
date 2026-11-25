@@ -83,7 +83,7 @@ public final class Student extends Job {
             fetch(Student::studyItem, FETCHED);
         }
         if (shelf == null) shelf = randomShelf();
-        if (!w.isBeside(shelf) && walking < STUDY_TICKS) { // the mod studies where it is once it gave up walking
+        if (!w.seesBeside(shelf) && walking < STUDY_TICKS) { // the mod studies where it is once it gave up walking
             w.setStatus("Student: going to study");
             w.goBeside(shelf);
             walking += 20;

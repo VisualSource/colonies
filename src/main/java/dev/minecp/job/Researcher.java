@@ -49,7 +49,7 @@ public final class Researcher extends Job {
         }
         if (w.isMoving() || --cooldown > 0) return;
         if (shelf == null) shelf = randomShelf();
-        if (!w.isBeside(shelf) && studying < STUDY_DELAY / 20) { // the mod gives up walking after STUDY_DELAY and studies where it is
+        if (!w.seesBeside(shelf) && studying < STUDY_DELAY / 20) { // the mod gives up walking after STUDY_DELAY and studies where it is
             w.setStatus("Researcher: working");
             w.goBeside(shelf);
             studying++;

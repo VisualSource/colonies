@@ -326,6 +326,33 @@ public final class Colonist {
         return (x, y, z) -> Math.abs(x - bx) <= 2 && Math.abs(z - bz) <= 2 && y - by >= -2 && y - by <= 1 && !(x == bx && z == bz);
     }
 
+    /** The same, from where the block can be seen: not reaching it through a wall (ours; the mod's paths mostly end inside on their own). */
+    private static Route.Goal seeingGoal(Block b) {
+        Route.Goal beside = besideGoal(b);
+        org.bukkit.World w = b.getWorld();
+        return (x, y, z) -> beside.accepts(x, y, z) && (sees(w, x + 0.5, y + 0.5, z + 0.5, b) || sees(w, x + 0.5, y + 1.5, z + 0.5, b));
+    }
+
+    /** {@link #isBeside}, and it can see the block from there: not on the far side of a wall. */
+    public boolean seesBeside(Block b) {
+        Block at = last.getBlock();
+        return at.getWorld() == b.getWorld() && seeingGoal(b).accepts(at.getX(), at.getY(), at.getZ()); // the walking goal's own test
+    }
+
+    /** Whether the line from a point (its feet or its eyes) to the middle of {@code b} crosses nothing opaque before reaching it. */
+    static boolean sees(org.bukkit.World w, double sx, double sy, double sz, Block b) {
+        double dx = b.getX() + 0.5 - sx, dy = b.getY() + 0.5 - sy, dz = b.getZ() + 0.5 - sz;
+        int n = (int) Math.ceil(Math.sqrt(dx * dx + dy * dy + dz * dz) * 4); // a sample every quarter block
+        int fromX = (int) Math.floor(sx), fromY = (int) Math.floor(sy), fromZ = (int) Math.floor(sz);
+        for (int i = 1; i < n; i++) {
+            int x = (int) Math.floor(sx + dx * i / n), y = (int) Math.floor(sy + dy * i / n), z = (int) Math.floor(sz + dz * i / n);
+            if (x == b.getX() && y == b.getY() && z == b.getZ()) return true;
+            if (x == fromX && y == fromY && z == fromZ) continue; // where it stands
+            if (w.getBlockAt(x, y, z).getType().isOccluding()) return false;
+        }
+        return true;
+    }
+
     /** A ladder climb in progress : up or down the column at {@code col} to stand on {@code to}. */
     private record Climb(Block col, Block to, boolean up, int[] ticks) {}
 
@@ -964,7 +991,13 @@ public final class Colonist {
         if (mount != null) return rideTo(block.getLocation().toCenterLocation()) ? block.getLocation().toCenterLocation() : null;
         Route.Goal goal = besideGoal(block);
         Route.Result r = plan(block.getX(), block.getY(), block.getZ(), goal);
-        if (r == null || !r.reached()) return null;
+        if (r == null || !r.reached()) return null; // one failed search, as before, for a far or unreachable block
+        Block stop = r.steps().isEmpty() ? legs.getLocation().getBlock() : block.getWorld().getBlockAt(r.steps().getLast().x(), r.steps().getLast().y(), r.steps().getLast().z());
+        Route.Goal seeing = seeingGoal(block);
+        if (!seeing.accepts(stop.getX(), stop.getY(), stop.getZ())) { // it would stand behind a wall: a spot it sees the block from, if one is in reach
+            Route.Result better = plan(block.getX(), block.getY(), block.getZ(), seeing);
+            if (better != null && better.reached()) { r = better; goal = seeing; }
+        }
         follow(r, block.getX(), block.getY(), block.getZ(), goal);
         Route.Step end = r.steps().isEmpty() ? null : r.steps().getLast();
         return end == null ? legs.getLocation() : new Location(block.getWorld(), end.x() + 0.5, end.h(), end.z() + 0.5);

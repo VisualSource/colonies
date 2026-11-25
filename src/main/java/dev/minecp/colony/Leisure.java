@@ -85,7 +85,14 @@ public final class Leisure {
         if (rnd.nextInt(60 * 5) < 1) { end(c, v); return; } // the mod's: 1 in 300 at each step
         if (v.wait > 0) { v.wait -= STEP; return; }
         if (v.walkTo != null) {
-            if (!near(c, v.walkTo)) { c.goBeside(v.walkTo); return; }
+            boolean standing = !v.walkTo.equals(v.seat);
+            if (standing ? !c.location().getBlock().equals(v.walkTo) && !near(c, v.walkTo, 1) : !near(c, v.walkTo)) {
+                if (!standing) { c.goBeside(v.walkTo); return; } // beside a seat
+                if (c.walk(v.walkTo.getLocation().add(0.5, 0, 0.5))) return; // onto a standing spot
+                v.wait = SIT; // no way onto it: it stands about where it is
+                v.walkTo = null;
+                return;
+            }
             if (v.walkTo.equals(v.seat) && free(v.seat, c)) c.sitOn(v.seat);
             v.wait = SIT;
             v.walkTo = null;
@@ -102,11 +109,28 @@ public final class Leisure {
             v.reading = true;
             return;
         }
-        // ours: the converter keeps only the blueprints' sitting spots (its sit tags), not their standing ones
-        if (!build.seats.isEmpty() && rnd.nextBoolean()) {
-            Block seat = build.seats.get(rnd.nextInt(build.seats.size()));
-            if (free(seat, c)) { v.walkTo = v.seat = seat; }
+        // The mod's: in the rain or half the time an inside spot (a seat half of those times), else an outside one, else a plain seat.
+        Map<String, List<Block>> spots = build.spots.isEmpty() && !build.seats.isEmpty() ? Map.of("sit", build.seats) : build.spots; // a pack converted before its spots were marked
+        if (v.site.getWorld().hasStorm() || rnd.nextBoolean()) {
+            if (spots.containsKey("sit_in") && rnd.nextBoolean()) { if (goSit(c, v, spots.get("sit_in"))) return; }
+            else if (spots.containsKey("stand_in")) { goStand(v, spots.get("stand_in")); return; }
         }
+        if (spots.containsKey("sit_out") && rnd.nextBoolean()) { if (goSit(c, v, spots.get("sit_out"))) return; }
+        else if (spots.containsKey("stand_out")) { goStand(v, spots.get("stand_out")); return; }
+        if (spots.containsKey("sit")) goSit(c, v, spots.get("sit"));
+    }
+
+    /** Off to one of these seats, if nobody sits there. @return whether it goes. */
+    private boolean goSit(Colonist c, Visit v, List<Block> seats) {
+        Block seat = seats.get(ThreadLocalRandom.current().nextInt(seats.size()));
+        if (!free(seat, c)) return false;
+        v.walkTo = v.seat = seat;
+        return true;
+    }
+
+    private static void goStand(Visit v, List<Block> spots) {
+        v.walkTo = spots.get(ThreadLocalRandom.current().nextInt(spots.size()));
+        v.seat = null;
     }
 
     /** At a bookshelf, a book in hand; 1 in 20 at each step it is done: a try at intelligence (the mod's readABook). */
@@ -133,8 +157,12 @@ public final class Leisure {
     }
 
     private static boolean near(Colonist c, Block b) {
+        return near(c, b, REACH);
+    }
+
+    private static boolean near(Colonist c, Block b, int within) {
         Location at = c.location();
-        return at.getWorld() == b.getWorld() && at.distance(b.getLocation().toCenterLocation()) <= REACH + 0.5;
+        return at.getWorld() == b.getWorld() && at.distance(b.getLocation().toCenterLocation()) <= within + 0.5;
     }
 
     /** Nobody else sits there, citizen or visitor. */

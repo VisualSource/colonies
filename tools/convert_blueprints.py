@@ -72,6 +72,7 @@ GRAVE_TAG = "minecp_grave"                           # tag of the marker entity 
 STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"),
                  "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
+SPOT_TAG = "minecp_spot_"  # + the mod's tag, on its sitting and standing spots: sit, sit_in, sit_out, stand_in, stand_out (BuildOrder.SPOT_TAG)
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
@@ -196,8 +197,8 @@ def tag_spots(root, wanted):
 
 
 def sit_spots(root):
-    """A blueprint's seats: its hut's "sit" tag positions ("sit", "sit_in", "sit_out", "sitting"), relative to the blueprint's corner."""
-    return [pos for pos, _ in tag_spots(root, lambda n: n.startswith("sit"))]
+    """A blueprint's seats: its "sit" tag positions ("sit", "sit_in", "sit_out"), relative to the blueprint's corner, with the tag."""
+    return tag_spots(root, lambda n: n.startswith("sit"))
 
 
 def primary_offset(root):
@@ -289,11 +290,14 @@ def convert(path, blocks, siblings=()):
         o = nbt.load(other)
         if tuple(o[k][1] for k in ("size_x", "size_y", "size_z")) == (sx, sy, sz):
             borrowed = sit_spots(o)
-            if borrowed and all(s in stairs for s in borrowed):
+            if borrowed and all(s in stairs for s, _ in borrowed):
                 seats = borrowed
-    for pos in seats:
+    for pos, name in seats:
         if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
-            out_entities.append(marker(pos, [SIT_TAG]))
+            out_entities.append(marker(pos, [SIT_TAG, SPOT_TAG + name]))
+    for pos, name in tag_spots(root, lambda n: n in ("stand_in", "stand_out")):  # where citizens stand about in their free time
+        if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
+            out_entities.append(marker(pos, [SPOT_TAG + name]))
     for pos, _ in tag_spots(root, lambda n: n == "leisure")[:1]:  # one is enough: the build is a leisure site
         out_entities.append(marker(tuple(min(max(c, 0), m - 1) for c, m in zip(pos, (sx, sy, sz))), [LEISURE_TAG]))
     for pos, name in tag_spots(root, lambda n: n in PLANT_TAGS):
