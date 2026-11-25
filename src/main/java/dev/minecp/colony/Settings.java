@@ -8,8 +8,7 @@ import java.util.stream.Stream;
 /**
  * The mod's building settings (its SettingsModule, BuildingModules' *_SETTINGS) that MineCP has the behaviour for, with
  * the mod's defaults, and its hiring modes. Each hut keeps its own values (Hut.setting); the Town Hall's are the
- * colony's. Left out because their features don't exist here: the lumberjack's restricted area, defoliating and shears,
- * the builder's work order mode and building patterns, and the tavern's music.
+ * colony's.
  */
 public final class Settings {
     /** The mod's HiringMode: DEFAULT follows the Town Hall's auto hiring (or auto housing for homes). */
@@ -62,10 +61,10 @@ public final class Settings {
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
-            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", BUILD_MODE = "build_mode";
+            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", MIN_STOCK = "min_stock", BUILD_MODE = "build_mode";
     // the mod's lumberjack "defoliate", the use-shears setting of its builder, lumberjack and miner, the builder's work order mode
     public static final String DEFOLIATE = "defoliate", USE_SHEARS = "use_shears", WORK_MODE = "work_mode", MANUAL = "manual";
-    static final String HIRE_TRAINEE = "hire_trainee";
+    static final String HIRE_TRAINEE = "hire_trainee", MUSIC = "music";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
     public static final int NO_MAX_DEPTH = -100;
@@ -144,8 +143,9 @@ public final class Settings {
             // ours: the mod's players assign its fields in a list; here each kind is a switch
             case PLANTATION -> java.util.Arrays.stream(dev.minecp.job.Plantation.Kind.values()).map(k -> bool(k.setting(), k.label())).toList();
             case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));
-            // not its "min warehouse stock" (16): MineCP's warehouse keeps nothing back from requests
-            case COMPOSTER -> List.of(bool(MAKE_DIRT, "Make dirt instead of compost", false));
+            case COMPOSTER -> List.of(bool(MAKE_DIRT, "Make dirt instead of compost", false),
+                    number(MIN_STOCK, "How many of each thing to compost the warehouse keeps back", 16, 0, 1000)); // ours: the top
+            case TAVERN -> List.of(bool(MUSIC, "Music when a player comes in at night (two visitors or more sitting)"));
             // at most what it asks for at a time (Crafter.ORES)
             case SMELTERY -> List.of(number(MIN_ORE, "Fewest ores a delivery may bring", 0, 0, 32));
             // the mod's crusher mode (ours: the first is gravel) and daily limit (the mod's 0: off; ours: its top)

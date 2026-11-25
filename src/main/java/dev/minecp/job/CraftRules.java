@@ -235,12 +235,14 @@ public final class CraftRules {
     /** The Glassblower (BuildingGlassblower). */
     public static final Predicate<Recipe> GLASSBLOWER = craftOrSmelt(GLASSBLOWER_TAGS, GLASSBLOWER_SMELTING_TAGS);
 
-    /** The Smeltery (BuildingSmeltery): every furnace recipe that smelts an ore or raw metal. */
-    public static final Predicate<Recipe> SMELTERY = r -> r instanceof FurnaceRecipe f && ore(f);
+    /** The Smeltery (BuildingSmeltery): every furnace recipe that smelts an ore or raw metal it doesn't break instead. */
+    public static final Predicate<Recipe> SMELTERY = r -> r instanceof FurnaceRecipe f && inputs(f).stream().anyMatch(m -> isOre(m) && !breakable(m));
 
-    static boolean ore(CookingRecipe<?> r) {
-        for (Material m : inputs(r)) if (isOre(m)) return true;
-        return false;
+    /** Ores the smelter breaks rather than smelts (the mod's breakable_ore tag). */
+    static boolean breakable(Material m) {
+        return m == Material.NETHER_QUARTZ_ORE || org.bukkit.Tag.COAL_ORES.isTagged(m) || org.bukkit.Tag.IRON_ORES.isTagged(m) || org.bukkit.Tag.COPPER_ORES.isTagged(m)
+                || org.bukkit.Tag.GOLD_ORES.isTagged(m) || org.bukkit.Tag.REDSTONE_ORES.isTagged(m) || org.bukkit.Tag.EMERALD_ORES.isTagged(m)
+                || org.bukkit.Tag.LAPIS_ORES.isTagged(m) || org.bukkit.Tag.DIAMOND_ORES.isTagged(m);
     }
 
     /** Ores and raw metals (forge:ores and forge:raw_materials). */

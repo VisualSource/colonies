@@ -9,6 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /** The stack-limit arithmetic of a courier's load. Runs without a server. */
 class WarehouseTest {
     @Test
+    void keepsBackOfEachItem() {
+        assertEquals(24, Warehouse.free(40, 16));
+        assertEquals(0, Warehouse.free(16, 16));
+        assertEquals(0, Warehouse.free(5, 16), "fewer than it keeps: none to spare, not a debt");
+        assertEquals(40, Warehouse.free(40, 0));
+    }
+
+    @Test
     void roomCountsWholeStacksPerKind() {
         // Empty load: the full allowance of the item's own stack size.
         assertEquals(128, Warehouse.room(List.of(), 0, 64, 2));

@@ -17,7 +17,7 @@ Size 5x14x5.
 - **12x** domum_ornamentum:blockpillar -> structure void (unknown block): `4 2 0` `1 2 2` `2 2 2` `2 2 3` `0 4 4` `0 5 4` `0 6 4` `0 7 4` `0 9 4` `0 10 4` `0 11 4` `0 12 4`
 - **10x** domum_ornamentum:vanilla_stairs_compat [oak_wood] -> minecraft:oak_stairs: `0 1 0` `1 1 0` `2 1 0` `3 1 0` `4 1 1` `4 1 2` `4 1 3` `4 1 4` `0 2 1` `3 2 4`
 - **4x** domum_ornamentum:crossed_light -> structure void (unknown block): `4 1 0` `0 3 4` `0 8 4` `0 13 4`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `2 3 2`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `2 3 2`
 
 ## cavern/agriculture/fields/corner_cactus
 Size 6x8x6.
@@ -26,39 +26,39 @@ Size 6x8x6.
 - **5x** domum_ornamentum:blockpillar -> structure void (unknown block): `0 2 0` `0 3 0` `0 4 0` `0 5 0` `0 6 0`
 - **3x** domum_ornamentum:crossed_light -> structure void (unknown block): `4 0 4` `0 1 0` `0 7 0`
 - **2x** domum_ornamentum:vanilla_trapdoors_compat [domum_ornamentum:cactus_extra] -> minecraft:oak_trapdoor (no such block in that material): `5 1 0` `0 1 5`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `4 1 4`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `4 1 4`
 
 ## cavern/agriculture/fields/corner_cocoa
 Size 5x9x5.
 - **11x** domum_ornamentum:blockypillar [jungle_wood] -> minecraft:jungle_wood: `0 2 1` `3 2 4` `0 3 1` `3 3 1` `3 3 4` `0 4 1` `1 4 3` `3 4 4` `1 5 3` `1 6 3` `1 7 3`
 - **4x** domum_ornamentum:crossed_light -> structure void (unknown block): `0 1 1` `3 1 4` `0 5 1` `3 5 4`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `0 1 0`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `0 1 0`
 
 ## cavern/agriculture/fields/corner_crimson
 Size 5x14x5.
 - **12x** domum_ornamentum:panel [crimson_hyphae] -> minecraft:crimson_trapdoor: `1 6 0` `2 6 0` `3 6 0` `0 6 1` `0 6 2` `0 6 3` `1 11 0` `2 11 0` `3 11 0` `0 11 1` `0 11 2` `0 11 3`
 - **8x** domum_ornamentum:blockypillar [crimson_hyphae] -> minecraft:crimson_hyphae: `0 1 0` `0 2 0` `0 3 0` `0 4 0` `0 6 0` `0 7 0` `0 8 0` `0 9 0`
 - **5x** domum_ornamentum:fancy_light -> minecraft:lantern: `4 0 0` `0 0 4` `4 0 4` `0 5 0` `0 10 0`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `4 1 4`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `4 1 4`
 
 ## cavern/agriculture/fields/corner_sugar
 Size 5x14x5.
 - **26x** domum_ornamentum:panel [domum_ornamentum:cactus_extra] -> minecraft:oak_trapdoor (no such block in that material): `0 2 3` `1 2 4` `0 3 3` `1 3 4` `0 4 3` `1 4 4` `0 5 3` `1 5 4` `0 6 3` `1 6 4` `0 7 3` `1 7 4` `0 8 2` `0 8 3` `1 8 4` `2 8 4` `0 9 2` `0 9 3` `1 9 4` `2 9 4` `0 10 3` `1 10 4` `0 11 3` `1 11 4` `0 12 3` `1 12 4`
 - **2x** domum_ornamentum:crossed_light -> structure void (unknown block): `2 1 2` `0 13 4`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `2 2 2`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `2 2 2`
 
 ## cavern/agriculture/fields/corner_vines
 Size 5x10x5.
 - **16x** domum_ornamentum:blockypillar [jungle_wood] -> minecraft:jungle_wood: `0 1 1` `3 1 4` `0 2 1` `0 2 4` `3 2 4` `0 3 1` `0 3 4` `3 3 4` `0 4 1` `0 4 4` `3 4 4` `0 5 4` `0 6 1` `0 6 4` `3 6 4` `0 8 4`
 - **4x** domum_ornamentum:crossed_light -> structure void (unknown block): `0 1 4` `0 5 1` `3 5 4` `0 7 4`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `3 1 1`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `3 1 1`
 
 ## cavern/agriculture/fields/corner_warped
 Size 5x14x5.
 - **12x** domum_ornamentum:panel [warped_hyphae] -> minecraft:warped_trapdoor: `1 5 0` `2 5 0` `3 5 0` `0 5 1` `0 5 2` `0 5 3` `1 11 0` `2 11 0` `3 11 0` `0 11 1` `0 11 2` `0 11 3`
 - **8x** domum_ornamentum:blockypillar [warped_hyphae] -> minecraft:warped_hyphae: `0 1 0` `0 2 0` `0 3 0` `0 4 0` `0 6 0` `0 7 0` `0 8 0` `0 9 0`
 - **5x** domum_ornamentum:fancy_light -> minecraft:lantern: `4 0 0` `0 0 4` `4 0 4` `0 5 0` `0 10 0`
-- **1x** minecolonies:blockhutplantationfield (hut block) -> minecraft:chest: `4 1 4`
+- **1x** minecolonies:blockhutplantationfield -> minecraft:oak_trapdoor: `4 1 4`
 
 ## cavern/agriculture/horticulture/alternative/plantation1
 Size 18x6x6.

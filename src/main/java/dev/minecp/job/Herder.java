@@ -66,17 +66,21 @@ public final class Herder extends Job {
     private static final int MIN_ADULTS = 3;           // never butchered at or below this
     private static final int BREED_DISTANCE = 10;      // partners this close
     private static final int BREED_PAUSE = 20 * 60, NO_PARTNER_PAUSE = 20 * 20;
+    private static final double FEED_CHANCE = 0.1;     // the mod's
+    private static final int FED_PAUSE = 20 * 60 * 5;  // the same animal again after 5 minutes (the mod's)
+    private static final int FEED_CHILDREN_SKILL = 10; // LIMIT_TO_FEED_CHILDREN, of its second skill: from here its feed makes the young grow
     private static final int ACTIONS_FOR_DUMP = 10;
     private static final int FOOD_WANTED = 16, FOOD_MIN = 2; // 2 per breeding × 8, as the mod asks
     private static final int AREA_BELOW = 4, AREA_ABOVE = 8;  // ours: how far up and down the building's box reaches
     private static final int CHASE_TRIES = 30;          // ours: steps of chasing an animal before giving up on it
 
-    private enum Act { NONE, PICKUP, BUTCHER, BREED, SHEAR, MILK }
+    private enum Act { NONE, PICKUP, BUTCHER, BREED, FEED, SHEAR, MILK }
 
     private final Kind kind;
     private Act act = Act.NONE;
     private Entity target, partner;
     private int tries, actions, breedUntil;
+    private final java.util.Map<java.util.UUID, Integer> fed = new java.util.HashMap<>(); // when (server ticks) it fed each animal; not saved, as the mod's
     // The mod's cowhand counters: milkings and stews since the last reset, which comes every "days between milkings".
     private int milked, stewed, milkDays, countedDay = -1;
 
@@ -189,6 +193,11 @@ public final class Herder extends Job {
                 pause(NO_PARTNER_PAUSE);
             }
         }
+        if (rnd.nextDouble() < FEED_CHANCE && has(kind.food) > 1) {
+            fed.values().removeIf(t -> Bukkit.getCurrentTick() - t > FED_PAUSE);
+            Animals hungry = animals.stream().filter(a -> !fed.containsKey(a.getUniqueId())).findFirst().orElse(null);
+            if (hungry != null) { start(Act.FEED, hungry, null); return; }
+        }
         if (kind == Kind.COW) { // the mod's cowhand: so many milkings and stews, then again after so many days (its settings)
             if (countedDay != colony.day) { // a new day (the mod counts its wake-ups)
                 if (countedDay >= 0) milkDays += colony.day - countedDay;
@@ -266,6 +275,18 @@ public final class Herder extends Job {
                 pause(BREED_PAUSE);
                 act = Act.NONE;
             }
+            case FEED -> {
+                act = Act.NONE;
+                if (has(kind.food) < 1) return;
+                Animals a = (Animals) target;
+                if (!a.isAdult() && skill(1) >= FEED_CHILDREN_SKILL) a.setAge(grown(a.getAge()));
+                use(kind.food, 1);
+                act(w);
+                experience(w, XP_PER_ACTION);
+                a.getWorld().spawnParticle(org.bukkit.Particle.HEART, a.getLocation().add(0, a.getHeight(), 0), 7, 0.4, 0.3, 0.4);
+                a.getWorld().playSound(a.getLocation(), Sound.ENTITY_GENERIC_EAT, SoundCategory.NEUTRAL, 1, 1);
+                fed.put(a.getUniqueId(), Bukkit.getCurrentTick());
+            }
             case SHEAR -> {
                 Sheep s = (Sheep) target;
                 if (s.isSheared() || !hasTool(Tool.SHEARS, null)) { act = Act.NONE; return; }
@@ -297,6 +318,11 @@ public final class Herder extends Job {
             }
             default -> act = Act.NONE;
         }
+    }
+
+    /** A young animal's age (below 0) once fed: a tenth of the whole seconds it still needs, as vanilla feeding, rounded down. */
+    static int grown(int age) {
+        return Math.min(0, age + (int) (-age / 20 * 0.1f) * 20);
     }
 
     /** No breeding for {@code ticks} (not saved: a restart ends the pause). */

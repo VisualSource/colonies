@@ -185,6 +185,12 @@ public final class GuardPost {
         return follow;
     }
 
+    /** The player they rally to or follow (the mod's getPlayerToFollowOrRally), or null. */
+    public Player leader() {
+        UUID id = rally != null ? rally : rallyAt == null && task() == Task.FOLLOW ? follow : null;
+        return id == null ? null : Bukkit.getPlayer(id);
+    }
+
     /** Where the player they follow is; the hut if it isn't in their world. */
     public Location followTo() {
         Player p = follow == null ? null : Bukkit.getPlayer(follow);

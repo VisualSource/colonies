@@ -112,6 +112,7 @@ public final class ColonyStore {
         s.set("child-pool", colony.childPool);
         colony.visitors.save(s.createSection("visitors"));
         colony.raids.save(s.createSection("raids"));
+        if (colony.attackers.away > 0) s.set("away", colony.attackers.away);
         if (colony.mercenaries.hiredAt != 0) s.set("mercenaries-hired", colony.mercenaries.hiredAt);
         s.set("free-blocks", colony.freeBlocks.stream().map(Material::name).toList());
         s.set("free-positions", colony.freePositions.stream().map(ColonyStore::spot).toList());
@@ -257,6 +258,7 @@ public final class ColonyStore {
         }
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
+        colony.attackers.away = s.getInt("away");
         if (s.isConfigurationSection("raids")) colony.raids.load(s.getConfigurationSection("raids"));
         colony.mercenaries.hiredAt = s.getLong("mercenaries-hired");
         for (String m : s.getStringList("free-blocks")) { Material x = Material.matchMaterial(m); if (x != null) colony.freeBlocks.add(x); }

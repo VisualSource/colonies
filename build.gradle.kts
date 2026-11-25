@@ -71,8 +71,10 @@ val convertTasks = packSources.keys.associateWith { pack ->
             out.get().asFile.deleteRecursively()
         }
         // the original pack, which every server has, also carries the Raider's Bane enchantment (src/main/datapack)
-        val extra = if (pack == "original") listOf("--extra", layout.projectDirectory.dir("src/main/datapack").asFile.path) else listOf()
-        if (pack == "original") inputs.dir("src/main/datapack")
+        // and the Nether's supply ship, which only the warped style has
+        val netherShip = blueprints.file("warped/decorations/supplies/nethership.blueprint")
+        val extra = if (pack == "original") listOf("--extra", layout.projectDirectory.dir("src/main/datapack").asFile.path, "--also", netherShip.asFile.path) else listOf()
+        if (pack == "original") { inputs.dir("src/main/datapack"); inputs.file(netherShip) }
         commandLine(listOf("python3", "tools/convert_blueprints.py", source.asFile.path, out.get().asFile.path, report.asFile.path, "--version", v,
                 "--pack-name", packSources.getValue(pack)) + extra) // structures named minecp:<style>/<path>, as in the mod
     }

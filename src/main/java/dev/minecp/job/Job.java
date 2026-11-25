@@ -211,9 +211,13 @@ public abstract class Job {
 
     /**
      * Something the hut wants brought to its chest: items matching {@code test}, {@code amount} more. {@code min}: the least the warehouse must have to take the request (the mod's minimum count); by default the
-     * whole amount, as the mod's crafters ask for their ingredients.
+     * whole amount, as the mod's crafters ask for their ingredients. {@code leave}: how many of each item the warehouse keeps back (the mod's leftOver).
      */
-    public record Want(String label, Predicate<ItemStack> test, int amount, int min) {
+    public record Want(String label, Predicate<ItemStack> test, int amount, int min, int leave) {
+        public Want(String label, Predicate<ItemStack> test, int amount, int min) {
+            this(label, test, amount, min, 0);
+        }
+
         public Want(String label, Predicate<ItemStack> test, int amount) {
             this(label, test, amount, amount);
         }
@@ -641,9 +645,19 @@ public abstract class Job {
      * shows in the worker's hand and wears down, and is gone when it breaks.
      */
     Collection<ItemStack> breakWith(Tool kind, Block block, Colonist w) {
+        return breakWith(kind, block, w, false);
+    }
+
+    /** Same; {@code silk}: the drops as with Silk Touch on that tool (none by hand). */
+    Collection<ItemStack> breakWith(Tool kind, Block block, Colonist w, boolean silk) {
         int slot = kind == null ? -1 : toolSlot(kind, block); // the one good enough for it, if it holds several
         if (kind != null && slot < 0) slot = toolSlot(kind, null);
-        Collection<ItemStack> drops = drops(block, slot < 0 ? null : bag().getItem(slot));
+        ItemStack tool = slot < 0 ? null : bag().getItem(slot);
+        if (silk && tool != null) {
+            tool = tool.clone();
+            tool.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.SILK_TOUCH, 1);
+        }
+        Collection<ItemStack> drops = drops(block, tool);
         if (slot >= 0) wearSlot(slot, w);
         experience(w, XP_PER_BLOCK);
         return drops;

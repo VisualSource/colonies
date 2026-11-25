@@ -122,7 +122,7 @@ public final class Composter extends Job {
      */
     private boolean fill(Block b, ItemStack item) {
         Barrel s = state(b);
-        int strength = Compost.strength(item.getType());
+        int strength = Compost.strength(item);
         if (s.done || strength == 0 || s.items >= Compost.BARREL_ITEMS) return false;
         int added = Math.min(Compost.BARREL_ITEMS - s.items, item.getAmount() * strength);
         s.items += added;
@@ -145,7 +145,7 @@ public final class Composter extends Job {
             b.getWorld().playSound(b.getLocation(), Sound.ENTITY_ITEM_FRAME_REMOVE_ITEM, SoundCategory.BLOCKS, 1, 1);
             return;
         }
-        if (held == null || held.isEmpty() || Compost.strength(held.getType()) == 0) return;
+        if (held == null || held.isEmpty() || Compost.strength(held) == 0) return;
         if (s.items >= Compost.BARREL_ITEMS) { p.sendMessage(Component.text("The barrel is working: its compost isn't ready yet.", NamedTextColor.YELLOW)); return; }
         if (fill(b, held))
             b.getWorld().playSound(b.getLocation(), Sound.BLOCK_COMPOSTER_FILL, SoundCategory.BLOCKS, 1, 1);
@@ -233,7 +233,7 @@ public final class Composter extends Job {
     }
 
     private boolean listed(ItemStack i) {
-        return i != null && list.contains(i.getType()) && i.getPersistentDataContainer().isEmpty();
+        return i != null && list.contains(i.getType()) && Compost.strength(i) > 0;
     }
 
     /** What it composts stays with it when it hands in compost. */
@@ -246,7 +246,7 @@ public final class Composter extends Job {
     @Override
     public List<Want> wants() {
         if (hut.level < 1 || list.isEmpty() || has(this::listed) + inChest(this::listed) > 0) return List.of();
-        return List.of(new Want("things to compost", this::listed, Compost.BARREL_ITEMS * Math.max(1, spots().size()), 1)); // no block reads
+        return List.of(new Want("things to compost", this::listed, Compost.BARREL_ITEMS * Math.max(1, spots().size()), 1, hut.number(Settings.MIN_STOCK))); // no block reads
     }
 
     /** Everything on its list stays; compost and dirt go to the warehouse. */
@@ -266,7 +266,7 @@ public final class Composter extends Job {
             lines.add(Component.text("Barrel: " + (s.done ? "ready" : s.items >= Compost.BARREL_ITEMS ? "composting, " + 100 * s.timer / FERMENT_STEPS + "%"
                     : s.items + " of " + Compost.BARREL_ITEMS + " full")));
         }
-        lines.add(Component.text(list.isEmpty() ? "Compost list: empty." : "Compost list: " + String.join(", ", list.stream().map(Job::name).toList()) + ".",
+        lines.add(Component.text(list.isEmpty() ? "Compost list: empty." : "Compost list: " + String.join(", ", list.stream().map(Compost::name).toList()) + ".",
                 list.isEmpty() ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
         return lines;
     }

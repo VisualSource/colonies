@@ -170,6 +170,13 @@ def marker(pos, tags):
             "nbt": (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:marker"), "Tags": (nbt.LIST, (nbt.STRING, tags))})}
 
 
+def rack_items(te):
+    """A rack's inventory (every slot in order, {"empty": 1} for none) as a chest's Items."""
+    items = te.get("inventory", (None, (nbt.COMPOUND, [])))[1][1]
+    assert len(items) <= 27, f"a rack with {len(items)} slots: more than a chest has"
+    return (nbt.LIST, (nbt.COMPOUND, [{**it, "Slot": (nbt.BYTE, i)} for i, it in enumerate(items) if "id" in it]))
+
+
 def starter_items(items, data_version):
     """A container's items with mod items swapped for tagged vanilla ones (STARTER_ITEMS) or left out."""
     kept = []
@@ -295,6 +302,8 @@ def convert(path, blocks, siblings=()):
         elif state["Name"] == RACK:  # a chest standing in for the mod's storage rack, tagged for a custom model later
             block["nbt"] = (nbt.COMPOUND, {"id": (nbt.STRING, "minecraft:chest"),
                                            "PublicBukkitValues": (nbt.COMPOUND, {RACK_TAG: (nbt.BYTE, 1)})})
+            if te_typed and "/decorations/supplies/" in path.replace(os.sep, "/"):  # a supply camp's or ship's comes filled
+                block["nbt"][1]["Items"] = starter_items(rack_items(te_typed), data_version)
         out_blocks.append(block)
     tagged = [b["nbt"][1]["PublicBukkitValues"][1] for b in out_blocks
               if "nbt" in b and "PublicBukkitValues" in b["nbt"][1]]
@@ -344,6 +353,7 @@ def main():
     ap.add_argument("--pack-name", default=None, help="structure path prefix, defaults to the pack folder name")
     ap.add_argument("--version", default=None, help="the plugin version the pack is built for, shown in its description")
     ap.add_argument("--extra", default=None, help="a folder copied into the pack as it is (the original pack: the Raider's Bane enchantment)")
+    ap.add_argument("--also", default=None, help="one more blueprint, from another pack, put at this one's decorations/supplies (the original pack: the warped style's Nether ship)")
     a = ap.parse_args()
     blocks = json.load(open(a.blocks))
     pack = a.pack_name or os.path.basename(os.path.normpath(a.pack_dir))
@@ -368,13 +378,14 @@ def main():
              "so your fix is used and re-running the converter never touches it.",
              "6. Keep the barrier blocks in the ground: they mark foundation filler.", ""]
     written = 0
-    for rel in files:
-        name = rel[: -len(".blueprint")].lower()
+    for rel in files + ([a.also] if a.also else []):
+        also = rel == a.also
+        name = "decorations/supplies/" + os.path.basename(rel)[: -len(".blueprint")].lower() if also else rel[: -len(".blueprint")].lower()
         out = os.path.join(a.datapack_dir, "data", "minecp", "structure", pack, name + ".nbt")
         packs = os.path.dirname(os.path.normpath(a.pack_dir))
         siblings = sorted(os.path.join(packs, d, rel) for d in os.listdir(packs)
-                          if os.path.join(packs, d) != os.path.normpath(a.pack_dir) and os.path.isfile(os.path.join(packs, d, rel)))
-        structure, size, notes, entities = convert(os.path.join(a.pack_dir, rel), blocks, siblings)
+                          if not also and os.path.join(packs, d) != os.path.normpath(a.pack_dir) and os.path.isfile(os.path.join(packs, d, rel)))
+        structure, size, notes, entities = convert(rel if also else os.path.join(a.pack_dir, rel), blocks, siblings)
         os.makedirs(os.path.dirname(out), exist_ok=True)
         nbt.save(out, structure)
         written += 1

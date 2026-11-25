@@ -344,7 +344,8 @@ public class Crafter extends Job {
         long keep = 0;
         for (var e : needed().entrySet()) if (e.getKey().test(item)) keep += e.getValue(); // the whole ingredient, any log it takes
         for (Requests.Request t : tasks) if (t.test().test(item)) keep += owed(t);
-        if (smelts && isFuel(item) || oreSmelter && isOre(item)) return Integer.MAX_VALUE;
+        if (oreSmelter && isFuel(item)) keep += FUEL; // the rest of the coal it broke goes to the warehouse
+        else if (smelts && isFuel(item) || oreSmelter && isOre(item)) return Integer.MAX_VALUE;
         return (int) Math.min(Integer.MAX_VALUE, keep);
     }
 
@@ -380,6 +381,7 @@ public class Crafter extends Job {
         if (w.isMoving() || --cooldown > 0) return;
         Inventory chest = chest();
         if (chest == null) return;
+        if (oreSmelter && breakOre(w, chest)) return;
         if (tend(w, chest)) return;
         Recipe ready = null;
         boolean anyWork = false;
@@ -406,6 +408,34 @@ public class Crafter extends Job {
         craft(chest, ready);
         w.worked(); // one action per craft, as the mod's
         experience(w, ready.getResult().getAmount() / 2.0); // the mod's: half the request's count when done; ours: per craft
+    }
+
+    /**
+     * The smelter breaks an ore block from its chest, one a second, as with a diamond pickaxe of Fortune (hut level - 1)
+     * (the mod's OreBreakingModule and its 0.2 experience, before any smelting). @return whether there is one with room for what it drops.
+     */
+    private boolean breakOre(Colonist w, Inventory chest) {
+        ItemStack ore = null;
+        for (ItemStack i : chest.getContents()) if (i != null && !i.isEmpty() && CraftRules.breakable(i.getType())) { ore = i; break; }
+        if (ore == null) return false;
+        ItemStack pickaxe = new ItemStack(Material.DIAMOND_PICKAXE);
+        if (hut.level > 1) pickaxe.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.FORTUNE, hut.level - 1);
+        List<ItemStack> drops = dev.minecp.citizen.Nms.drops(ore.getType(), hut.block, pickaxe);
+        if (ore.getAmount() > 1 && !drops.stream().allMatch(d -> Furnaces.fits(chest, d))) return false; // no room: the furnaces make some
+        if (!atHut(w)) { w.setStatus(hut.type.worker + ": working"); goToHut(w); return true; }
+        w.setStatus(hut.type.worker + ": breaking ore");
+        note = null;
+        w.hold(ore.asOne());
+        w.swing();
+        var at = hut.block.getLocation().toCenterLocation();
+        at.getWorld().playSound(at, org.bukkit.Sound.BLOCK_STONE_BREAK, org.bukkit.SoundCategory.NEUTRAL, 1, 1); // ours: the mod's is a lead's
+        at.getWorld().spawnParticle(org.bukkit.Particle.ITEM, at.clone().add(0, 0.7, 0), 8, 0.2, 0.1, 0.2, 0.05, ore.asOne());
+        Warehouse.take(chest, ore.asOne()::isSimilar, 1, Integer.MAX_VALUE, new ArrayList<>());
+        for (ItemStack over : chest.addItem(drops.toArray(ItemStack[]::new)).values()) at.getWorld().dropItemNaturally(at, over);
+        w.workedLittle();
+        experience(w, 0.2);
+        cooldown = 20;
+        return true;
     }
 
     /** A step at what it works with besides its table: its furnaces (the Alchemist's stands). @return true if it did something there. */
@@ -437,7 +467,7 @@ public class Crafter extends Job {
     private String smeltNote() {
         if (!smelts) return null;
         if (furnaces.isEmpty()) return toSmelt(true) || oreSmelter ? "No furnace in the building to smelt in." : null;
-        if (Furnaces.stuck(furnaces, chest())) return "The hut chest is full.";
+        if (Furnaces.stuck(furnaces, chest()) || oreSmelter && inChest(i -> CraftRules.breakable(i.getType())) > 0) return "The hut chest is full."; // an ore still there had no room
         return toSmelt(false) ? "Waiting for something to smelt, or fuel, in the hut chest." : null;
     }
 
@@ -461,7 +491,7 @@ public class Crafter extends Job {
             for (ItemStack i : chest.getContents())
                 if (i != null && !i.isEmpty() && ((CookingRecipe<?>) r).getInputChoice().test(i)) return i.asQuantity(Math.min(i.getAmount(), crafts));
         }
-        if (oreSmelter) for (ItemStack i : chest.getContents()) if (i != null && !i.isEmpty() && isOre(i)) return i;
+        if (oreSmelter) for (ItemStack i : chest.getContents()) if (i != null && !i.isEmpty() && isOre(i) && !CraftRules.breakable(i.getType())) return i;
         return null;
     }
 
@@ -507,7 +537,7 @@ public class Crafter extends Job {
             lines.add(Component.text("The " + hut.type.worker.toLowerCase() + " starts once level 1 is built.", NamedTextColor.GRAY));
             return lines;
         }
-        lines.add(Component.text(oreSmelter ? "Smelts the ores couriers bring from the warehouse, and the ingots huts ask for. Needs fuel and furnaces in its building."
+        lines.add(Component.text(oreSmelter ? "Breaks the ores couriers bring from the warehouse (more from each, the higher its level), smelts the metal, and the ingots huts ask for. Needs fuel and furnaces in its building."
                 : !taught ? "Makes what the colony's huts ask for from its own recipes: " + makes + "."
                 : (brews ? "Brews" : crafts && smelts ? "Crafts and smelts" : smelts ? "Smelts" : "Crafts") + " what the colony's huts ask for, from the recipes it was taught: " + recipes.size() + " of "
                 + maxRecipes() + ". It makes " + makes + "." + (smelts ? " Needs fuel and furnaces in its building." : ""), NamedTextColor.GRAY));

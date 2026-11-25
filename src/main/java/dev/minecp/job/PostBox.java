@@ -50,6 +50,13 @@ public final class PostBox extends Job {
     /** A minimum stock: keep {@code stacks} stacks of {@code item} in the chest. */
     public record Stock(ItemStack item, int stacks) {}
 
+    private static final String STOCK = " (stock)"; // what its minimum stock's requests are called after the item
+
+    /** Whether a request is for a postbox's minimum stock. */
+    public static boolean isStock(dev.minecp.logistics.Requests.Request r) {
+        return r.job instanceof PostBox && r.label().endsWith(STOCK);
+    }
+
     public final List<Order> orders = new ArrayList<>();
     public final List<Stock> stock = new ArrayList<>();
 
@@ -140,7 +147,7 @@ public final class PostBox extends Job {
             if (orders.stream().anyMatch(o -> same(o.item, s.item))) continue;
             int max = s.item.getMaxStackSize(), target = s.stacks * max, missing = target - inChest(i -> same(s.item, i));
             // Minimum Order: only once a quarter of the stock is gone (the mod's MinimumStockModule)
-            if (missing > (colony.research.effect(Effects.MIN_ORDER) > 0 ? target / 4 : 0)) wants.add(new Want(label(s.item) + " (stock)", i -> same(s.item, i), Math.min(max, missing), 1));
+            if (missing > (colony.research.effect(Effects.MIN_ORDER) > 0 ? target / 4 : 0)) wants.add(new Want(label(s.item) + STOCK, i -> same(s.item, i), Math.min(max, missing), 1));
         }
         return wants;
     }

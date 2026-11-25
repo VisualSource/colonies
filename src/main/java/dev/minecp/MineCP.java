@@ -72,6 +72,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
+    private final SlowBreaking slowBreaking = new SlowBreaking(this);
     private final ChunkLoading chunkLoading = new ChunkLoading(this);
 
     @Override
@@ -86,6 +87,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         chunkLoading.enabled = cfg.getBoolean("chunk-loading.enabled", true);
         chunkLoading.minutes = Math.clamp(cfg.getInt("chunk-loading.minutes", 20), 1, 1440);
         chunkLoading.strictness = Math.clamp(cfg.getInt("chunk-loading.strictness", 3), 1, 15);
+        dev.minecp.colony.Attackers.pvp = cfg.getBoolean("pvp.enabled", false);
+        dev.minecp.colony.Attackers.colonyOf = this::colonyOfCitizen;
         dev.minecp.colony.Raids.enabled = cfg.getBoolean("raids.enabled", true);
         dev.minecp.colony.Raids.breakDoors = cfg.getBoolean("raids.break-doors", true);
         dev.minecp.colony.Raids.breakBlocks = cfg.getBoolean("raids.break-blocks", true);
@@ -141,6 +144,9 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(Colony::tape), 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, this::saveAll, AUTOSAVE_TICKS, AUTOSAVE_TICKS);
         getServer().getScheduler().runTaskTimer(this, this::borderTitles, 10L, 10L);
+        if (dev.minecp.colony.Attackers.pvp) getServer().getScheduler().runTaskTimer(this, this::guardsAbroad, 10L, 10L);
+        getServer().getPluginManager().registerEvents(slowBreaking, this);
+        getServer().getScheduler().runTaskTimer(this, slowBreaking::tick, 1L, 1L);
         startupReport();
     }
 
@@ -177,6 +183,23 @@ public final class MineCP extends JavaPlugin implements Listener {
             p.showTitle(net.kyori.adventure.title.Title.title(Component.text(entering ? now.name : was.name, NamedTextColor.GOLD),
                     Component.text(entering ? "Entering colony" + (leaving ? " (leaving " + was.name + ")" : "") : "Leaving colony")));
         }
+    }
+
+    /** Guards on another colony's land with the player they follow or rally to: an attack (the mod checks as they enter each chunk). */
+    private void guardsAbroad() {
+        for (Colony c : colonies.values()) for (Job j : c.jobs) {
+            if (!(j instanceof dev.minecp.job.Guard)) continue;
+            Colonist w = c.worker(j);
+            Player leader = w == null || w.living() == null ? null : j.hut.post.leader();
+            Colony at = leader == null ? null : claims.colonyAt(w.location());
+            if (at != null && at != c) at.attackers.join(leader, w, c);
+        }
+    }
+
+    /** The colony whose citizen's body or legs this is, or null (visitors aren't citizens). */
+    Colony colonyOfCitizen(org.bukkit.entity.Entity e) {
+        for (Colony c : colonies.values()) if (c.colonistOf(e) != null) return c;
+        return null;
     }
 
     /** Whether {@code c} shows its border titles to {@code p}: switched on, and not one of its managers (the mod's). */
@@ -372,8 +395,8 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (c == null) return;
         Player p = e.getPlayer();
         Hut hut = c.hutAt(e.getBlock());
-        // Breaking the town hall disbands the colony: only its owner may (ours; huts follow BREAK_HUTS, as in the mod).
-        boolean may = hut.type == Hut.Type.TOWN_HALL ? p.getUniqueId().equals(c.owner) : c.permissions.has(p, Action.BREAK_HUTS);
+        // Breaking the town hall disbands the colony: only its owner may (ours; huts follow BREAK_HUTS, as in the mod), or who attacks it in PvP mode.
+        boolean may = hut.type == Hut.Type.TOWN_HALL ? p.getUniqueId().equals(c.owner) || c.attackers.attacking(p) : protection.may(p, c, Action.BREAK_HUTS);
         if (!may) {
             e.setCancelled(true);
             protection.deny(p, c, Action.BREAK_HUTS);
@@ -392,6 +415,7 @@ public final class MineCP extends JavaPlugin implements Listener {
             p.sendMessage(Component.text(hut.type.title + " removed.", NamedTextColor.YELLOW));
             return;
         }
+        if (!p.getUniqueId().equals(c.owner)) c.tell(p.getName() + " broke the Town Hall: " + c.name + " is lost.");
         c.despawn(); // first: serving food and meals go back into their chests
         c.jobs.forEach(Job::dropCarried); // what jobs hold beyond their workers' inventories (a knight's armor, food on its way)
         for (var x : c.colonists) for (ItemStack i : x.takeInventory()) x.location().getWorld().dropItemNaturally(x.location(), i); // citizens' own
@@ -571,6 +595,25 @@ public final class MineCP extends JavaPlugin implements Listener {
         composter.use(e.getPlayer(), e.getClickedBlock(), e.getBlockFace(), e.getPlayer().getGameMode() == org.bukkit.GameMode.CREATIVE ? held.clone() : held);
     }
 
+    /** Mistletoe in a vanilla composter: the mod gives it vanilla's 25% chance a level (the first always takes). */
+    @EventHandler(priority = org.bukkit.event.EventPriority.NORMAL)
+    public void onCompostMistletoe(PlayerInteractEvent e) {
+        var b = e.getClickedBlock();
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || e.useInteractedBlock() == org.bukkit.event.Event.Result.DENY
+                || b.getType() != Material.COMPOSTER || !dev.minecp.job.Alchemist.isMistletoe(e.getItem()) || barrelOf(b) != null
+                || !(b.getBlockData() instanceof org.bukkit.block.data.Levelled l) || l.getLevel() >= 7) return;
+        e.setCancelled(true);
+        boolean grows = l.getLevel() == 0 || java.util.concurrent.ThreadLocalRandom.current().nextDouble() < 0.25;
+        if (grows) {
+            l.setLevel(l.getLevel() + 1);
+            b.setBlockData(l); // at 7 vanilla readies it a second later
+        }
+        if (e.getPlayer().getGameMode() != org.bukkit.GameMode.CREATIVE) e.getItem().subtract();
+        e.getPlayer().swingHand(e.getHand());
+        b.getWorld().playSound(b.getLocation(), grows ? org.bukkit.Sound.BLOCK_COMPOSTER_FILL_SUCCESS : org.bukkit.Sound.BLOCK_COMPOSTER_FILL, org.bukkit.SoundCategory.BLOCKS, 1, 1);
+        b.getWorld().spawnParticle(org.bukkit.Particle.COMPOSTER, b.getLocation().add(0.5, 0.6, 0.5), 10, 0.2, 0.2, 0.2);
+    }
+
     /** Hoppers neither fill a composter's barrels nor take from them (they aren't vanilla's composters). */
     @EventHandler(ignoreCancelled = true)
     public void onBarrelHopper(org.bukkit.event.inventory.InventoryMoveItemEvent e) {
@@ -580,23 +623,29 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
     }
 
-    /** A guard's arrows hit only monsters: they fly on through citizens, players, pets and other animals (ours). */
+    /** A guard's arrows hit only whom its colony's guards fight: they fly on through citizens, other players, pets and other animals (ours). */
     @EventHandler(ignoreCancelled = true)
     public void onGuardArrow(org.bukkit.event.entity.ProjectileHitEvent e) {
         if (e.getHitEntity() == null || !e.getEntity().getScoreboardTags().contains(dev.minecp.job.Guard.GUARD_ARROW)) return;
-        if (!(e.getHitEntity() instanceof org.bukkit.entity.Enemy)) e.setCancelled(true);
+        if (!guardsFight(e.getEntity(), e.getHitEntity())) e.setCancelled(true);
         else if (e.getEntity() instanceof org.bukkit.entity.AbstractArrow a && e.getHitEntity() instanceof org.bukkit.entity.LivingEntity hit)
             dev.minecp.job.Guard.arrowHit(this, a, hit);
     }
 
-    /** A druid's potions: harmful ones touch only monsters, helpful ones only the rest (the mod's DruidPotionEntity predicate). */
+    /** Whether the colony of the guard who threw or shot this fights {@code hit}. */
+    private boolean guardsFight(org.bukkit.entity.Projectile shot, org.bukkit.entity.Entity hit) {
+        Colony c = hit instanceof org.bukkit.entity.Enemy || !(shot.getShooter() instanceof org.bukkit.entity.Entity by) ? null : colonyOfCitizen(by);
+        return c == null ? hit instanceof org.bukkit.entity.Enemy : c.attackers.foe(hit);
+    }
+
+    /** A druid's potions: harmful ones touch only whom guards fight, helpful ones only the rest (the mod's DruidPotionEntity predicate). */
     @EventHandler(ignoreCancelled = true)
     public void onDruidPotion(org.bukkit.event.entity.PotionSplashEvent e) {
         var tags = e.getEntity().getScoreboardTags();
         boolean adverse = tags.contains(dev.minecp.job.Guard.ADVERSE_POTION);
         if (!adverse && !tags.contains(dev.minecp.job.Guard.SUPPORT_POTION)) return;
         for (var hit : e.getAffectedEntities())
-            if (hit instanceof org.bukkit.entity.Enemy != adverse) e.setIntensity(hit, 0);
+            if (guardsFight(e.getEntity(), hit) != adverse) e.setIntensity(hit, 0);
     }
 
     /** The mod's fire arrow, shot from a bow or crossbow: the arrow burns, setting what it hits alight (ours: its burning time is a Flame bow's). */
@@ -633,7 +682,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         if (c == null) return;
         e.setCancelled(true);
         Grave g = c.graveAt(e.getClickedBlock());
-        if (!c.permissions.has(e.getPlayer(), Action.OPEN_CONTAINER)) {
+        if (!protection.may(e.getPlayer(), c, Action.OPEN_CONTAINER)) {
             protection.deny(e.getPlayer(), c, Action.OPEN_CONTAINER);
             return;
         }
@@ -644,7 +693,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public void onGraveBreak(BlockBreakEvent e) {
         Colony c = graveColony(e.getBlock());
         if (c == null) return;
-        if (!c.permissions.has(e.getPlayer(), Action.BREAK_BLOCKS)) {
+        if (!protection.may(e.getPlayer(), c, Action.BREAK_BLOCKS)) {
             e.setCancelled(true);
             protection.deny(e.getPlayer(), c, Action.BREAK_BLOCKS);
             return;

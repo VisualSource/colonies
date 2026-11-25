@@ -132,6 +132,7 @@ public final class Colony {
     public final Mercenaries mercenaries = new Mercenaries(this);
     public final Leisure leisure = new Leisure(this);
     public final Connections connections = new Connections(this);
+    public final Attackers attackers = new Attackers(this);
     public final dev.minecp.research.Studies research = new dev.minecp.research.Studies(this);
     public ClaimMap claimMap; // every colony's claims, set by the plugin: raids don't spawn on another colony's land
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
@@ -204,14 +205,14 @@ public final class Colony {
         return h.builtBox;
     }
 
-    private static final int BEDS_BELOW = 5, BEDS_ABOVE = 12; // ours: heights around the hut block searched (the mod registers beds)
+    static final int BUILDING_BELOW = 5, BUILDING_ABOVE = 12; // ours: how far a building reaches around its hut block, to search for beds and for who is inside
 
     /** The beds (their heads) standing inside a hut's building. */
     List<Block> bedsIn(Hut h) {
         List<Block> found = new ArrayList<>();
         int[] box = footprint(h); // minX, maxX+1, minZ, maxZ+1
         if (box == null) return found;
-        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = h.block.getY() - BEDS_BELOW; y <= h.block.getY() + BEDS_ABOVE; y++) {
+        for (int x = box[0]; x < box[1]; x++) for (int z = box[2]; z < box[3]; z++) for (int y = h.block.getY() - BUILDING_BELOW; y <= h.block.getY() + BUILDING_ABOVE; y++) {
             Block b = h.block.getWorld().getBlockAt(x, y, z);
             if (org.bukkit.Tag.BEDS.isTagged(b.getType()) // first: the data is a new object for every block
                     && b.getBlockData() instanceof org.bukkit.block.data.type.Bed bed && bed.getPart() == org.bukkit.block.data.type.Bed.Part.HEAD) found.add(b);
@@ -796,6 +797,8 @@ public final class Colony {
         if (colonyTick % WAYPOINT_CHECK == 0) checkWaypoint();
         if (colonyTick % 20 == 0) for (Hut h : huts) if (h.post != null) h.post.checkFollow();
         if (colonyTick % 20 == 0) connections.tick();
+        if (colonyTick % 20 == 0) attackers.everySecond();
+        if (colonyTick % 20 == 0) visitors.everySecond();
         visitors.tick();
         raids.tick();
         mercenaries.tick();

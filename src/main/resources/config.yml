@@ -28,6 +28,13 @@ protection:
   #   nothing    - only players
   explosions: everything
 
+# PvP: a player whose colony is at war with another (its owner hostile there, or holding that colony's owner hostile and
+# at most twice as strong) attacks it by entering its land with guards that follow or rally to them. They may then break
+# and place there, breaking its Town Hall ends the colony, and the guards of both fight each other's citizens.
+pvp:
+  # MineColonies' default.
+  enabled: false
+
 # Raids: hordes of hostile mobs attack colonies at night. The numbers are MineColonies' defaults.
 raids:
   enabled: true

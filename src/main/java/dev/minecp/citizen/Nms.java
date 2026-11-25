@@ -17,7 +17,7 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * Server internals (Mojang names via paperweight-userdev), for what the API can't do. The only other use is
- * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Raids use keepActive, the Alchemist brewsFrom. Re-check all against each new
+ * {@code dev.minecp.ChestNames#send} (a block entity update with just a chest's name). Raids use keepActive, the Alchemist brewsFrom, the Smeltery drops. Re-check all against each new
  * Minecraft/Paper release.
  */
 public final class Nms {
@@ -54,6 +54,13 @@ public final class Nms {
     /** Jumps this tick (on a ladder: climbs). The API's setJumping is overwritten by the jump control each tick. */
     static void jump(Mob m) {
         ((CraftMob) m).getHandle().getJumpControl().jump();
+    }
+
+    /** What a block of this kind drops to {@code tool}, with no block there (the API needs one placed). */
+    public static java.util.List<ItemStack> drops(org.bukkit.Material block, Block at, ItemStack tool) {
+        return net.minecraft.world.level.block.Block.getDrops(org.bukkit.craftbukkit.util.CraftMagicNumbers.getBlock(block).defaultBlockState(),
+                ((org.bukkit.craftbukkit.CraftWorld) at.getWorld()).getHandle(), new BlockPos(at.getX(), at.getY(), at.getZ()), null, null,
+                CraftItemStack.asNMSCopy(tool)).stream().map(CraftItemStack::asBukkitCopy).toList();
     }
 
     /** Whether a brewing recipe takes this bottle: the API's recipe leaves out which potion its input holds. */

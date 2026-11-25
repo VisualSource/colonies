@@ -48,7 +48,7 @@ final class Decorations implements Listener {
     public void onBreak(BlockBreakEvent e) {
         if (!DecorationController.is(e.getBlock())) return;
         Colony c = plugin.claims.colonyAt(e.getBlock().getLocation());
-        if (c != null && !c.permissions.has(e.getPlayer(), Action.BREAK_HUTS)) {
+        if (c != null && !plugin.protection.may(e.getPlayer(), c, Action.BREAK_HUTS)) {
             e.setCancelled(true);
             plugin.protection.deny(e.getPlayer(), c, Action.BREAK_HUTS);
         }

@@ -63,6 +63,42 @@ public final class Warehouse {
         return n;
     }
 
+    /** The same, with {@code leave} of each kind of item kept back (the mod's leftOver). */
+    public int count(Predicate<ItemStack> test, int leave) {
+        if (leave <= 0) return count(test);
+        int n = 0;
+        for (int of : kinds(test).values()) n += free(of, leave);
+        return n;
+    }
+
+    /** How many of an item it has {@code of} may go with {@code leave} kept back. */
+    static int free(int of, int leave) {
+        return Math.max(0, of - leave);
+    }
+
+    /** How many of each kind of item matching {@code test} it holds. */
+    private java.util.Map<org.bukkit.Material, Integer> kinds(Predicate<ItemStack> test) {
+        java.util.Map<org.bukkit.Material, Integer> found = new java.util.EnumMap<>(org.bukkit.Material.class);
+        for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty() && test.test(i)) found.merge(i.getType(), i.getAmount(), Integer::sum);
+        return found;
+    }
+
+    /** Takes as {@link #take(Predicate, int, int)}, leaving {@code leave} of each kind of item. */
+    public List<ItemStack> take(Predicate<ItemStack> test, int amount, int maxStacks, int leave) {
+        if (leave <= 0) return take(test, amount, maxStacks);
+        List<ItemStack> taken = new ArrayList<>();
+        for (var e : kinds(test).entrySet()) {
+            int left = Math.min(amount, free(e.getValue(), leave));
+            for (Inventory inv : inventories()) {
+                if (left <= 0) break;
+                int n = take(inv, i -> i.getType() == e.getKey() && test.test(i), left, maxStacks, taken);
+                left -= n;
+                amount -= n;
+            }
+        }
+        return taken;
+    }
+
     /** Takes up to {@code amount} items matching {@code test}, as many as fit in {@code maxStacks} stacks. */
     public List<ItemStack> take(Predicate<ItemStack> test, int amount, int maxStacks) {
         List<ItemStack> taken = new ArrayList<>();

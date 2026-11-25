@@ -69,6 +69,10 @@ public final class Health {
         // A player's hit of more than 1 needs HURT_CITIZEN (the mod); attacking at all inside a colony: Protection.
         if (source instanceof Player p && e.getDamage() > 1 && !colony.permissions.has(p, Action.HURT_CITIZEN)) return;
         Job job = colony.jobOf(c);
+        if (source instanceof Player p && (colony.raids.underway() // the mod's: not during a raid, nor the guards with that player
+                || job instanceof dev.minecp.job.Guard && p.equals(job.hut.post.leader()))) return;
+        Colony from = source instanceof org.bukkit.entity.Mannequin ? Attackers.colonyOf.apply(source) : null;
+        if (from != null) colony.attackers.hurtBy(from);
         var type = e.getDamageSource().getDamageType();
         double capped = Math.min(e.getDamage(), max(c) * MAX_HIT); // the mod caps the hit first; the job's research, shield and armor act on that
         if (c.mount() != null && cause != DamageCause.VOID && cause != DamageCause.KILL) { // on horseback: the horse takes a fifth (the mod's MOUNT_DAMAGE_SPLIT)

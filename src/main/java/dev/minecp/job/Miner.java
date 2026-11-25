@@ -504,7 +504,7 @@ public final class Miner extends Job {
         for (ItemStack i : takeContents(b)) b.getWorld().dropItemNaturally(b.getLocation().toCenterLocation(), i);
         Material lucky = luckyOre(b.getType());
         int ticks = breakTicks(b, tool, skill(0)); // before it is gone: the mod's mining time, with its strength
-        gather(breakWith(tool, b, w), w);
+        gather(breakWith(tool, b, w, isOre(b.getType())), w); // ores whole, as with Silk Touch (the mod's shouldSilkTouchBlock): the smelter breaks them
         if (lucky != null) gather(lucky, 1, w);
         var data = b.getBlockData();
         b.getWorld().playSound(b.getLocation(), data.getSoundGroup().getBreakSound(), SoundCategory.BLOCKS, 1, 1);

@@ -350,11 +350,11 @@ public final class Guard extends Job {
         return fleeing && speed > 0 ? 1 + SPEED_PER_LEVEL * ((int) speed + 1) : rallying ? 1 + SPEED_PER_LEVEL * running : 1;
     }
 
-    /** Something hurt it: it fights back (a mob; players are left to permissions) instead of running; a ranger or marksman needs its bow. */
+    /** Something hurt it: it fights back (a mob, or whom the colony's guards fight; other players are left to permissions) instead of running; a ranger or marksman needs its bow. */
     @Override
     public boolean fightsBack(Entity source) {
         if (!canFight()) return false;
-        if (source instanceof LivingEntity l && !(source instanceof org.bukkit.entity.Player) && colony.colonistOf(source) == null && valid(l) && l != target) {
+        if (source instanceof LivingEntity l && (!(source instanceof org.bukkit.entity.Player) || foe(source)) && colony.colonistOf(source) == null && valid(l) && l != target) {
             target = l;
             callOthers(colony.worker(this));
         }
@@ -588,7 +588,7 @@ public final class Guard extends Job {
         }
         if (attackIn > 0) attackIn--;
         if (target != null && target.isDead()) experience(w, XP_PER_KILL); // the mod's onTargetDied: what it fought died
-        if (!valid(target)) target = null;
+        if (!valid(target) || (target instanceof org.bukkit.entity.Mannequin || target instanceof org.bukkit.entity.Player && !druid()) && !foe(target)) target = null;
         if (!fleeing && !resting && shouldRetreat(w)) { wakeUp(w); fleeing = true; target = null; }
         if (fleeing) { retreat(w); return; }
         if (resting && rest(w)) return;
@@ -751,7 +751,7 @@ public final class Guard extends Job {
 
     /** It found something to fight: its hut's others join in, and a raider draws the guard huts right by it (the mod's notifyGuardsOfTarget; not a druid's). */
     private void callOthers(Colonist w) {
-        if (druid() || !(target instanceof Enemy)) return; // ours: what isn't a monster but hit it is its own fight
+        if (druid() || !foe(target)) return; // ours: what isn't a monster but hit it is its own fight
         for (Job j : colony.jobsAt(hut)) {
             Colonist other = colony.worker(j);
             if (j instanceof Guard g && g != this && other != null && g.target == null && other.hurtTicks == 0 && g.napTicks <= 0 && g.canFight() && g.valid(target)) g.target = target;
@@ -786,9 +786,15 @@ public final class Guard extends Job {
             target.setNoDamageTicks(0); // ours: both parts land; the mod's second, the smaller, is lost to vanilla's half second of cover after a hit
             hit -= through;
         }
-        target.damage(hit, w.living());
+        strike(target, hit, target, w);
         if (target instanceof Mob m && colony.research.effect(Effects.KNIGHT_TAUNT) > 0) m.setTarget(w.living()); // research: it draws the mob onto itself
         if (hasTool(weapon(), null)) wear(weapon(), w);
+    }
+
+    /** Hurts {@code l} with the blow at {@code at}: in PvP mode one at a player skips armor, for all it hits (the mod's guardpvp damage). */
+    private static void strike(LivingEntity l, double hit, LivingEntity at, Colonist w) {
+        if (at instanceof org.bukkit.entity.Player && dev.minecp.colony.Attackers.pvp) pierce(l, hit, w.living());
+        else l.damage(hit, w.living());
     }
 
     /**
@@ -858,7 +864,7 @@ public final class Guard extends Job {
     private void throwPotion(Colonist w) {
         if (!readyFrom(w, druidRange())) return;
         var rnd = ThreadLocalRandom.current();
-        boolean hostile = target instanceof Enemy, strong = potionsResearched() && use(Alchemist::isMagicPotion, 1) > 0;
+        boolean hostile = foe(target), strong = potionsResearched() && use(Alchemist::isMagicPotion, 1) > 0;
         var effect = hostile ? ADVERSE[rnd.nextInt(strong ? ADVERSE.length : 1)] : SUPPORT[rnd.nextInt(strong ? SUPPORT.length : 1)];
         attackIn = effect.isInstant() ? DRUID_DELAY * 2 : DRUID_DELAY;
         experience(w, XP_PER_POTION);
@@ -903,7 +909,7 @@ public final class Guard extends Job {
         for (Entity e : w.location().getNearbyEntities(r, yVision(), r)) {
             if (!(e instanceof LivingEntity l) || !valid(l)) continue;
             boolean fighting = e instanceof org.bukkit.entity.Player p && p.getGameMode() == org.bukkit.GameMode.SURVIVAL && hunted(p);
-            if (!(e instanceof Enemy) && !fighting) continue;
+            if (!foe(e) && !fighting) continue;
             if (affected(l)) { under++; continue; }
             if (!w.living().hasLineOfSight(e)) continue;
             double d = e.getLocation().distanceSquared(w.location());
@@ -1013,9 +1019,9 @@ public final class Guard extends Job {
         }
         double share = hit / alive;
         for (LivingEntity l : near) {
-            if (!(l instanceof Enemy) || !valid(l)) continue;
+            if (!foe(l) || !valid(l)) continue;
             l.knockback(WHIRLWIND_KNOCKBACK, at.getX() - l.getX(), at.getZ() - l.getZ());
-            l.damage(share, w.living());
+            strike(l, share, target, w);
         }
         at.getWorld().spawnParticle(Particle.SWEEP_ATTACK, at.clone().add(0, 1, 0), 2, 0.5, 0, 0.5, 0);
     }
@@ -1129,12 +1135,17 @@ public final class Guard extends Job {
         return !melee() && task() == Task.GUARD ? Y_VISION + GUARD_Y_VISION : Y_VISION;
     }
 
+    /** Whom the colony's guards fight; a citizen of another colony by its body, not its legs. */
+    private boolean foe(Entity e) {
+        return !e.getScoreboardTags().contains(Colonist.LEGS_TAG) && colony.attackers.foe(e);
+    }
+
     private LivingEntity nearestEnemy(Colonist w) {
         int r = vision();
         LivingEntity best = null;
         double bestD = Double.MAX_VALUE;
         for (Entity e : w.location().getNearbyEntities(r, yVision(), r)) {
-            if (!(e instanceof Enemy) || !(e instanceof LivingEntity l) || !valid(l) || !w.living().hasLineOfSight(e)) continue;
+            if (!(e instanceof LivingEntity l) || !foe(l) || !valid(l) || !w.living().hasLineOfSight(e)) continue;
             double d = e.getLocation().distanceSquared(w.location());
             if (d < bestD) { bestD = d; best = l; }
         }

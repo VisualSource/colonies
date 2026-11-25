@@ -165,22 +165,22 @@ public final class Menus {
         if (job instanceof dev.minecp.job.Composter cp && h.level > 0)
             buttons.add(button("Compost list (" + cp.list.size() + ")", p, c, h, player -> itemList(player, c, h, "compost list",
                     "It asks for these and composts them. How much one fills a barrel of 64: rich foods 8, most plants and foods 4, "
-                            + "seeds, saplings and poor foods 2.", cp.list, m -> dev.minecp.job.Compost.strength(m) > 0,
-                    m -> Job.name(m) + " (" + dev.minecp.job.Compost.strength(m) + ")", "doesn't compost.")));
+                            + "seeds, saplings and poor foods 2.", cp.list, i -> dev.minecp.job.Compost.strength(i) > 0,
+                    dev.minecp.job.Compost::label, "doesn't compost.")));
         if (job instanceof dev.minecp.job.Beekeeper bk && h.level > 0)
             buttons.add(button("Flower list (" + bk.flowers.size() + ")", p, c, h, player -> itemList(player, c, h, "flower list",
-                    "It asks for these and feeds them to its bees to breed them.", bk.flowers, dev.minecp.job.Beekeeper::flower, Job::name,
+                    "It asks for these and feeds them to its bees to breed them.", bk.flowers, i -> dev.minecp.job.Beekeeper.flower(i.getType()), Job::name,
                     "isn't a flower bees breed with.")));
         if (job instanceof dev.minecp.job.Florist fl && h.level > 0)
             buttons.add(button("Flower list (" + fl.excluded.size() + " left out)", p, c, h, player -> itemList(player, c, h, "flowers left out",
                     "Flowers it won't grow. It grows the rest of what its level allows: poppies and dandelions at level 1, small flowers at 2, "
                             + "all from 3. It may leave out " + (h.level <= 1 ? "none" : h.level >= 5 ? "any" : "up to " + dev.minecp.job.Florist.mostExcluded(h.level)) + " at this level.",
-                    fl.excluded, m -> dev.minecp.job.Florist.allowed(h.level).contains(m) && fl.excluded.size() < dev.minecp.job.Florist.mostExcluded(h.level),
+                    fl.excluded, i -> dev.minecp.job.Florist.allowed(h.level).contains(i.getType()) && fl.excluded.size() < dev.minecp.job.Florist.mostExcluded(h.level),
                     Job::name, "can't be left out: it isn't one it grows at this level, or no more can be left out here.")));
         if (job instanceof dev.minecp.job.NetherWorker nw && h.level > 0) {
             buttons.add(button("Food for the trips (" + nw.menu.size() + " of " + nw.mostFoods() + ")", p, c, h, player -> itemList(player, c, h, "food for the trips",
                     "It asks for a stack of each and takes 16 along to the Nether, where it eats them to keep healing.", nw.menu,
-                    m -> Food.isMeal(new ItemStack(m)) && nw.menu.size() < nw.mostFoods(), Job::name, "can't be added: it isn't food it eats, or the list is full at this level.")));
+                    i -> Food.isMeal(new ItemStack(i.getType())) && nw.menu.size() < nw.mostFoods(), Job::name, "can't be added: it isn't food it eats, or the list is full at this level.")));
             if (c.research.effect(dev.minecp.research.Effects.NETHER_LOG) > 0)
                 buttons.add(button("Expedition log", p, c, h, player -> Dialogs.show(player, h.type.title + ": expedition log",
                         nw.expedition().stream().map(Menus::text).toList(), List.of(), List.of(button("Back", player, c, h, q -> hut(q, c, h))), 1)));
@@ -712,17 +712,38 @@ public final class Menus {
         Dialogs.show(p, "Visitor", body, List.of(), buttons, 1);
     }
 
-    /** The clipboard: requests no citizen can fill, waiting for a player, nearest hut first (the mod's clipboard window). */
+    /**
+     * The clipboard: requests no citizen can fill, waiting for a player, nearest hut first (the mod's clipboard window).
+     * Minimum stock is left out unless shown with its button, which the clipboard remembers. Postbox orders can be
+     * cancelled here too; any other hut would ask for the same again.
+     */
     public void clipboard(Player p, Colony c) {
+        boolean all = plugin.items.showsAll(p.getInventory().getItemInMainHand());
         List<DialogBody> body = new ArrayList<>();
         var at = p.getLocation();
-        var waiting = c.requests.all().stream().filter(r -> r.state == Requests.State.WAITING)
+        var waiting = c.requests.all().stream().filter(r -> r.state == Requests.State.WAITING && (all || !PostBox.isStock(r)))
                 .sorted(java.util.Comparator.comparingDouble(r -> r.job.hut.block.getWorld() == at.getWorld()
                         ? r.job.hut.block.getLocation().distanceSquared(at) : Double.MAX_VALUE)).toList();
         if (waiting.isEmpty()) body.add(text(Component.text("Nothing is waiting for a player.", NamedTextColor.GREEN)));
         for (Requests.Request r : waiting) body.add(text(request(r, true)));
         body.add(text(Component.text("Fill a request by putting the items in that hut's chest.", NamedTextColor.GRAY)));
-        Dialogs.show(p, "Clipboard: " + c.name, body, List.of(), List.of(), 1);
+        List<ActionButton> buttons = new ArrayList<>();
+        buttons.add(button(all ? "Hide minimum stock" : "Show minimum stock too", p, c, c.townHall(), player -> {
+            ItemStack held = player.getInventory().getItemInMainHand();
+            if (plugin.items.isClipboard(held)) plugin.items.showAll(held, !all);
+            clipboard(player, c);
+        }));
+        for (Requests.Request r : waiting) {
+            if (!(r.job instanceof PostBox pb)) continue;
+            PostBox.Order o = pb.orders.stream().filter(x -> PostBox.label(x.item).equals(r.label())).findFirst().orElse(null);
+            if (o != null) buttons.add(button("Cancel " + o.amount + " × " + r.label(), p, c, pb.hut, Action.MANAGE_HUTS, player -> {
+                pb.cancel(o);
+                c.requests.refresh();
+                plugin.save(c);
+                clipboard(player, c);
+            }));
+        }
+        Dialogs.show(p, "Clipboard: " + c.name, body, List.of(), buttons, 1);
     }
 
     /**
@@ -867,20 +888,20 @@ public final class Menus {
      * or the item in hand, if {@code fits} allows it, or take off (MANAGE_HUTS).
      */
     void itemList(Player p, Colony c, Hut h, String title, String hint, java.util.Set<Material> list,
-                  java.util.function.Predicate<Material> fits, java.util.function.Function<Material, String> label, String refused) {
+                  java.util.function.Predicate<ItemStack> fits, java.util.function.Function<Material, String> label, String refused) {
         List<DialogBody> body = new ArrayList<>();
         body.add(text(Component.text(hint, NamedTextColor.GRAY)));
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(button("Add", p, c, h, (player, view) -> {
             if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
             ItemStack item = itemFrom(player, view.getText("item"));
-            if (item != null && !fits.test(item.getType())) player.sendMessage(Component.text(Job.name(item.getType()) + " " + refused, NamedTextColor.RED));
+            if (item != null && !fits.test(item)) player.sendMessage(Component.text(PostBox.label(item) + " " + refused, NamedTextColor.RED));
             else if (item != null && list.add(item.getType())) plugin.save(c);
             itemList(player, c, h, title, hint, list, fits, label, refused);
         }));
         for (Material m : List.copyOf(list)) {
             body.add(text(Component.text(label.apply(m))));
-            buttons.add(button("Take off " + Job.name(m), p, c, h, Action.MANAGE_HUTS, player -> {
+            buttons.add(button("Take off " + label.apply(m), p, c, h, Action.MANAGE_HUTS, player -> {
                 list.remove(m);
                 plugin.save(c);
                 itemList(player, c, h, title, hint, list, fits, label, refused);

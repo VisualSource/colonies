@@ -70,9 +70,17 @@ final class Protection implements Listener {
     /** Whether {@code p} may do this at {@code at}; tells them why not. Outside every colony: yes. */
     boolean allowed(Player p, Location at, Action action) {
         Colony c = enabled ? plugin.claims.colonyAt(at) : null;
-        if (c == null || c.permissions.has(p, action)) return true;
+        if (c == null || may(p, c, action)) return true;
         deny(p, c, action);
         return false;
+    }
+
+    /** What a PvP attacker still may not do (the mod's cancelEvent calls that skip its attack check). Containers but huts' open for them, as the mod's. */
+    private static final java.util.Set<Action> NOT_ATTACKERS = java.util.EnumSet.of(Action.ACCESS_HUTS, Action.PLACE_HUTS, Action.PLACE_BLOCKS, Action.ATTACK_CITIZEN, Action.ATTACK_ENTITY);
+
+    /** Whether {@code p} may do this in {@code c}, by rank or as a PvP attacker (the mod's checkEventCancelation). */
+    boolean may(Player p, Colony c, Action action) {
+        return c.permissions.has(p, action) || !NOT_ATTACKERS.contains(action) && c.attackers.attacking(p);
     }
 
     /** A free block or spot of the colony there, for anyone but its hostile (the mod's isFreeToInteractWith). */
@@ -137,7 +145,12 @@ final class Protection implements Listener {
         Action action = b.getState(false) instanceof BlockInventoryHolder ? Action.OPEN_CONTAINER
                 : b.getBlockData() instanceof Openable ? Action.ACCESS_TOGGLEABLES
                 : b.getType().isInteractable() ? Action.RIGHTCLICK_BLOCK : null;
-        if (action != null && !allowed(e.getPlayer(), b.getLocation(), action)) e.setUseInteractedBlock(Event.Result.DENY); // items in hand still work
+        if (ofHut != null && action != null && enabled && !ofHut.permissions.has(e.getPlayer(), action)) { // a hut's own chest: no PvP attacker's, as the mod's
+            deny(e.getPlayer(), ofHut, action);
+            e.setUseInteractedBlock(Event.Result.DENY);
+            return;
+        }
+        if (action != null && !allowed(e.getPlayer(), b.getLocation(), action)) e.setUseInteractedBlock(Event.Result.DENY); // Paper then doesn't use the item in hand on it either, as the mod's
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
@@ -184,13 +197,16 @@ final class Protection implements Listener {
     /**
      * Attacking a citizen or anything but a hostile mob, judged where the player stands, as the mod does; a citizen
      * also where it stands, so nobody can hit one from just outside the border. Lowest priority: before MineCP hands a
-     * citizen's hit to its health. (Hostile players may attack guards, once there are any.)
+     * citizen's hit to its health. A colony's hostile players may attack its guards, as in the mod.
      */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
     public void onAttack(EntityDamageByEntityEvent e) {
         Entity damager = e.getDamager() instanceof Projectile pr && pr.getShooter() instanceof Entity shooter ? shooter : e.getDamager();
         if (!(damager instanceof Player p) || e.getEntity() instanceof Enemy) return;
         boolean citizen = isCitizen(e.getEntity());
+        Colony home = citizen ? plugin.colonyOfCitizen(e.getEntity()) : null;
+        if (home != null && home.permissions.rank(p.getUniqueId()) == dev.minecp.colony.Rank.HOSTILE
+                && home.jobOf(home.colonistOf(e.getEntity())) instanceof dev.minecp.job.Guard) return;
         if (!allowed(p, p.getLocation(), citizen ? Action.ATTACK_CITIZEN : Action.ATTACK_ENTITY)
                 || citizen && !allowed(p, e.getEntity().getLocation(), Action.ATTACK_CITIZEN)) e.setCancelled(true);
     }

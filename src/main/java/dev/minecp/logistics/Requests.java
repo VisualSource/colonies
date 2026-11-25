@@ -65,6 +65,11 @@ public final class Requests {
             return want.amount();
         }
 
+        /** How many of each item the warehouse keeps back from it. */
+        public int leave() {
+            return want.leave();
+        }
+
         private int min() {
             return Math.min(want.min(), want.amount());
         }
@@ -125,7 +130,7 @@ public final class Requests {
                 r.crafterShare = 0;
                 int need = r.amount() - r.inTransit;
                 if (need <= 0) { r.state = State.DELIVERING; continue; } // all of it is being carried there
-                int stock = wh == null ? 0 : wh.count(r.test());
+                int stock = wh == null ? 0 : wh.count(r.test(), r.leave());
                 int fromWarehouse = stock >= Math.min(r.min(), need) ? Math.min(stock, need) : 0; // below the minimum it doesn't take it
                 Crafter c = fromWarehouse >= need ? null : crafterFor(r, before);
                 if (c != null) { r.crafter = c; r.crafterShare = need - fromWarehouse; }

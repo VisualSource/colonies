@@ -24,6 +24,7 @@ public final class Compost {
 
     private static final NamespacedKey KEY = new NamespacedKey(MineCP.NAMESPACE, "compost");
     static final int BARREL_ITEMS = 64; // AbstractTileEntityBarrel.MAX_ITEMS: a full barrel
+    private static final int MISTLETOE = 4;
     static final int PER_BARREL = 6;           // CompostRecipe.COMPOST_RESULT
 
     // The mod's tags (minecolonies:compostables, _poor, _rich), as vanilla items: "grass" is short grass since 1.20.3;
@@ -47,7 +48,7 @@ public final class Compost {
      * the mod's recipes overlap the weakest wins, as its CompatibilityManager. Foods by their saturation modifier: 1 or
      * more rich, 0.5 or more normal, less poor. Ours: composted dirt, the mod's other rich input, isn't in Colonies.
      */
-    public static int strength(Material m) {
+    static int strength(Material m) {
         int s = 0;
         if (m == Material.PODZOL) s = weakest(s, 8);
         if (NORMAL.contains(m) || Tag.FLOWERS.isTagged(m) || Tag.ITEMS_FISHES.isTagged(m)
@@ -59,6 +60,21 @@ public final class Compost {
             s = weakest(s, modifier >= 1 ? 8 : modifier >= 0.5 ? 4 : 2);
         }
         return s;
+    }
+
+    /** The same for an item: MineCP's own don't compost, but mistletoe does (4, the mod's compostables tag). */
+    public static int strength(ItemStack i) {
+        return Alchemist.isMistletoe(i) ? MISTLETOE : i.getPersistentDataContainer().isEmpty() ? strength(i.getType()) : 0;
+    }
+
+    /** What a compost list's entry is called: a trial key on it stands for mistletoe. */
+    static String name(Material m) {
+        return m == Material.TRIAL_KEY ? "mistletoe" : Job.name(m);
+    }
+
+    /** A compost list entry with how much one fills: "wheat (4)". */
+    public static String label(Material m) {
+        return name(m) + " (" + (m == Material.TRIAL_KEY ? MISTLETOE : strength(m)) + ")";
     }
 
     private static int weakest(int had, int now) {

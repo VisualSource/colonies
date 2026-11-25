@@ -285,8 +285,22 @@ public final class Items implements Listener {
         return item;
     }
 
-    boolean isClipboard(ItemStack item) {
+    public boolean isClipboard(ItemStack item) {
         return item != null && item.getPersistentDataContainer().has(clipboardKey);
+    }
+
+    private static final NamespacedKey SHOW_ALL = new NamespacedKey(MineCP.NAMESPACE, "show_all");
+
+    /** Whether this clipboard lists minimum stock too (the mod's toggle, off at first). */
+    public boolean showsAll(ItemStack clipboard) {
+        return clipboard.getPersistentDataContainer().has(SHOW_ALL);
+    }
+
+    public void showAll(ItemStack clipboard, boolean all) {
+        clipboard.editMeta(m -> {
+            if (all) m.getPersistentDataContainer().set(SHOW_ALL, PersistentDataType.BOOLEAN, true);
+            else m.getPersistentDataContainer().remove(SHOW_ALL);
+        });
     }
 
     boolean isResourceScroll(ItemStack item) {

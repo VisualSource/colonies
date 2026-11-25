@@ -144,12 +144,17 @@ public final class Placement implements Listener {
 
     /** A supply item: which style's camp or ship (the mod uses the pack the player picked), then its placement. */
     private void supplies(Player p, String kind, Block clicked) {
-        if (p.getWorld().getEnvironment() != org.bukkit.World.Environment.NORMAL) {
-            p.sendMessage(Component.text("Supplies only arrive in the overworld.", NamedTextColor.RED));
+        if (p.getWorld().getEnvironment() == org.bukkit.World.Environment.THE_END) { // ours: the mod's would come there too
+            p.sendMessage(Component.text("Supplies don't arrive in the End.", NamedTextColor.RED));
             return;
         }
         if (usedSupplies(p)) {
             p.sendMessage(Component.text("You have had your supplies already: each player gets one camp or ship.", NamedTextColor.RED));
+            return;
+        }
+        if (kind.equals("ship") && nether(p.getWorld())) { // the mod's one Nether ship, its warped style's (the original pack carries it)
+            if (BuildOrder.exists(NETHER_STYLE + "/" + NETHER_SHIP)) startSupply(p, kind, NETHER_SHIP, NETHER_STYLE, clicked);
+            else p.sendMessage(Component.text("The Nether ship isn't there: is the original data pack installed?", NamedTextColor.RED));
             return;
         }
         String path = "decorations/supplies/supply" + kind;
@@ -164,7 +169,7 @@ public final class Placement implements Listener {
     private void startSupply(Player p, String kind, String path, String style, Block clicked) {
         Block at = (clicked != null ? clicked : p.getLocation().getBlock()).getRelative(p.getFacing(), SUPPLY_OFFSET);
         var w = at.getWorld();
-        int top = w.getHighestBlockYAt(at.getX(), at.getZ(), org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES); // water counts
+        int top = surface(at, kind.equals("ship"));
         Block anchor = w.getBlockAt(at.getX(), kind.equals("ship") ? top - (WATER_LEVELS - 1) : top, at.getZ());
         var entry = new Catalog.Entry(path, kind.equals("ship") ? "Supply Ship" : "Supply Camp", null, false);
         BuildOrder o = BuildOrder.create(entry.structure(style), anchor.getLocation(), TURNS[0], false, null);
@@ -176,6 +181,24 @@ public final class Placement implements Listener {
         s.supply = kind;
         sessions.put(p.getUniqueId(), s);
         if (draw(p, s)) p.sendMessage(Component.text("Placing the " + entry.name() + ". Right-click with it again to move, turn or confirm it.", NamedTextColor.GREEN));
+    }
+
+    private static final int LOOK_ABOVE = 10; // ours: how far above you the ground or lava in the Nether is looked for from
+    private static final String NETHER_STYLE = "original", NETHER_SHIP = "decorations/supplies/nethership";
+
+    private static boolean nether(org.bukkit.World w) {
+        return w.getEnvironment() == org.bukkit.World.Environment.NETHER;
+    }
+
+    /** The surface at a spot; in the Nether, under its roof, the first ground (or, for a ship, lava) down from 10 above, else {@code at}'s height. */
+    private static int surface(Block at, boolean ship) {
+        var w = at.getWorld();
+        if (!nether(w)) return w.getHighestBlockYAt(at.getX(), at.getZ(), org.bukkit.HeightMap.MOTION_BLOCKING_NO_LEAVES); // water counts
+        for (int y = at.getY() + LOOK_ABOVE; y > w.getMinHeight(); y--) {
+            Block b = w.getBlockAt(at.getX(), y, at.getZ());
+            if ((ship ? b.getType() == org.bukkit.Material.LAVA : b.getType().isSolid()) && b.getRelative(BlockFace.UP).isEmpty()) return y;
+        }
+        return at.getY();
     }
 
     private static final String SUPPLIES_USED = "supplies_used";
@@ -227,9 +250,9 @@ public final class Placement implements Listener {
             }
             for (int y = 0; y <= Math.min(WATER_LEVELS + SCAN_HEIGHT, height - 1); y++) {
                 Block b = w.getBlockAt(x, y0 + y, z);
-                if (y < WATER_LEVELS && !water(b)) dry++;
+                if (y < WATER_LEVELS && !floats(b)) dry++;
                 if (!planned.contains(b)) continue; // the structure leaves this spot as it is
-                if (y < WATER_LEVELS) { if (!water(b)) unsupported++; }
+                if (y < WATER_LEVELS) { if (!floats(b)) unsupported++; }
                 else if (b.getType().isSolid()) inTheWay++;
             }
         }
@@ -237,13 +260,15 @@ public final class Placement implements Listener {
         // Ours: the mod only asks for water where the hull is (a few blocks in its lowest layers), so a ship could
         // land on dry ground; here two thirds of everything under it must be water too.
         if (ship && dry > allowed * WATER_LEVELS) unsupported = Integer.MAX_VALUE;
-        if (unsupported > allowed) return ship ? "The ship needs open water under it, " + WATER_LEVELS + " blocks deep. Move it down or out to sea."
+        if (unsupported > allowed) return ship ? "The ship needs open " + (nether(w) ? "lava" : "water") + " under it, " + WATER_LEVELS + " blocks deep. Move it down or out to sea."
                 : "The camp needs solid ground under it. Move it down or to flatter ground.";
-        if (inTheWay > allowed) return ship ? "Too much is in the ship's way above the water." : "Too much stands on the ground there. Move it up or clear the spot.";
+        if (inTheWay > allowed) return ship ? "Too much is in the ship's way above the " + (nether(w) ? "lava." : "water.") : "Too much stands on the ground there. Move it up or clear the spot.";
         return null;
     }
 
-    private static boolean water(Block b) {
+    /** Water, or lava in the Nether. */
+    private static boolean floats(Block b) {
+        if (nether(b.getWorld())) return b.getType() == org.bukkit.Material.LAVA;
         return b.getType() == org.bukkit.Material.WATER || b.getBlockData() instanceof org.bukkit.block.data.Waterlogged wl && wl.isWaterlogged();
     }
 
@@ -274,7 +299,7 @@ public final class Placement implements Listener {
                     townHall |= plugin.items.hutType(real) == Hut.Type.TOWN_HALL;
                     buildTool |= plugin.items.isBuildTool(real);
                 }
-        // Ours: the cavern camp and ship have no kit in their barrels, so whatever is missing goes to the player.
+        // Ours: should a style's have no kit aboard, whatever is missing goes to the player.
         List<ItemStack> missing = new ArrayList<>();
         if (!townHall) missing.add(plugin.items.hutItem(Hut.Type.TOWN_HALL));
         if (!buildTool) missing.add(plugin.items.buildTool());
@@ -286,7 +311,7 @@ public final class Placement implements Listener {
         p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
         missing.forEach(it -> inv.addItem(it).values().forEach(left -> p.getWorld().dropItem(p.getLocation(), left)));
         p.sendMessage(Component.text("Your " + s.entry.name().toLowerCase() + " has arrived. " + (missing.isEmpty()
-                ? "Its barrel holds a Town Hall and a Build Tool" : "You have been given a Town Hall and a Build Tool")
+                ? "A Town Hall and a Build Tool are in its storage" : "You have been given a Town Hall and a Build Tool")
                 + ": place the Town Hall to found your colony.", NamedTextColor.GREEN));
     }
 

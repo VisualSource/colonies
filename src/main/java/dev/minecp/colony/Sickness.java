@@ -188,8 +188,8 @@ public final class Sickness {
         return out;
     }
 
-    private static boolean inside(org.bukkit.Location at, Hut hospital, int[] box) {
-        return at.getWorld() == hospital.block.getWorld()
+    static boolean inside(org.bukkit.Location at, Hut hut, int[] box) {
+        return at.getWorld() == hut.block.getWorld()
                 && at.getBlockX() >= box[0] && at.getBlockX() < box[1] && at.getBlockZ() >= box[2] && at.getBlockZ() < box[3];
     }
 

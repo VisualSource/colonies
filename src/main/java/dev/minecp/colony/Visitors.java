@@ -110,6 +110,37 @@ public final class Visitors {
         }
     }
 
+    private static final int MUSIC_PAUSE = 20 * 60 * 20;     // TWENTY_MINUTES
+    private final Map<Hut, Integer> musicIn = new HashMap<>(); // ticks until a tavern may play again; not saved, as the mod's
+    private final Map<Hut, java.util.Set<UUID>> inside = new HashMap<>(); // the players in each tavern a second ago
+
+    /**
+     * Once a second: a player who comes into a tavern at night, with two visitors or more sitting there, has it play
+     * music among them, at most every 20 minutes (the mod's onPlayerEnterBuilding). Ours: a music disc, not its theme.
+     */
+    void everySecond() {
+        musicIn.replaceAll((h, t) -> t - 20);
+        for (Hut h : colony.huts) {
+            if (h.type != Hut.Type.TAVERN || h.level < 1 || !h.block.getWorld().isChunkLoaded(h.block.getX() >> 4, h.block.getZ() >> 4)) continue;
+            int[] box = colony.footprint(h);
+            if (box == null) continue;
+            java.util.Set<UUID> now = new java.util.HashSet<>(), before = inside.getOrDefault(h, java.util.Set.of());
+            for (Player p : h.block.getWorld().getPlayers()) {
+                int up = p.getLocation().getBlockY() - h.block.getY();
+                if (Sickness.inside(p.getLocation(), h, box) && up >= -Colony.BUILDING_BELOW && up <= Colony.BUILDING_ABOVE) now.add(p.getUniqueId());
+            }
+            inside.put(h, now);
+            if (before.containsAll(now) || colony.routine.isDay() || musicIn.getOrDefault(h, 0) > 0 || !h.on(Settings.MUSIC)) continue;
+            List<Block> sitting = list.stream().filter(v -> v.tavern == h && v.seat != null && v.colonist.seat() != null).map(v -> v.seat).toList();
+            if (sitting.size() < 2) continue;
+            var middle = new org.bukkit.util.Vector();
+            sitting.forEach(b -> middle.add(b.getLocation().toCenterLocation().toVector()));
+            var at = middle.multiply(1.0 / sitting.size()).toLocation(h.block.getWorld());
+            at.getWorld().playSound(at, org.bukkit.Sound.MUSIC_DISC_STAL, org.bukkit.SoundCategory.RECORDS, 0.7f, 1);
+            musicIn.put(h, MUSIC_PAUSE);
+        }
+    }
+
     /** The mod's spawnVisitor: a rarity around the middle of what the tavern's level allows, and an item of it. */
     private void arrive(Hut tavern) {
         var rnd = ThreadLocalRandom.current();
@@ -269,6 +300,8 @@ public final class Visitors {
         for (Visitor v : List.copyOf(list)) if (v.tavern == tavern) leave(v);
         timers.remove(tavern);
         seats.remove(tavern);
+        musicIn.remove(tavern);
+        inside.remove(tavern);
     }
 
     void despawn() {

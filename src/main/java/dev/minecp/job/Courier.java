@@ -113,7 +113,7 @@ public final class Courier extends Job {
             if (!w.isBeside(source)) { w.goBeside(source); return; }
             int stacks = Math.min(maxStacks(), freeSlots()); // only what fits in its inventory
             if (stacks <= 0) { idle(w, "Its inventory is full: open it from its menu and take something out.", 100, null); return; }
-            List<ItemStack> got = crafted != null ? crafted.crafter.handOver(crafted, stacks) : wh.take(want.test(), want.amount(), stacks);
+            List<ItemStack> got = crafted != null ? crafted.crafter.handOver(crafted, stacks) : wh.take(want.test(), want.amount(), stacks, want.leave());
             gather(got, w);
             if (got.isEmpty()) drop(); // gone meanwhile
             act(w);
@@ -146,9 +146,9 @@ public final class Courier extends Job {
         if (wh == null) return false; // the rest is to or from the warehouse
         for (Requests.Request r : colony.requests.all()) { // the warehouse's part of each request (the mod's deliveries)
             int n = Requests.fromWarehouse(r);
-            if (n <= 0 || taken(r.job) || wh.count(r.test()) <= 0) continue;
+            if (n <= 0 || taken(r.job) || wh.count(r.test(), r.leave()) <= 0) continue;
             serving = r.job; toWarehouse = false;
-            want = new Want(r.label(), r.test(), n);
+            want = new Want(r.label(), r.test(), n, n, r.leave());
             note = "Bringing " + r.label() + " to the " + r.job.hut.type.title + ".";
             return true;
         }
