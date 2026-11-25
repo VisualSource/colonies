@@ -65,6 +65,19 @@ public final class Colony {
     public final java.util.Set<Block> freePositions = new java.util.LinkedHashSet<>();
     /** Waypoints its builder built (the mod's colony waypoints): recorded, for citizens' long walks later. Saved. */
     public final java.util.Set<Block> waypoints = new java.util.LinkedHashSet<>();
+    /** Work orders and builds assigned to the builder, which in manual mode takes only those (the mod's claimed work orders). Saved with them. */
+    public final java.util.Set<Object> assigned = new java.util.HashSet<>();
+
+    /** The Builder's Hut takes only work orders assigned to it (its "manual" work order mode). */
+    public boolean manualBuilder() {
+        return builder != null && Settings.MANUAL.equals(builder.hut.setting(Settings.WORK_MODE));
+    }
+
+    /** The mod's completion suffix in manual mode, once nothing more is assigned. */
+    private String nothingAssigned() {
+        return manualBuilder() && workOrders.stream().noneMatch(assigned::contains) && decorations.stream().noneMatch(assigned::contains)
+                ? " It has no more work orders assigned." : "";
+    }
     /** A plantation field (the mod's PlantationField): its field block (its building's hut block for its own plots), its kind, and its plots. */
     public record PlantField(Block block, dev.minecp.job.Plantation.Kind kind, List<Block> plots) {}
     /** The colony's plantation fields, as they were built (one per kind on a field block). Saved. */
@@ -598,13 +611,13 @@ public final class Colony {
             if (done == null) {
                 log.info(where() + ": the builder finished " + (building != null ? building.name() : order.structure) + ".");
                 DecorationController.place(order);
-                tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + ".");
+                tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + "." + nothingAssigned());
                 building = null;
                 return;
             }
             if (done.remove()) {
                 log.info(where() + ": the builder took down the " + done.hut().type.title + ".");
-                tell("Your builder took down the " + done.hut().type.title + ".");
+                tell("Your builder took down the " + done.hut().type.title + "." + nothingAssigned());
                 onTakenDown.accept(done.hut());
                 return;
             }
@@ -616,7 +629,7 @@ public final class Colony {
             assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
             log.info(where() + ": " + done.hut().type.title + " is now level " + done.level() + ".");
-            tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
+            tell("Your " + done.hut().type.title + " is now level " + done.level() + "." + nothingAssigned());
             milestones.built(done.hut().type, done.level());
         });
         b.protect = block -> isHutBlock(block) || DecorationController.is(block); // the mod's IBuilderUndestroyable
@@ -752,9 +765,12 @@ public final class Colony {
     }
 
     public void tick() {
-        if (builder != null && builder.order == null) {
-            if (!workOrders.isEmpty()) startNextWorkOrder();
-            else if (!decorations.isEmpty()) startNextDecoration();
+        if (builder != null && builder.order == null) { // the next work order, or in manual mode the next one assigned to it
+            assigned.removeIf(o -> !workOrders.contains(o) && !decorations.contains(o)); // cancelled or started: not assigned any more
+            Hut.WorkOrder w = workOrders.stream().filter(o -> !manualBuilder() || assigned.contains(o)).findFirst().orElse(null);
+            Decoration d = w != null ? null : decorations.stream().filter(o -> !manualBuilder() || assigned.contains(o)).findFirst().orElse(null);
+            if (w != null) startWorkOrder(w);
+            else if (d != null) startDecoration(d);
         }
         if (++colonyTick % COLONY_TICK == 0) {
             boolean moving = setting(Settings.MOVE_IN); // off: no new citizens, children or visitors (the mod's MOVE_IN)
@@ -908,16 +924,16 @@ public final class Colony {
         building = null;
     }
 
-    private void startNextDecoration() {
-        Decoration d = decorations.removeFirst();
+    private void startDecoration(Decoration d) {
+        decorations.remove(d);
         BuildOrder o = BuildOrder.create(d.structure(), d.origin(), d.rotation(), d.mirror(), null);
         if (o == null) { tell("Structure " + d.structure() + " not found; the " + d.name().toLowerCase() + " was skipped."); return; }
         builder.start(o, null);
         building = d;
     }
 
-    private void startNextWorkOrder() {
-        Hut.WorkOrder w = workOrders.removeFirst();
+    private void startWorkOrder(Hut.WorkOrder w) {
+        workOrders.remove(w);
         String structure = w.hut().structure(style, w.level());
         // A hut building is anchored on its hut block, turned as chosen with the build tool (by hand: the block's facing).
         // shortcut: uses the colony's style now; if it changed since the hut was built, little matches and little is taken down

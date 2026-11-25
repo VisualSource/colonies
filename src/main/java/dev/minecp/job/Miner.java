@@ -489,7 +489,7 @@ public final class Miner extends Job {
 
     /** Digs {@code b} out with the right tool, keeping the drops. */
     private void mine(Colonist w, Block b) {
-        Tool tool = Tool.forBlock(b.getType(), false);
+        Tool tool = toolFor(b.getType());
         if (tool != null && !hasTool(tool, b)) {
             if (!atHut(w)) { goToHut(w); return; }
             if (!fetchTool(tool, b)) {
@@ -637,7 +637,7 @@ public final class Miner extends Job {
     @Override
     int keep(ItemStack item) {
         if (quarrierHere()) return 0; // the quarrier's keep counts instead
-        if (isDiggingTool(item)) return Integer.MAX_VALUE;
+        if (isDiggingTool(item) || useShears() && fits(Tool.SHEARS, item, null)) return Integer.MAX_VALUE;
         Material m = item.getType();
         if (stockBlocks().contains(m)) return BLOCK_STOCK;
         if (m == Material.LADDER) return LADDER_STOCK;

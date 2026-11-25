@@ -180,7 +180,7 @@ public final class Builder extends Job {
     /** Tools and what the build still needs stay; leftovers and what it dug up go to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        if (isDiggingTool(item)) return Integer.MAX_VALUE;
+        if (isDiggingTool(item) || useShears() && fits(Tool.SHEARS, item, null)) return Integer.MAX_VALUE;
         return needed().containsKey(item.asOne()) ? Integer.MAX_VALUE : 0;
     }
 
@@ -217,7 +217,7 @@ public final class Builder extends Job {
         // Digging out what is in the way needs the right tool (pickaxe, axe, shovel), like a player;
         // so does turning dirt into a path (shovel) or farmland (hoe).
         Tool convert = step.convertWith();
-        Tool tool = convert != null ? convert : step.block().isEmpty() ? null : Tool.forBlock(step.block().getType(), false);
+        Tool tool = convert != null ? convert : step.block().isEmpty() ? null : toolFor(step.block().getType());
         Block toolFor = convert != null ? null : step.block(); // any shovel or hoe converts
         if (tool != null && !hasTool(tool, toolFor)) {
             if (!atHut(w)) {
@@ -340,7 +340,7 @@ public final class Builder extends Job {
 
     /** What breaking {@code b} with the tool it would be broken with drops. */
     private Collection<ItemStack> dropsOf(Block b) {
-        Tool kind = Tool.forBlock(b.getType(), false);
+        Tool kind = toolFor(b.getType());
         ItemStack tool = kind == null ? null : tool(kind);
         List<ItemStack> drops = new ArrayList<>(drops(b, tool));
         drops.addAll(contents(b)); // what a chest in the way holds goes to the hut chest too
@@ -364,9 +364,9 @@ public final class Builder extends Job {
         Tool convert = step.convertWith();
         if (convert != null) wear(convert, w); // flattened or tilled where it lies
         else if (!b.isEmpty()) { // clear whatever is in the way, into its inventory
-            breaking += breakTicks(b, Tool.forBlock(b.getType(), false), skill(1)); // the mod's mining time, with its athletics
+            breaking += breakTicks(b, toolFor(b.getType()), skill(1)); // the mod's mining time, with its athletics
             gather(takeContents(b), w); // emptied first, or its contents would be lost
-            gather(breakWith(Tool.forBlock(b.getType(), false), b, w), w);
+            gather(breakWith(toolFor(b.getType()), b, w), w);
             b.setType(Material.AIR, false);
         }
         if (!step.isClear()) {

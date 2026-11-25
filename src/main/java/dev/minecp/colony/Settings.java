@@ -63,6 +63,8 @@ public final class Settings {
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
             BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", BUILD_MODE = "build_mode";
+    // the mod's lumberjack "defoliate", the use-shears setting of its builder, lumberjack and miner, the builder's work order mode
+    public static final String DEFOLIATE = "defoliate", USE_SHEARS = "use_shears", WORK_MODE = "work_mode", MANUAL = "manual";
     static final String HIRE_TRAINEE = "hire_trainee";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
@@ -129,11 +131,16 @@ public final class Settings {
                     bool(TAPE, "Construction tape around build sites"),
                     bool(ENTER_LEAVE, "Title for visitors entering or leaving the colony"));
             case BUILDER -> List.of(block(FILL_BLOCK, "Foundation fill block", org.bukkit.Material.DIRT),
-                    words(BUILD_MODE, "Order blocks go down in (other than default: research)", dev.minecp.build.BuildOrder.MODES.toArray(String[]::new)));
+                    words(BUILD_MODE, "Order blocks go down in (other than default: research)", dev.minecp.build.BuildOrder.MODES.toArray(String[]::new)),
+                    words(WORK_MODE, "Work orders it takes (manual: only those assigned in its Work orders)", "automatic", MANUAL),
+                    bool(USE_SHEARS, "Use shears on leaves, vines, grass and cobwebs", false));
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
-                    number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
+                    number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320),
+                    bool(USE_SHEARS, "Use shears on leaves, vines, grass and cobwebs", false));
             case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));
-            case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"), bool(RESTRICT, "Only cut trees in the zone set with its Forest Tool", false));
+            case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"), bool(RESTRICT, "Only cut trees in the zone set with its Forest Tool", false),
+                    bool(DEFOLIATE, "Clear each tree's leaves too (else they fall on their own)", false),
+                    bool(USE_SHEARS, "Use shears on leaves (else a hoe; shorn leaves drop themselves, no saplings)", false));
             // ours: the mod's players assign its fields in a list; here each kind is a switch
             case PLANTATION -> java.util.Arrays.stream(dev.minecp.job.Plantation.Kind.values()).map(k -> bool(k.setting(), k.label())).toList();
             case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));

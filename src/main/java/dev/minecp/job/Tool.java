@@ -47,6 +47,14 @@ public enum Tool {
         return mines != null;
     }
 
+    /** What the mod counts as shearable (Forge's IForgeShearable blocks): leaves, vines, grass and ferns, dead bushes, seagrass, cobwebs. */
+    static boolean shearable(Material m) {
+        return Tag.LEAVES.isTagged(m) || switch (m) {
+            case VINE, SHORT_GRASS, TALL_GRASS, FERN, LARGE_FERN, DEAD_BUSH, SEAGRASS, TALL_SEAGRASS, COBWEB -> true;
+            default -> false;
+        };
+    }
+
     /** The tool kind a block is mined with (hoe blocks only if {@code hoe}), or null if hands will do. */
     static Tool forBlock(Material m, boolean hoe) {
         for (Tool t : values()) if ((hoe || t != HOE) && t.mines != null && t.mines.isTagged(m)) return t;

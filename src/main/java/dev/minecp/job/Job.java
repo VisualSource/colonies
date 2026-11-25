@@ -315,6 +315,19 @@ public abstract class Job {
         return true;
     }
 
+    /**
+     * The tool for breaking a block of {@code m}: shears for what shears cut (leaves, vines, grass, cobwebs...) when its
+     * hut's "use shears" setting is on (the mod's getBestToolForBlock), else the one its mineable tag names, or none.
+     */
+    Tool toolFor(Material m) {
+        return Tool.shearable(m) && useShears() ? Tool.SHEARS : Tool.forBlock(m, false);
+    }
+
+    /** Its hut has the use-shears setting, and it is on. */
+    boolean useShears() {
+        return dev.minecp.colony.Settings.has(hut.type, dev.minecp.colony.Settings.USE_SHEARS) && hut.on(dev.minecp.colony.Settings.USE_SHEARS);
+    }
+
     /** A tool for digging this hut allows (not a sword): workers that dig keep these in their chest. */
     boolean isDiggingTool(ItemStack item) {
         for (Tool t : Tool.values()) if (t.digs() && fits(t, item, null)) return true;

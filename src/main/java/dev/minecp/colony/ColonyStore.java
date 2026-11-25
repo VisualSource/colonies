@@ -67,12 +67,16 @@ public final class ColonyStore {
                 hs.set("worked-day", h.workedDay);
             }
         }
-        for (int i = 0; i < colony.decorations.size(); i++) putDecoration(s.createSection("decorations." + i), colony.decorations.get(i));
+        for (int i = 0; i < colony.decorations.size(); i++) {
+            putDecoration(s.createSection("decorations." + i), colony.decorations.get(i));
+            if (colony.assigned.contains(colony.decorations.get(i))) s.set("decorations." + i + ".assigned", true);
+        }
         if (colony.building != null) putDecoration(s.createSection("building"), colony.building);
         for (int i = 0; i < colony.workOrders.size(); i++) {
             s.set("work-orders." + i + ".hut", colony.huts.indexOf(colony.workOrders.get(i).hut()));
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
             if (colony.workOrders.get(i).remove()) s.set("work-orders." + i + ".remove", true);
+            if (colony.assigned.contains(colony.workOrders.get(i))) s.set("work-orders." + i + ".assigned", true);
         }
         for (Job j : colony.jobs) j.save(s.createSection(jobKey(colony, j)), colony);
         colony.requests.save(s.createSection("requests")); // crafters keep the requests they took
@@ -225,12 +229,17 @@ public final class ColonyStore {
         var orders = s.getConfigurationSection("work-orders");
         if (orders != null) for (String i : orders.getKeys(false)) {
             Hut h = colony.hutByIndex(orders.getInt(i + ".hut", -1));
-            if (h != null) colony.workOrders.add(new Hut.WorkOrder(h, orders.getInt(i + ".level"), orders.getBoolean(i + ".remove")));
+            if (h == null) continue;
+            var w = new Hut.WorkOrder(h, orders.getInt(i + ".level"), orders.getBoolean(i + ".remove"));
+            colony.workOrders.add(w);
+            if (orders.getBoolean(i + ".assigned")) colony.assigned.add(w);
         }
         var decos = s.getConfigurationSection("decorations");
         if (decos != null) for (String i : decos.getKeys(false)) {
             var d = getDecoration(decos.getConfigurationSection(i));
-            if (d != null) colony.decorations.add(d);
+            if (d == null) continue;
+            colony.decorations.add(d);
+            if (decos.getBoolean(i + ".assigned")) colony.assigned.add(d);
         }
         if (s.isConfigurationSection("building")) colony.building = getDecoration(s.getConfigurationSection("building"));
 

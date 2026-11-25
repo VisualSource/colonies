@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Cuts natural trees near the Lumberjack's Hut (logs, then leaves for their drops), replants them with
- * the saplings that dropped, and brings the rest to the hut chest.
+ * Cuts natural trees near the Lumberjack's Hut (logs; their leaves too with its Defoliate setting, else they fall on
+ * their own), replants them with saplings, picks up what lies around (the mod's gathering) and brings it to the hut chest.
  * A tree is logs standing on soil with at least {@link #MIN_LEAVES} naturally grown leaves, so the logs
  * in buildings are left alone.
  */
@@ -39,7 +39,9 @@ public final class Lumberjack extends Job {
     private static final int LEAVES_PER_SWING = 4;
     private static final BlockFace[] FACES = {BlockFace.UP, BlockFace.DOWN, BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST};
 
-    private enum State { FIND, TO_TREE, CHOP, TO_HUT, REFETCH, SAPLINGS, REPLANT }
+    private enum State { FIND, TO_TREE, CHOP, TO_HUT, REFETCH, SAPLINGS, REPLANT, GATHER }
+    private static final int PICKUP_ACROSS = 5, PICKUP_UP = 2; // the mod's lumberjack's RANGE_HORIZONTAL_PICKUP and RANGE_VERTICAL_PICKUP
+    private List<org.bukkit.entity.Item> pickups; // what lies around the last tree, nearest first as it goes
 
     private State state = State.FIND;
     private Block base;           // lowest log of the tree being cut
@@ -63,14 +65,14 @@ public final class Lumberjack extends Job {
     public List<Want> wants() {
         List<Want> wants = new ArrayList<>();
         wantTool(wants, Tool.AXE);
-        wantTool(wants, Tool.HOE);
+        wantTool(wants, leafTool());
         return wants;
     }
 
     /** Its tools and a stack of each sapling stay (the mod's keepX); the wood and apples go to the warehouse. */
     @Override
     int keep(org.bukkit.inventory.ItemStack item) {
-        if (fits(Tool.AXE, item, null) || fits(Tool.HOE, item, null)) return Integer.MAX_VALUE;
+        if (fits(Tool.AXE, item, null) || fits(leafTool(), item, null)) return Integer.MAX_VALUE;
         return isSapling(item.getType()) ? 64 : 0;
     }
 
@@ -84,6 +86,11 @@ public final class Lumberjack extends Job {
                 : restricted() ? "Cuts natural trees in its zone (" + zoneA.getX() + " " + zoneA.getY() + " " + zoneA.getZ() + " to "
                         + zoneB.getX() + " " + zoneB.getY() + " " + zoneB.getZ() + ") and replants them."
                 : "Cuts natural trees within " + radius() + " blocks and replants them.", NamedTextColor.GRAY));
+    }
+
+    /** What it takes leaves with: shears with its use-shears setting, else a hoe (the mod's prepareForWoodcutting). */
+    private Tool leafTool() {
+        return useShears() ? Tool.SHEARS : Tool.HOE;
     }
 
     int radius() {
@@ -187,7 +194,7 @@ public final class Lumberjack extends Job {
                 state = State.CHOP;
             }
             case CHOP -> {
-                if (!hasTool(onLeaves ? Tool.HOE : Tool.AXE, null)) { state = State.REFETCH; return; } // it broke
+                if (!hasTool(onLeaves ? leafTool() : Tool.AXE, null)) { state = State.REFETCH; return; } // it broke
                 if (w.location().distance(base.getLocation().toCenterLocation()) > 6) { w.goBeside(base); return; } // back from a meal
                 if (!onLeaves) {
                     while (next < logs.size() && !Tag.LOGS.isTagged(logs.get(next).getType())) next++; // gone already
@@ -201,13 +208,14 @@ public final class Lumberjack extends Job {
                     }
                     onLeaves = true;
                     next = 0;
+                    if (!hut.on(Settings.DEFOLIATE)) leaves = List.of(); // the mod's: the leaves are left to fall on their own
                 }
                 int cleared = 0, ticks = 0;
                 while (next < leaves.size() && cleared < LEAVES_PER_SWING) {
                     Block leaf = leaves.get(next++);
                     if (!Tag.LEAVES.isTagged(leaf.getType())) continue; // decayed or gone already
-                    ticks += breakTicks(leaf, Tool.HOE, skill(0)); // each leaf's mining time
-                    chop(leaf, Tool.HOE, w);
+                    ticks += breakTicks(leaf, leafTool(), skill(0)); // each leaf's mining time
+                    chop(leaf, leafTool(), w);
                     cleared++;
                 }
                 if (cleared > 0) {
@@ -218,7 +226,8 @@ public final class Lumberjack extends Job {
                 w.setStatus("Lumberjack: working");
                 experience(w, 1); // the mod's XP_PER_TREE, once a tree is down
                 // none dropped: from the hut chest (the mod's checkAndTransferFromHut); not at all with replanting off
-                state = !hut.on(Settings.REPLANT) || replant() ? State.TO_HUT : State.SAPLINGS;
+                state = !hut.on(Settings.REPLANT) || replant() ? State.GATHER : State.SAPLINGS;
+                pickups = null;
             }
             case SAPLINGS -> {
                 if (!atHut(w)) { goToHut(w); return; }
@@ -236,7 +245,19 @@ public final class Lumberjack extends Job {
                 if (w.location().distance(base.getLocation().toCenterLocation()) > 4) { w.goBeside(base); return; }
                 replant();
                 act(w);
-                state = State.TO_HUT; // what it didn't plant goes back
+                state = State.GATHER; // what it didn't plant goes back after
+                pickups = null;
+            }
+            case GATHER -> { // the mod's gathering: everything lying within 5 across and 2 up or down of the tree, nearest first
+                if (pickups == null) pickups = new ArrayList<>(base.getWorld().getNearbyEntitiesByType(org.bukkit.entity.Item.class,
+                        base.getLocation().toCenterLocation(), PICKUP_ACROSS, PICKUP_UP, PICKUP_ACROSS));
+                pickups.removeIf(i -> !i.isValid());
+                if (pickups.isEmpty() || bagFull()) { pickups = null; state = State.TO_HUT; return; }
+                org.bukkit.entity.Item item = pickups.stream().min(Comparator.comparingDouble(i -> i.getLocation().distanceSquared(w.location()))).get();
+                if (!w.isBeside(item.getLocation().getBlock())) { w.goBeside(item.getLocation().getBlock()); return; } // the walk's own arrival test
+                gather(List.of(item.getItemStack()), w);
+                item.remove();
+                pickups.remove(item);
             }
             case TO_HUT -> {
                 if (!atHut(w)) { goToHut(w); return; }
@@ -257,13 +278,14 @@ public final class Lumberjack extends Job {
         }
     }
 
-    /** Makes sure it holds an axe (logs) and a hoe (leaves), taking them from the hut chest. @return true if so. */
+    /** Makes sure it holds an axe (logs) and a hoe or shears (leaves), taking them from the hut chest. @return true if so. */
     private boolean getTools(Colonist w) {
-        if (hasTool(Tool.AXE, null) && hasTool(Tool.HOE, null)) return true;
+        Tool[] tools = {Tool.AXE, leafTool()};
+        if (hasTool(tools[0], null) && hasTool(tools[1], null)) return true;
         if (!atHut(w)) { goToHut(w); return false; }
-        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) fetchTool(t, null);
+        for (Tool t : tools) if (!hasTool(t, null)) fetchTool(t, null);
         List<String> missing = new ArrayList<>();
-        for (Tool t : new Tool[]{Tool.AXE, Tool.HOE}) if (!hasTool(t, null)) missing.add(toolLabel(t));
+        for (Tool t : tools) if (!hasTool(t, null)) missing.add(toolLabel(t));
         if (missing.isEmpty()) return true;
         note = "Needs " + String.join(" and ", missing) + " in the hut chest.";
         w.setStatus("Lumberjack: idle");

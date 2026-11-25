@@ -241,6 +241,7 @@ public final class Menus {
         }
         if (Settings.hires(h.type) || !Settings.of(h.type).isEmpty())
             buttons.add(button("Settings", p, c, h, player -> settings(player, c, h)));
+        if (h.type == Hut.Type.BUILDER) buttons.add(button("Work orders (" + (c.workOrders.size() + c.decorations.size()) + ")", p, c, h, player -> workOrders(player, c, h)));
         if (h.type == Hut.Type.GATE_HOUSE && h.level > 0) buttons.add(button("Travel", p, c, h, player -> travel(player, c, h)));
         if (h.type == Hut.Type.TOWN_HALL) {
             buttons.add(button("Alliances", p, c, h, player -> connections.alliances(player, c, h)));
@@ -498,6 +499,35 @@ public final class Menus {
         if (body.isEmpty()) body.add(text(Component.text("No builds ordered.", NamedTextColor.GRAY)));
         buttons.add(button("Back", p, c, townHall, player -> hut(player, c, townHall)));
         Dialogs.show(p, "Builds", body, List.of(), buttons, 1);
+    }
+
+    /**
+     * The colony's work orders, as its builder takes them (the mod's builder work order window): hut upgrades and
+     * removals first, then builds. In manual mode it takes only those assigned here (MANAGE_HUTS).
+     */
+    void workOrders(Player p, Colony c, Hut builderHut) {
+        boolean manual = c.manualBuilder();
+        List<DialogBody> body = new ArrayList<>();
+        List<ActionButton> buttons = new ArrayList<>();
+        body.add(text(Component.text(manual ? "Manual: the builder takes only the work orders assigned to it here."
+                : "Automatic: the builder takes every work order in turn (switch to manual in its Settings).", NamedTextColor.GRAY)));
+        List<Object> orders = new ArrayList<>(c.workOrders);
+        orders.addAll(c.decorations);
+        for (Object o : orders) {
+            String what = o instanceof Hut.WorkOrder w ? w.hut().type.title + ": " + w.what().toLowerCase()
+                    : ((Colony.Decoration) o).name() + " at " + ((Colony.Decoration) o).origin().getBlockX() + " " + ((Colony.Decoration) o).origin().getBlockY()
+                      + " " + ((Colony.Decoration) o).origin().getBlockZ();
+            boolean mine = c.assigned.contains(o);
+            body.add(text(Component.text(what + (manual && mine ? " (assigned)" : ""), manual && mine ? NamedTextColor.GREEN : NamedTextColor.WHITE)));
+            if (manual) buttons.add(button((mine ? "Unassign " : "Assign ") + what, p, c, builderHut, Action.MANAGE_HUTS, player -> {
+                if (!c.assigned.remove(o)) c.assigned.add(o);
+                plugin.save(c);
+                workOrders(player, c, builderHut);
+            }));
+        }
+        if (orders.isEmpty()) body.add(text(Component.text("No work orders.", NamedTextColor.GRAY)));
+        buttons.add(button("Back", p, c, builderHut, player -> hut(player, c, builderHut)));
+        Dialogs.show(p, "Work orders", body, List.of(), buttons, 1);
     }
 
     /** The colony's building style (the mod's town hall setting): every installed style, one button each. */
