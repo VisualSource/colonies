@@ -118,6 +118,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(items, this);
         getServer().getPluginManager().registerEvents(new ChestNames(this), this);
         getServer().getPluginManager().registerEvents(teaching, this);
+        getServer().getPluginManager().registerEvents(new Gates(this), this);
         getServer().getPluginManager().registerEvents(guardTools, this);
         getServer().getPluginManager().registerEvents(flags, this);
         getServer().getPluginManager().registerEvents(scrolls, this);

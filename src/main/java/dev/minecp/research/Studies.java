@@ -192,6 +192,7 @@ public final class Studies {
             case Effects.PLANTATION_SEA -> "The plantation grows kelp and seagrass";
             case Effects.PLANTATION_EXOTIC -> "The plantation grows glow berries";
             case Effects.PLANTATION_NETHER -> "The plantation grows weeping and twisting vines, and crimson and warped plants";
+            case Effects.ENHANCED_GATES -> "Gates hold out " + num(v * 20) + "% better against crowds of raiders"; // the mod's "+100% raider swarm resistance" at 5
             case Effects.PODZOL_CHANCE -> "A composter making dirt makes podzol " + pct + " more often";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";
             default -> e.id() + " " + n + " (not in Colonies yet)";
@@ -243,6 +244,8 @@ public final class Studies {
             else if (k.equals("minecolonies:mistletoe")) one = dev.minecp.job.Alchemist::isMistletoe;
             else if (k.equals("minecolonies:ancienttome")) one = dev.minecp.job.Enchanter::isAncientTome;
             else if (k.equals("minecolonies:compost")) one = dev.minecp.job.Compost::is;
+            else if (dev.minecp.Gates.Kind.ofId(k.substring(k.indexOf(':') + 1)) instanceof dev.minecp.Gates.Kind g && k.startsWith("minecolonies:"))
+                one = i -> dev.minecp.Gates.Kind.ofItem(i) == g;
             else {
                 Material m = k.startsWith("minecraft:") ? Material.matchMaterial(k) : null;
                 if (m == null) return null;

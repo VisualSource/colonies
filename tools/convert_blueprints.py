@@ -82,6 +82,8 @@ PLANT_TAGS = ("sugar", "cactus", "bamboo", "cocoa", "vine", "kelp", "seagrass", 
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
 WAYPOINT_TAG = "minecp_waypoint"  # marker on a waypoint (BuildOrder.WAYPOINT_TAG)
+GATES = {"minecolonies:gate_iron": "IRON", "minecolonies:gate_wood": "WOOD"}  # the mod's gates: iron bars and oak fences
+GATE_TAG = "minecp_gate_"  # + IRON or WOOD: marker on each gate block, which the plugin registers (BuildOrder.GATE_TAG)
 LEISURE_TAG = "minecp_leisure"  # a blueprint the mod tags "leisure" (its decoration controller's tag): citizens spend free time there (BuildOrder.LEISURE_TAG)
 ANCHOR_TAG = "minecp_anchor"  # marker at the primary offset of a blueprint with no hut block (a quarry's shaft; BuildOrder.ANCHOR_TAG)
 CONTROLLER_TAG = "minecp_controller"  # tag of the marker entity there (BuildOrder.CONTROLLER_TAG), plus minecp_facing_<facing>
@@ -248,6 +250,8 @@ def convert(path, blocks, siblings=()):
         name, props, note = convert_state(state["Name"], state.get("Properties", {}), te, blocks)
         if note:
             notes[note].append(pos)
+        if state["Name"] in GATES:  # a gate block: marked, so the colony knows it opens with the rest of its gate
+            out_entities.append(marker(pos, [GATE_TAG + GATES[state["Name"]]]))
         if state["Name"] == "minecolonies:blockwaypoint":  # a waypoint: air, marked for the colony to record
             out_entities.append(marker(pos, [WAYPOINT_TAG]))
         if state["Name"] == "minecolonies:composted_dirt":  # a florist's plant spot: dirt, marked as a work spot

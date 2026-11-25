@@ -93,7 +93,7 @@ public final class Hut {
                 (h, c) -> new Crafter(h, c, CraftRules.SMELTERY, "ingots from ores", Crafter.Kind.ORES), false),
         MECHANIC("Mechanic's Hut", Material.CHEST, "craftsmanship/metallurgy/mechanic", "mechanic", "A mechanic makes torches, lanterns, rails and redstone things",
                 () -> new RecipeChoice.MaterialChoice(Material.REDSTONE_BLOCK), null, "Mechanic",
-                (h, c) -> Mesh.DIAMOND.teachTo(new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts and storage blocks")), false),
+                (h, c) -> gates(Mesh.DIAMOND.teachTo(new Crafter(h, c, CraftRules.MECHANIC, "torches, lanterns, rails, redstone parts, storage blocks and gates"))), false),
         // Unlocked by research; the mod's recipes: planks, the Build Tool on top, and string, a red dye or glass in the middle
         FLETCHER("Fletcher's Hut", Material.CHEST, "craftsmanship/carpentry/fletcher", "fletcher", "A fletcher makes arrows, string, leather armor and wool things",
                 () -> new RecipeChoice.MaterialChoice(Material.STRING), "Fletcher", Type::fletcher, false),
@@ -270,6 +270,13 @@ public final class Hut {
         private static void vanilla(Crafter c, String recipe, int level) {
             var r = org.bukkit.Bukkit.getRecipe(org.bukkit.NamespacedKey.minecraft(recipe));
             if (r != null) c.builtIn.put(r, level);
+        }
+
+        /** The mechanic's gates (the mod's crafterrecipes/mechanic): a wooden gate from 5 oak logs, an iron gate from 5 iron nuggets. */
+        private static Crafter gates(Crafter c) {
+            c.learn(Crafter.own("gate_wood", dev.minecp.Gates.Kind.WOOD.item(), java.util.Map.of(Material.OAK_LOG, 5)), 1, s -> true);
+            c.learn(Crafter.own("gate_iron", dev.minecp.Gates.Kind.IRON.item(), java.util.Map.of(Material.IRON_NUGGET, 5)), 1, s -> true);
+            return c;
         }
 
         /** The fletcher's built-in recipes (the mod's crafterrecipes/fletcher): flint from gravel, string from wool. */

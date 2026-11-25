@@ -578,6 +578,10 @@ public final class Colony {
             // A chest that already stood in a rack spot (kept rather than broken, so nothing in it is lost) becomes a rack.
             for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
             waypoints.addAll(order.waypoints); // the mod's: a builder's waypoint is registered, not left as a block
+            order.gates.forEach((g, kind) -> { // the gates the building has: their blocks open together
+                var k = dev.minecp.Gates.Kind.valueOf(kind);
+                if (g.getType() == k.block) dev.minecp.Gates.register(g, k);
+            });
             if (order.leisure && order.controller != null) leisure.sites.add(order.controller.block()); // the mod's leisure-tagged controller
             List<PlantField> planted = dev.minecp.job.Plantation.fieldsOf(order); // the mod's plantation field block, placed
             if (!planted.isEmpty()) {

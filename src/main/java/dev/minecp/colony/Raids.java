@@ -937,6 +937,7 @@ public final class Raids {
             if (t != null) m.setTarget(t);
         }
         Hut goal = t != null || h.camp > 0 ? null : goal(m);
+        if (goal != null && breakGate(m)) return;
         unstick(m, goal);
         if (goal == null || m.getPathfinder().hasPath()) return;
         Location at = m.getLocation(), there = goal.block.getLocation().toCenterLocation();
@@ -999,8 +1000,49 @@ public final class Raids {
 
     private boolean breakable(Block b) {
         Material t = b.getType();
-        return !t.isAir() && !b.isLiquid() && t.isSolid() && t.getHardness() >= 0 && t != Material.BEDROCK
+        return !t.isAir() && !b.isLiquid() && t.isSolid() && t.getHardness() >= 0 && t != Material.BEDROCK && dev.minecp.Gates.kind(b) == null
                 && !(b.getState(false) instanceof org.bukkit.block.Container) && colony.hutAt(b) == null && !dev.minecp.build.DecorationController.is(b);
+    }
+
+    private final Map<Mob, Double> breaking = new HashMap<>(); // each raider's progress on the gate before it, in ticks
+    private static final int GATE_BREAK = 240; // vanilla's door break time, which the mod's gates keep
+
+    /**
+     * A marching raider at a closed gate breaks it (the mod's EntityAIBreakDoor, raidersbreakdoors, Normal and up): the
+     * gate's hardness is 1 + each of its blocks' (iron 10, wood 7) together; it gets on with it one tick in max(1,
+     * hardness / (1 + raiders within 5 / ((5 + Sturdy Gates) / 2))), and the whole gate goes after 240 such ticks. Each
+     * of those ticks, as often, up to the 4 nearest guards within 100 are called to 3 blocks inside it. Ours: a raider
+     * within a block of a gate block is at it; once a second it gets on by 20 ticks' worth on average.
+     * @return whether it is at a gate (it doesn't walk on meanwhile).
+     */
+    private boolean breakGate(Mob m) {
+        Block feet = m.getLocation().getBlock(), gateBlock = null;
+        for (int x = -1; x <= 1 && gateBlock == null; x++) for (int y = 0; y <= 1 && gateBlock == null; y++) for (int z = -1; z <= 1 && gateBlock == null; z++)
+            if (dev.minecp.Gates.closed(feet.getRelative(x, y, z))) gateBlock = feet.getRelative(x, y, z);
+        if (gateBlock == null) { breaking.remove(m); return false; }
+        if (!breakDoors || m.getWorld().getDifficulty().ordinal() < Difficulty.NORMAL.ordinal()) return false;
+        m.getPathfinder().stopPathfinding();
+        m.lookAt(gateBlock.getLocation().toCenterLocation());
+        double hardness = 1 + dev.minecp.Gates.hardness(dev.minecp.Gates.gate(gateBlock));
+        long near = m.getNearbyEntities(5, 5, 5).stream().filter(this::isRaider).count() + 1;
+        double perNear = (5 + colony.research.effect(dev.minecp.research.Effects.ENHANCED_GATES)) / 2;
+        int chance = (int) Math.max(1, hardness / (1 + near / perNear));
+        double done = breaking.merge(m, 20.0 / chance, Double::sum);
+        m.swingMainHand();
+        if (ThreadLocalRandom.current().nextDouble() < 20.0 / chance) { // the guards nearest are called to just inside it
+            Location c = centre(), centre = c != null ? c : colony.townHall().block.getLocation();
+            Vector in = centre.toVector().subtract(gateBlock.getLocation().toCenterLocation().toVector()).setY(0);
+            Location to = gateBlock.getLocation().toCenterLocation().add(in.lengthSquared() > 0 ? in.normalize().multiply(3) : in);
+            dev.minecp.job.Guard.alert(colony, to.getBlock(), 100);
+        }
+        for (Player p : gateBlock.getLocation().getNearbyPlayers(32)) p.sendBlockDamage(gateBlock.getLocation(), (float) Math.min(1, done / GATE_BREAK), m.getEntityId());
+        if (done >= GATE_BREAK) {
+            for (Player p : gateBlock.getLocation().getNearbyPlayers(32)) p.sendBlockDamage(gateBlock.getLocation(), 0, m.getEntityId());
+            gateBlock.getWorld().playSound(gateBlock.getLocation(), Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, SoundCategory.HOSTILE, 1, 1);
+            dev.minecp.Gates.remove(gateBlock);
+            breaking.remove(m);
+        }
+        return true;
     }
 
     public boolean isRaider(Entity e) {
@@ -1269,6 +1311,7 @@ public final class Raids {
         envHit.clear();
         goals.clear();
         goalSince.clear();
+        breaking.clear();
     }
 
     private static void removeCamp(Horde h) {
