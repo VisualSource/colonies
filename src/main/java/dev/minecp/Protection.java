@@ -1,6 +1,7 @@
 package dev.minecp;
 
 import dev.minecp.citizen.Colonist;
+import dev.minecp.build.DecorationController;
 import dev.minecp.colony.Action;
 import dev.minecp.colony.Colony;
 import net.kyori.adventure.text.Component;
@@ -96,7 +97,7 @@ final class Protection implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)
     public void onBreak(BlockBreakEvent e) {
         Block b = e.getBlock();
-        if (plugin.colonyAt(b) != null || plugin.graveColony(b) != null) return; // MineCP checks huts and graves
+        if (plugin.colonyAt(b) != null || plugin.graveColony(b) != null || DecorationController.is(b)) return; // MineCP checks huts and graves, Decorations controllers
         if (!allowed(e.getPlayer(), b.getLocation(), Action.BREAK_BLOCKS)) e.setCancelled(true);
     }
 

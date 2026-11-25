@@ -33,6 +33,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.tag.DamageTypeTags;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -265,12 +266,13 @@ public final class Guard extends Job {
     }
 
     /**
-     * What reaches it, in the mod's order: research may parry the whole hit; below 20% health research softens it; a
+     * What reaches it, in the mod's order: a carried shield (research) stops explosions; research may parry the whole hit; below 20% health research softens it; a
      * raised shield blocks a hit from the mob it fights, which still costs half, after armor, and wears the shield
      * (ours: "from its target" stands in for vanilla's facing check); then its armor.
      */
     @Override
     public double reaching(double damage, DamageType type, Entity source, Colonist w) {
+        if (melee() && shield != null && colony.research.effect(Effects.SHIELD_USAGE) > 0 && DamageTypeTags.IS_EXPLOSION.isTagged(type)) return 0; // the mod's JobKnight.ignoresDamage
         double parry = colony.research.effect(Effects.BLOCK_ATTACKS);
         if (melee() && parry > 0 && ThreadLocalRandom.current().nextDouble() < parry) return 0; // the mod's knights, huscarls among them
         if (lowHealth(w)) damage *= 1 - colony.research.effect(Effects.FLEEING_DAMAGE);

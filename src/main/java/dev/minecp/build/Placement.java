@@ -308,6 +308,13 @@ public final class Placement implements Listener {
         return BuildOrder.create(s.entry.structure(s.style), s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.entry.hut() != null ? s.anchor : null);
     }
 
+    /** What its levels share: the hut block, or a build's decoration controller (null if it has none). */
+    private static Block anchor(Session s) {
+        if (s.entry.hut() != null) return s.anchor;
+        BuildOrder o = order(s);
+        return o == null || o.controller == null ? null : o.controller.block();
+    }
+
     /** Its highest level's structure, or null if it has no levels. */
     private static String maxStructure(Session s) {
         if (!s.entry.leveled()) return null;
@@ -326,7 +333,7 @@ public final class Placement implements Listener {
         s.shown.clear();
         String max = s.showMax ? maxStructure(s) : null;
         BuildOrder o = max == null ? order(s)
-                : BuildOrder.create(max, s.anchor.getLocation(), TURNS[s.turn], s.mirror, s.entry.hut() != null ? s.anchor : null);
+                : BuildOrder.create(max, s.anchor.getLocation(), TURNS[s.turn], s.mirror, anchor(s));
         if (o == null) {
             p.sendMessage(Component.text("No structure for the " + s.entry.name() + " in the " + s.style + " style.", NamedTextColor.RED));
             end(p);

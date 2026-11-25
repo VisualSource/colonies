@@ -435,7 +435,8 @@ public final class Items implements Listener {
             }
     }
 
-    private static boolean ours(ItemStack item) {
+    /** One of MineCP's own items. */
+    static boolean ours(ItemStack item) {
         return item != null && item.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(MineCP.NAMESPACE));
     }
 

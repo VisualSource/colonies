@@ -148,8 +148,9 @@ public final class BuildOrder {
 
     /**
      * @param origin where the structure's corner goes
-     * @param hut if the structure has a hut marker (the converter tags MineColonies hut blocks), the structure is
-     *            moved so the marker lands on this block instead of using {@code origin}; null to always use origin
+     * @param hut if the structure has a hut marker (the converter tags MineColonies hut blocks), else a decoration
+     *            controller, the structure is moved so that lands on this block instead of using {@code origin}; null
+     *            to always use origin
      * @param rotation null (with a hut): turned so the marker faces the way the hut block faces (a hut placed by hand)
      * @return null if no structure has that name.
      */
@@ -162,7 +163,13 @@ public final class BuildOrder {
         if (s == null || s.getPalettes().isEmpty()) return null;
         var blocks = s.getPalettes().getFirst().getBlocks();
         Block base = origin.getBlock();
-        if (hut != null) for (var state : blocks) {
+        var entities = s.getEntities(); // new ones each call
+        var controller = entities.stream().filter(e -> e.getScoreboardTags().contains(CONTROLLER_TAG)).findFirst().orElse(null);
+        if (hut != null && controller != null) {
+            if (rotation == null) rotation = StructureRotation.NONE;
+            BlockVector at = transform(controller.getLocation().getBlockX(), controller.getLocation().getBlockY(), controller.getLocation().getBlockZ(), rotation, mirror);
+            base = hut.getRelative(-at.getBlockX(), -at.getBlockY(), -at.getBlockZ());
+        } else if (hut != null) for (var state : blocks) {
             if (state instanceof TileState ts && ts.getPersistentDataContainer().has(HUT_MARKER)) {
                 if (rotation == null && state.getBlockData() instanceof Directional marker && hut.getBlockData() instanceof Directional placed)
                     for (StructureRotation r : StructureRotation.values()) {
@@ -195,13 +202,24 @@ public final class BuildOrder {
             Step step = new Step(block, fill ? Material.DIRT.createBlockData() : data, fill, rack, flag);
             (step.isClear() ? clears : places).add(step);
         }
+        GraveSpot controls = null;
+        if (controller != null) {
+            var l = controller.getLocation();
+            BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
+            Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
+            if (block.getY() >= block.getWorld().getMinHeight() && block.getY() < block.getWorld().getMaxHeight()) { // else none
+                controls = new GraveSpot(block, facing(controller.getScoreboardTags(), rotation, mirror));
+                clears.add(new Step(block, Material.AIR.createBlockData(), false, false, false)); // room for it
+            }
+        }
         clears.sort(Comparator.comparingInt((Step st) -> -st.block.getY())); // top down
         // Bottom up, and blocks that hang on others (torches, doors, carpets) after the solid ones.
         places.sort(Comparator.comparing((Step st) -> !st.data.getMaterial().isSolid()).thenComparingInt(st -> st.block.getY()));
         clears.addAll(places);
         BuildOrder order = new BuildOrder(structure, base.getLocation(), rotation, mirror, clears);
         order.subHuts.putAll(subHuts);
-        for (var e : s.getEntities()) { // marker entities the converter put on MineColonies' scarecrows and named graves
+        order.controller = controls;
+        for (var e : entities) { // marker entities the converter put on MineColonies' scarecrows and named graves
             var tags = e.getScoreboardTags();
             String spot = tags.stream().filter(t -> t.startsWith(WORK_SPOT_TAG)).findFirst().orElse(null);
             if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && spot == null) continue;
@@ -211,14 +229,19 @@ public final class BuildOrder {
             if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
             if (tags.contains(SIT_TAG)) { order.seats.add(block); continue; }
             if (spot != null) { order.workSpots.put(block, spot.substring(WORK_SPOT_TAG.length())); continue; }
-            var sign = (Directional) Material.OAK_WALL_SIGN.createBlockData(); // turns the grave's facing with the building
-            for (String t : tags) if (t.startsWith("minecp_facing_"))
-                try { sign.setFacing(org.bukkit.block.BlockFace.valueOf(t.substring(14).toUpperCase())); } catch (IllegalArgumentException ignored) {}
-            if (mirror) sign.mirror(Mirror.FRONT_BACK);
-            sign.rotate(rotation);
-            order.graves.add(new GraveSpot(block, sign.getFacing()));
+            order.graves.add(new GraveSpot(block, facing(tags, rotation, mirror)));
         }
         return order;
+    }
+
+    /** A marker's facing (its minecp_facing_ tag), turned with the building. */
+    private static BlockFace facing(Set<String> tags, StructureRotation rotation, boolean mirror) {
+        var sign = (Directional) Material.OAK_WALL_SIGN.createBlockData();
+        for (String t : tags) if (t.startsWith("minecp_facing_"))
+            try { sign.setFacing(BlockFace.valueOf(t.substring(14).toUpperCase())); } catch (IllegalArgumentException ignored) {}
+        if (mirror) sign.mirror(Mirror.FRONT_BACK);
+        sign.rotate(rotation);
+        return sign.getFacing();
     }
 
     /**
@@ -240,7 +263,11 @@ public final class BuildOrder {
     public final List<Block> fields = new ArrayList<>();
     /** Tag of the marker entities on a graveyard's burial spots (MineColonies' named graves), with minecp_facing_<facing>. */
     static final String GRAVE_TAG = "minecp_grave";
-    /** A graveyard's burial spot and the way its grave faces. */
+    /** Tag of the marker entity on a build's decoration controller, with minecp_facing_<the way its sign faces>. */
+    static final String CONTROLLER_TAG = "minecp_controller";
+    /** Where its decoration controller goes, or null (DecorationController). */
+    public GraveSpot controller;
+    /** A graveyard's burial spot (or a decoration controller's) and the way its grave faces. */
     public record GraveSpot(Block block, org.bukkit.block.BlockFace facing) {}
     /** Where the structure has a burial spot. */
     public final List<GraveSpot> graves = new ArrayList<>();

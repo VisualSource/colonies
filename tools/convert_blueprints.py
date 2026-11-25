@@ -74,6 +74,9 @@ STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
+CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
+CONTROLLER_TAG = "minecp_controller"  # tag of the marker entity there (BuildOrder.CONTROLLER_TAG), plus minecp_facing_<facing>
+OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
 FLAGS = {"minecolonies:colony_banner", "minecolonies:colony_wall_banner"}  # they show the colony's flag
 FLAG_TAG = "minecp:colony_banner"            # Paper data tag on them (Flag.KEY)
@@ -231,6 +234,9 @@ def convert(path, blocks, siblings=()):
         if state["Name"] == GRAVE:  # the undertaker buries citizens here, facing this way
             facing = state.get("Properties", {}).get("facing", "north")
             out_entities.append(marker(pos, [GRAVE_TAG, "minecp_facing_" + facing]))
+        if state["Name"] == CONTROLLER and pos == primary:  # it faces the block it hangs on, the sign standing in for it away from it
+            facing = OPPOSITE.get(state.get("Properties", {}).get("facing"), "north")
+            out_entities.append(marker(pos, [CONTROLLER_TAG, "minecp_facing_" + facing]))
         if name is VOID:
             continue
         if not name.startswith("minecraft:") or (name not in blocks and not state["Name"].startswith("minecraft:")):

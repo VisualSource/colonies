@@ -1,6 +1,7 @@
 package dev.minecp;
 
 import dev.minecp.build.BuildOrder;
+import dev.minecp.build.DecorationController;
 import dev.minecp.build.MapBorders;
 import dev.minecp.build.Placement;
 import dev.minecp.citizen.Colonist;
@@ -113,6 +114,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(guardTools, this);
         getServer().getPluginManager().registerEvents(flags, this);
         getServer().getPluginManager().registerEvents(scrolls, this);
+        getServer().getPluginManager().registerEvents(new Decorations(this), this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getPluginManager().registerEvents(mapBorders, this);
@@ -486,12 +488,12 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onExplode(EntityExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null);
+        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null || DecorationController.is(b));
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onExplode(BlockExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null);
+        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null || DecorationController.is(b));
     }
 
     /** Raiders: the mod's drops; a hurt one ends its horde's camp; they never hurt each other, and zombies among them don't turn into drowned. */

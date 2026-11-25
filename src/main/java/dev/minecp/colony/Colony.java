@@ -1,6 +1,7 @@
 package dev.minecp.colony;
 
 import dev.minecp.build.BuildOrder;
+import dev.minecp.build.DecorationController;
 import dev.minecp.build.Tape;
 import dev.minecp.citizen.Colonist;
 import dev.minecp.job.Builder;
@@ -525,6 +526,7 @@ public final class Colony {
                 }
             if (done == null) {
                 log.info(where() + ": the builder finished " + (building != null ? building.name() : order.structure) + ".");
+                DecorationController.place(order);
                 tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + ".");
                 building = null;
                 return;
@@ -545,7 +547,7 @@ public final class Colony {
             tell("Your " + done.hut().type.title + " is now level " + done.level() + ".");
             milestones.built(done.hut().type, done.level());
         });
-        b.protect = this::isHutBlock;
+        b.protect = block -> isHutBlock(block) || DecorationController.is(block); // the mod's IBuilderUndestroyable
     }
 
     /**
