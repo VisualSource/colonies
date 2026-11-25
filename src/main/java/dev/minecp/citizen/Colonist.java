@@ -129,6 +129,8 @@ public final class Colonist {
     public static final double MAX_HEALTH = 20;      // the mod's BASE_MAX_HEALTH
     public double health = MAX_HEALTH;               // saved with the colony
     public double pace = 1;                          // walking speed multiplier (research, a running undertaker); the colony sets it each tick
+    public boolean climbsVines;                      // vines are ladders to it (research); the colony sets it each tick
+    public int leisureTime;                          // ticks of free time left (the mod's leisureTime, Leisure); saved
     public int hurtTicks;   // ticks since a mob or player last hurt it are still counted down: no healing meanwhile
     public int fleeTicks;   // running away: no work until it runs out
     public int healTicks;
@@ -287,7 +289,7 @@ public final class Colonist {
     private Route.Result plan(int gx, int gy, int gz, Route.Goal goal) {
         Location at = legs.getLocation();
         long t = System.nanoTime();
-        Route.Result r = Route.find(at.getWorld(), at.getBlockX(), at.getBlockY(), at.getBlockZ(), gx, gy, gz, goal);
+        Route.Result r = Route.find(at.getWorld(), at.getBlockX(), at.getBlockY(), at.getBlockZ(), gx, gy, gz, goal, climbsVines);
         stats.searches++;
         stats.searchNanos += System.nanoTime() - t;
         return r;
@@ -794,6 +796,12 @@ public final class Colonist {
         body.setPose(Pose.STANDING, false);
         Nms.wake(body);
         teleportNear(head);
+    }
+
+    /** How long it can stay under water, in ticks (vanilla's 300; 600 with Fresh Air, the mod's setMaxAir). */
+    public void maxAir(int ticks) {
+        if (legs != null && legs.getMaximumAir() != ticks) legs.setMaximumAir(ticks);
+        if (body != null && body.getMaximumAir() != ticks) body.setMaximumAir(ticks);
     }
 
     /** The highlight scroll: its body glows and its legs run faster for {@code ticks} (glowing legs would outline the hidden mob). */

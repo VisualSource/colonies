@@ -75,7 +75,13 @@ public final class Hut {
                 (h, c) -> new Crafter(h, c, CraftRules.SAWMILL, "things made mostly of wood"), false),
         STONEMASON("Stonemason's Hut", Material.CHEST, "craftsmanship/masonry/stonemason", "stonemason", "A stonemason crafts stone blocks, stairs, slabs and walls",
                 () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stonemason",
-                (h, c) -> Mesh.FLINT.teachTo(new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls")), false),
+                (h, c) -> {
+                    Crafter s = Mesh.FLINT.teachTo(new Crafter(h, c, CraftRules.STONEMASON, "stone and brick blocks, stairs, slabs and walls"));
+                    // the mod's crafterrecipes/stonemason/end_stone, with Knowledge of the End
+                    s.learn(Crafter.own("stonemason_end_stone", Material.END_STONE, 8, java.util.Map.of(Material.SANDSTONE, 8, Material.ENDER_PEARL, 1)), 1,
+                            st -> st.effect(dev.minecp.research.Effects.END_KNOWLEDGE) > 0);
+                    return s;
+                }, false),
         STONE_SMELTERY("Stone Smeltery", Material.CHEST, "craftsmanship/masonry/stonesmeltery", "stonesmeltery", "A stone smelter fires stone, bricks and terracotta",
                 () -> new RecipeChoice.MaterialChoice(Material.FURNACE), () -> new RecipeChoice.MaterialChoice(Material.STONE_BRICKS), "Stone Smelter",
                 (h, c) -> new Crafter(h, c, CraftRules.STONE_SMELTERY, "stone, smooth stone, bricks, terracotta and charcoal in a furnace", Crafter.Kind.FURNACE), false),

@@ -138,8 +138,9 @@ public final class PostBox extends Job {
         for (Order o : orders) wants.add(new Want(label(o.item), i -> same(o.item, i), o.amount, o.min));
         for (Stock s : stock) { // the mod's MinimumStack: up to a stack at a time, minimum 1
             if (orders.stream().anyMatch(o -> same(o.item, s.item))) continue;
-            int max = s.item.getMaxStackSize(), missing = s.stacks * max - inChest(i -> same(s.item, i));
-            if (missing > 0) wants.add(new Want(label(s.item) + " (stock)", i -> same(s.item, i), Math.min(max, missing), 1));
+            int max = s.item.getMaxStackSize(), target = s.stacks * max, missing = target - inChest(i -> same(s.item, i));
+            // Minimum Order: only once a quarter of the stock is gone (the mod's MinimumStockModule)
+            if (missing > (colony.research.effect(Effects.MIN_ORDER) > 0 ? target / 4 : 0)) wants.add(new Want(label(s.item) + " (stock)", i -> same(s.item, i), Math.min(max, missing), 1));
         }
         return wants;
     }

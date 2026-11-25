@@ -155,19 +155,31 @@ public class Crafter extends Job {
     final Map<Recipe, Predicate<Studies>> needs = new java.util.HashMap<>();
 
     /** Knows {@code r} without teaching from hut {@code level}, once {@code when} holds for the colony's research. */
-    void learn(Recipe r, int level, Predicate<Studies> when) {
+    public void learn(Recipe r, int level, Predicate<Studies> when) {
         builtIn.put(r, level);
         needs.put(r, when);
     }
 
-    /** A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null. */
+    /**
+     * A taught recipe, or a built-in one its hut level allows, that makes something matching {@code want}, or null: the
+     * first found, or with its recipe mode on "most in warehouse" (research) the one whose biggest ingredient the
+     * warehouse has most of (the mod's getFirstFulfillableRecipe with MAX_STOCK).
+     */
     public Recipe recipeFor(Predicate<ItemStack> want) {
+        List<Recipe> found = new ArrayList<>();
         for (NamespacedKey key : recipes) {
             Recipe r = Bukkit.getRecipe(key);
-            if (r != null && want.test(r.getResult())) return r;
+            if (r != null && want.test(r.getResult())) found.add(r);
         }
-        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && makes(e.getKey(), want)) return e.getKey();
-        return null;
+        for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && makes(e.getKey(), want)) found.add(e.getKey());
+        if (found.isEmpty()) return null;
+        var warehouse = colony.warehouse();
+        if (found.size() > 1 && warehouse != null && Settings.has(hut.type, Settings.RECIPE_MODE)
+                && hut.setting(Settings.RECIPE_MODE).equals("MAX_STOCK") && colony.research.effect(Effects.RECIPE_MODE) > 0)
+            return found.stream().max(java.util.Comparator.comparingInt(r -> ingredients(r).entrySet().stream().max(Map.Entry.comparingByValue())
+                    // the hut chest counts too: what a courier brings over mustn't change the choice mid-job
+                    .map(e -> warehouse.count(e.getKey()::test) + inChest(e.getKey()::test)).orElse(0))).get();
+        return found.getFirst();
     }
 
     /**

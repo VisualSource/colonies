@@ -22,6 +22,9 @@ public final class Effects {
     public static final String GRAVE_DECAY = "gravedecaybonus";
     public static final String RESURRECT_CHANCE = "resurrectchanceaddition";
     public static final String UNDERTAKER_RUN = "undertakerrun";
+    public static final String USE_TOTEM = "usetotemunlock";
+    public static final String MORE_AIR = "air";
+    public static final String VINES = "vinesunlock";
 
     // workers
     public static final String BREAK_SPEED = "blockbreakspeedmultiplier";
@@ -30,6 +33,10 @@ public final class Effects {
     public static final String TOOL_DURABILITY = "tooldurabilitymultiplier";
     public static final String RECIPES = "recipesmultiplier";
     public static final String MINIMUM_STOCK = "minimumstockmultiplier";
+    public static final String MIN_ORDER = "min_order";
+    public static final String RECIPE_MODE = "recipemodeunlock";
+    public static final String HONEY_POT = "beekeep2unlock";
+    public static final String END_KNOWLEDGE = "knowledgeoftheendunlock";
     public static final String INVENTORY_SLOTS = "citizeninvslotsaddition";
     public static final String FISH_TREASURE = "fishingtreasure";
     public static final String LOOTING = "looting";
@@ -76,7 +83,7 @@ public final class Effects {
 
     /** Every id above, for the test. */
     static final String[] ALL = {HEALTH, LEVELING, TEACHING, WALKING, REGENERATION, HEALING_SATURATION, SATURATION, HAPPINESS, GROWTH, CITIZEN_CAP,
-            WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
+            WORK_LONGER, GRAVE_DECAY, RESURRECT_CHANCE, UNDERTAKER_RUN, USE_TOTEM, MORE_AIR, VINES, MIN_ORDER, RECIPE_MODE, HONEY_POT, END_KNOWLEDGE, BREAK_SPEED, PLACE_SPEED, FARMING, TOOL_DURABILITY, RECIPES,
             MINIMUM_STOCK, INVENTORY_SLOTS, FISH_TREASURE, LOOTING, MINER_FIRE_RESISTANCE, WORK_IN_RAIN, SOFT_SHOES, MORE_ORES, MASKS, VACCINES, SIFTER_STRING, SIFTER_FLINT, SIFTER_IRON, SIFTER_DIAMOND, CRUSHING_ONE_TO_ONE, DEPTH_KNOWLEDGE, PODZOL_CHANCE, PLANTATION_JUNGLE, PLANTATION_LARGE,
             MELEE_DAMAGE, MELEE_ARMOR, BLOCK_ATTACKS, GUARD_CRIT, KNIGHT_TAUNT, SHIELD_USAGE, RETREAT, FLEEING_DAMAGE, FLEEING_SPEED, WHIRLWIND,
             SLEEP_LESS, ARMOR_DURABILITY, ARCHER_DAMAGE, ARCHER_ARMOR, DOUBLE_ARROWS, ARROW_PIERCE, USE_ARROWS, MARKSMAN, HUSCARL, DRUID_POTIONS, NETHER_LOG, TELESCOPE, STANDARD};

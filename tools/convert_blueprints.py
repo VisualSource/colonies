@@ -76,6 +76,7 @@ PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
 WAYPOINT_TAG = "minecp_waypoint"  # marker on a waypoint (BuildOrder.WAYPOINT_TAG)
+LEISURE_TAG = "minecp_leisure"  # a blueprint the mod tags "leisure" (its decoration controller's tag): citizens spend free time there (BuildOrder.LEISURE_TAG)
 ANCHOR_TAG = "minecp_anchor"  # marker at the primary offset of a blueprint with no hut block (a quarry's shaft; BuildOrder.ANCHOR_TAG)
 CONTROLLER_TAG = "minecp_controller"  # tag of the marker entity there (BuildOrder.CONTROLLER_TAG), plus minecp_facing_<facing>
 OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
@@ -293,6 +294,8 @@ def convert(path, blocks, siblings=()):
     for pos in seats:
         if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
             out_entities.append(marker(pos, [SIT_TAG]))
+    for pos, _ in tag_spots(root, lambda n: n == "leisure")[:1]:  # one is enough: the build is a leisure site
+        out_entities.append(marker(tuple(min(max(c, 0), m - 1) for c, m in zip(pos, (sx, sy, sz))), [LEISURE_TAG]))
     for pos, name in tag_spots(root, lambda n: n in PLANT_TAGS):
         if all(0 <= c < m for c, m in zip(pos, (sx, sy, sz))):
             out_entities.append(marker(pos, [PLANT_TAG + name]))

@@ -136,6 +136,13 @@ public final class Studies {
             case Effects.TEACHING -> "Pupils learn " + pct + " more from their lessons and their paper";
             case Effects.LEVELING -> "Citizens learn " + pct + " faster from their work";
             case Effects.UNDERTAKER_RUN -> "The undertaker runs to graves";
+            case Effects.USE_TOTEM -> "The undertaker keeps 2 totems of undying, raising its chance to bring someone back (5%, 7.5% with two)";
+            case Effects.MORE_AIR -> "Citizens hold their breath twice as long";
+            case Effects.VINES -> "Citizens climb vines";
+            case Effects.MIN_ORDER -> "Postboxes restock only once a quarter of the stock is gone";
+            case Effects.RECIPE_MODE -> "Crafters can choose between recipes by what the warehouse has most of (a hut's Settings)";
+            case Effects.HONEY_POT -> "Beekeepers can take both honeycomb and honey bottles (a hut's Settings)";
+            case Effects.END_KNOWLEDGE -> "The Stonemason makes end stone from sandstone and an ender pearl";
             case Effects.BREAK_SPEED -> v >= 1 ? "Workers break blocks with no wait" : "Workers break blocks in " + pct + " less time";
             case Effects.PLACE_SPEED -> v >= 1 ? "Workers place blocks with no wait" : "Workers place blocks in " + pct + " less time";
             case Effects.FARMING -> "Each crop a farmer harvests has a " + pct + " chance to give twice as much";

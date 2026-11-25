@@ -102,11 +102,11 @@ public final class Student extends Job {
         w.setStatus("Student: studying");
         var rnd = ThreadLocalRandom.current();
         List<Item> held = java.util.Arrays.stream(Item.values()).filter(i -> has(x -> x.getType() == i.material && studyItem(x)) > 0).toList();
-        if (held.isEmpty()) tryIntelligence(w, TRY_ODDS);
+        if (held.isEmpty()) tryIntelligence(colony, w, TRY_ODDS);
         else {
             Item chosen = held.get(rnd.nextInt(held.size()));
             w.hold(new ItemStack(chosen.material));
-            tryIntelligence(w, TRY_ODDS * (10.0 / chosen.increase));
+            tryIntelligence(colony, w, TRY_ODDS * (10.0 / chosen.increase));
             if (rnd.nextInt(100) <= chosen.breaks) use(x -> x.getType() == chosen.material && studyItem(x), 1); // never a Clipboard
         }
         w.swing();
@@ -120,7 +120,7 @@ public final class Student extends Job {
      * OPEN QUESTION: that makes studying with nothing (87.5%) beat paper (50%) and a book (25%); it may be a bug in the
      * mod (CitizenSkillHandler.tryLevelUpIntelligence). Kept as the mod's until we know; see docs/parity.md (Library).
      */
-    private void tryIntelligence(Colonist w, double chance) {
+    public static void tryIntelligence(dev.minecp.colony.Colony colony, Colonist w, double chance) {
         if (chance > 0 && ThreadLocalRandom.current().nextDouble() * chance < 1) return;
         if (w.skills.level(Skill.INTELLIGENCE) < (int) colony.happiness.of(w) * 9) w.learn(Skill.INTELLIGENCE, INTELLIGENCE_XP);
     }

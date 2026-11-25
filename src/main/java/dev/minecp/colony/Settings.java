@@ -9,7 +9,7 @@ import java.util.stream.Stream;
  * The mod's building settings (its SettingsModule, BuildingModules' *_SETTINGS) that MineCP has the behaviour for, with
  * the mod's defaults, and its hiring modes. Each hut keeps its own values (Hut.setting); the Town Hall's are the
  * colony's. Left out because their features don't exist here: the lumberjack's restricted area, defoliating and shears,
- * the builder's work order mode and building patterns, crafters' recipe mode, and the tavern's music.
+ * the builder's work order mode and building patterns, and the tavern's music.
  */
 public final class Settings {
     /** The mod's HiringMode: DEFAULT follows the Town Hall's auto hiring (or auto housing for homes). */
@@ -62,7 +62,7 @@ public final class Settings {
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
-            BEE_MODE = "beekeeper_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
+            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     static final String HIRE_TRAINEE = "hire_trainee";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
@@ -91,6 +91,8 @@ public final class Settings {
         return switch (option) {
             case "MARKSMAN" -> c.research.effect(Effects.MARKSMAN) > 0;
             case "HUSCARL" -> c.research.effect(Effects.HUSCARL) > 0;
+            case "BOTH" -> c.research.effect(Effects.HONEY_POT) > 0; // the mod's BeekeeperCollectionSetting
+            case "MAX_STOCK" -> c.research.effect(Effects.RECIPE_MODE) > 0; // the mod's CrafterRecipeSetting
             default -> true;
         };
     }
@@ -104,8 +106,19 @@ public final class Settings {
         return new Setting(key, label, Kind.CHOICE, options[0], 0, 0, List.of(options));
     }
 
+    /** The mod's crafters' recipe mode (its CrafterRecipeSetting): the first recipe found, or the one whose main ingredient the warehouse has most of (research). */
+    private static final Setting RECIPE = words(RECIPE_MODE, "Recipe to use when several make it (most in warehouse: research)", "PRIORITY", "MAX_STOCK");
+    /** The huts with the mod's recipe mode (BuildingModules' crafter settings): crafters that can be taught, and the crusher's and nether mine's. */
+    private static final java.util.Set<Hut.Type> RECIPE_HUTS = java.util.EnumSet.of(Hut.Type.SAWMILL, Hut.Type.STONEMASON, Hut.Type.STONE_SMELTERY,
+            Hut.Type.BLACKSMITH, Hut.Type.MECHANIC, Hut.Type.GLASSBLOWER, Hut.Type.BAKER, Hut.Type.FLETCHER, Hut.Type.DYER, Hut.Type.CONCRETE_MIXER, Hut.Type.CRUSHER, Hut.Type.NETHER_WORKER);
+
     /** The settings a hut of this type has, in menu order. */
     public static List<Setting> of(Hut.Type t) {
+        List<Setting> own = own(t);
+        return RECIPE_HUTS.contains(t) ? Stream.concat(own.stream(), Stream.of(RECIPE)).toList() : own;
+    }
+
+    private static List<Setting> own(Hut.Type t) {
         return switch (t) {
             case TOWN_HALL -> List.of(
                     bool(MOVE_IN, "Citizens move in (new citizens, children, visitors)"),
@@ -159,6 +172,11 @@ public final class Settings {
     /** Whether a hut of this type has a hiring mode: worker huts, and homes for their residents. */
     public static boolean hires(Hut.Type t) {
         return t.worker != null || t.isHome();
+    }
+
+    /** Whether a hut of this type has this setting. */
+    public static boolean has(Hut.Type t, String key) {
+        return of(t).stream().anyMatch(s -> s.key().equals(key));
     }
 
     static String initial(Hut.Type t, String key) {

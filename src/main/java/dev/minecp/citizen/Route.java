@@ -46,6 +46,10 @@ public final class Route {
     private static final int MAX_NODES = 8000;        // the mod's MAX_NODES
     private static final double HEURISTIC = 2;
     private static boolean swims; // whether this search may swim: citizens don't
+    private static boolean vines; // whether this search may climb vines: with the colony's research (the mod's canClimbVines)
+    private static final Set<Material> VINE = EnumSet.of(Material.VINE, Material.WEEPING_VINES, Material.WEEPING_VINES_PLANT,
+            Material.TWISTING_VINES, Material.TWISTING_VINES_PLANT, Material.CAVE_VINES, Material.CAVE_VINES_PLANT);
+    private static final Info OPEN = new Info(true, 0, false, false, false, false, false, false, false); // passed through, as air
     static final double HEIGHT = 1.8; // the legs' (the mod's CITIZEN_HEIGHT)
     /** Where a search may start, nearest first: the feet block, a block up or down, then the 8 around at each height. */
     private static final int[][] START_OFFSETS;
@@ -87,6 +91,7 @@ public final class Route {
             BlockData d = w.getBlockData(x, y, z);
             i = INFO.get(d);
             if (i == null) INFO.put(d, i = classify(d, w, x, y, z));
+            if (i.climb && !vines && VINE.contains(d.getMaterial())) i = OPEN;
         }
         SEEN.put(k, i);
         return i;
@@ -192,13 +197,15 @@ public final class Route {
      * Searches from the stand spot at or next to (sx,sy,sz) toward (gx,gy,gz) until {@code goal} accepts a node.
      * @return null if the start can't be stood on; else the route to the goal, or (reached false) to the node closest to it
      */
-    static Result find(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal) {
+    static Result find(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal, boolean climbsVines) {
         int d = Math.abs(gx - sx) + Math.abs(gy - sy) + Math.abs(gz - sz);
         double r = Math.min(20, 3 + d / 20.0);
         int maxNodes = (int) Math.min(MAX_NODES, 300 + 16.0 * d + 2.0 * d * r * r); // the mod's node limit for a distance
+        vines = climbsVines;
         try {
             return search(w, sx, sy, sz, gx, gy, gz, goal, maxNodes);
         } finally {
+            vines = false;
             SEEN.clear(); // blocks change between searches
         }
     }

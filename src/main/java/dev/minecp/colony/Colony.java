@@ -112,6 +112,7 @@ public final class Colony {
     public final Happiness happiness = new Happiness(this);
     public final Visitors visitors = new Visitors(this);
     public final Raids raids = new Raids(this);
+    public final Leisure leisure = new Leisure(this);
     public final Connections connections = new Connections(this);
     public final dev.minecp.research.Studies research = new dev.minecp.research.Studies(this);
     public ClaimMap claimMap; // every colony's claims, set by the plugin: raids don't spawn on another colony's land
@@ -571,6 +572,7 @@ public final class Colony {
             // A chest that already stood in a rack spot (kept rather than broken, so nothing in it is lost) becomes a rack.
             for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
             waypoints.addAll(order.waypoints); // the mod's: a builder's waypoint is registered, not left as a block
+            if (order.leisure && order.controller != null) leisure.sites.add(order.controller.block()); // the mod's leisure-tagged controller
             for (Block f : order.fields) // a field that came with the building (the farmer's scarecrow)
                 if (hutAt(f) == null && f.getType() == Hut.Type.FIELD.block) {
                     addHut(Hut.Type.FIELD, f);
@@ -765,17 +767,22 @@ public final class Colony {
         raids.tick();
         sickness.tick();
         double walking = 1 + research.effect(Effects.WALKING);
+        boolean vines = research.effect(Effects.VINES) > 0;
+        int air = research.effect(Effects.MORE_AIR) > 0 ? 600 : 300; // the mod's Fresh Air
         for (Colonist c : List.copyOf(colonists)) { // a citizen may die during its tick
             Job job = jobOf(c);
             if (job != null && job.away()) { c.despawn(); continue; }
             if (!c.tick()) continue;
             if (job != null && job.arrived(c)) continue;
             c.pace = walking; // for its next tick's walk; working sets its job's pace below
+            c.climbsVines = vines;
+            if (colonyTick % 20 == 0) c.maxAir(air);
             if (colonyTick % 20 == 0) { // the mod's gatherXp, every 20 ticks: the jobless take orbs too, but learn nothing from them
                 double xp = c.gatherOrbs();
                 if (xp > 0 && job != null) job.absorb(c, xp);
             }
             routine.hunger(c, job);
+            if (colonyTick % Leisure.UPDATE == 0) leisure.update(c);
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
             if (c.talkTicks > 0) { c.talkTicks--; continue; } // a player clicked it: it stands still for a moment
@@ -796,6 +803,7 @@ public final class Colony {
             if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn
                 if (!c.bedtime && c.meal != null) { c.meal.abandon(); c.meal = null; }
                 c.bedtime = true;
+                c.leisureTime = 0; // the mod's setAsleep
                 if (job == null || job.leaveWork(c)) routine.goToBed(c);
                 continue;
             }
@@ -821,7 +829,9 @@ public final class Colony {
             }
             if (job != null && raining && !job.worksInRain()) { // the mod's workers stay in out of the rain
                 c.setStatus("Rain: off work");
-                if (job.leaveWork(c)) c.wander(routine.homeOf(c).block.getLocation().toCenterLocation());
+                if (job.leaveWork(c)) leisure.idle(c, routine.homeOf(c).block.getLocation().toCenterLocation(), colonyTick);
+            } else if (job != null && c.leisureTime > 0 && job.interruptible() && !(job instanceof dev.minecp.job.Guard)) { // the mod's: free time, unless busy
+                if (job.leaveWork(c)) leisure.idle(c, routine.homeOf(c).block.getLocation().toCenterLocation(), colonyTick);
             } else if (job != null) {
                 c.pace = walking * job.pace(); // only while working: an undertaker runs to a grave, not to bed or a meal
                 job.tick(c);
@@ -829,9 +839,10 @@ public final class Colony {
             else if (c.child && dev.minecp.job.Teacher.schoolOf(this, c) instanceof dev.minecp.job.Teacher school) school.pupilTick(c); // to school
             else {
                 c.setStatus(c.child ? "Playing" : "Unemployed");
-                c.wander((c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation());
+                leisure.idle(c, (c.home != null ? c.home : townHall()).block.getLocation().toCenterLocation(), colonyTick);
             }
         }
+        leisure.forget(colonyTick);
     }
 
     private Warehouse warehouse;

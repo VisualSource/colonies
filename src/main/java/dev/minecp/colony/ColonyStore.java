@@ -103,6 +103,7 @@ public final class ColonyStore {
             }
             if (!c.mourns.isEmpty()) cs.set("mourns", c.mourns);
             if (c.mourning > 0) cs.set("mourning", c.mourning);
+            if (c.leisureTime > 0) cs.set("leisure", c.leisureTime);
         }
         s.set("child-pool", colony.childPool);
         colony.visitors.save(s.createSection("visitors"));
@@ -110,6 +111,7 @@ public final class ColonyStore {
         s.set("free-blocks", colony.freeBlocks.stream().map(Material::name).toList());
         s.set("free-positions", colony.freePositions.stream().map(ColonyStore::spot).toList());
         s.set("waypoints", colony.waypoints.stream().map(ColonyStore::spot).toList());
+        if (!colony.leisure.sites.isEmpty()) s.set("leisure-sites", colony.leisure.sites.stream().map(ColonyStore::spot).toList());
         if (!colony.claimsAdded.isEmpty()) s.set("claims-added", List.copyOf(colony.claimsAdded));
         if (!colony.claimsRemoved.isEmpty()) s.set("claims-removed", List.copyOf(colony.claimsRemoved));
         colony.connections.save(s.createSection("connections"));
@@ -208,6 +210,7 @@ public final class ColonyStore {
             }
             c.mourns.addAll(cs.getStringList("mourns"));
             c.mourning = Math.min(cs.getInt("mourning"), c.mourns.size());
+            c.leisureTime = cs.getInt("leisure");
             colony.colonists.add(c);
         }
         colony.childPool = s.getInt("child-pool");
@@ -240,6 +243,7 @@ public final class ColonyStore {
         for (String m : s.getStringList("free-blocks")) { Material x = Material.matchMaterial(m); if (x != null) colony.freeBlocks.add(x); }
         for (String p : s.getStringList("free-positions")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.freePositions.add(b);
         for (String p : s.getStringList("waypoints")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.waypoints.add(b);
+        for (String p : s.getStringList("leisure-sites")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.leisure.sites.add(b);
         colony.claimsAdded.addAll(s.getLongList("claims-added"));
         colony.claimsRemoved.addAll(s.getLongList("claims-removed"));
         if (s.isConfigurationSection("connections")) colony.connections.load(s.getConfigurationSection("connections"));

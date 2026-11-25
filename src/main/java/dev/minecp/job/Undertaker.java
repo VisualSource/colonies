@@ -44,6 +44,9 @@ public final class Undertaker extends Job {
     // The mod's chance without totems: 0.5% a hut level, 0.125% a mana level, plus research, at most 2.5% plus 0.5% a mystical site level.
     private static final double CHANCE_PER_LEVEL = 0.005, CHANCE_PER_MANA = 0.00125, MAX_CHANCE = 0.025, MAX_PER_MYSTICAL_LEVEL = 0.005;
     private static final double SPRINT = 1.3; // vanilla's sprinting speed modifier
+    // With Raising the Dead: a totem adds 5% (two or more 7.5%) to the chance and its cap; one breaks 1 time in 100 a try (the mod's).
+    private static final double ONE_TOTEM = 0.05, TOTEMS = 0.075, TOTEM_BREAKS = 0.01;
+    private static final int TOTEMS_KEPT = 2; // the graveyard's keepX
 
     private enum State { FIND, TO_GRAVE, EMPTY, RESURRECT, DIG, BURY, DUMP }
 
@@ -79,10 +82,21 @@ public final class Undertaker extends Job {
         return wants;
     }
 
-    /** Its shovel stays; what came out of the graves goes to the warehouse. */
+    /** Its shovel and 2 totems stay; what came out of the graves goes to the warehouse. */
     @Override
     int keep(ItemStack item) {
-        return fits(Tool.SHOVEL, item, null) ? Integer.MAX_VALUE : 0;
+        return fits(Tool.SHOVEL, item, null) ? Integer.MAX_VALUE : totem(item) ? TOTEMS_KEPT : 0;
+    }
+
+    private static boolean totem(ItemStack i) {
+        return i != null && i.getType() == Material.TOTEM_OF_UNDYING && i.getPersistentDataContainer().isEmpty();
+    }
+
+    /** What its totems add, with the research (the mod's getTotemResurrectChance). */
+    private double totemChance() {
+        if (colony.research.effect(Effects.USE_TOTEM) <= 0) return 0;
+        int n = has(Undertaker::totem);
+        return n == 1 ? ONE_TOTEM : n > 1 ? TOTEMS : 0;
     }
 
     @Override
@@ -97,10 +111,11 @@ public final class Undertaker extends Job {
         return lines;
     }
 
-    /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%. */
+    /** The mod's chance, with its resurrection research added; the mod caps the total, research included, at 2.5%; totems raise both. */
     private double chance() {
-        return Math.min(MAX_CHANCE + MAX_PER_MYSTICAL_LEVEL * colony.mysticalLevel(), CHANCE_PER_LEVEL * hut.level + CHANCE_PER_MANA * level(Skill.MANA)
-                + colony.research.effect(Effects.RESURRECT_CHANCE));
+        double totems = totemChance();
+        return Math.min(MAX_CHANCE + MAX_PER_MYSTICAL_LEVEL * colony.mysticalLevel() + totems, CHANCE_PER_LEVEL * hut.level + CHANCE_PER_MANA * level(Skill.MANA)
+                + colony.research.effect(Effects.RESURRECT_CHANCE) + totems);
     }
 
     /** It runs to a grave once researched (the mod's undertakerrun: vanilla sprinting, +30%). */
@@ -157,6 +172,10 @@ public final class Undertaker extends Job {
                         return;
                     }
                 }
+                if (colony.research.effect(Effects.USE_TOTEM) > 0 && has(Undertaker::totem) < TOTEMS_KEPT && inChest(Undertaker::totem) > 0) {
+                    if (!atHut(w)) { goToHut(w); return; }
+                    fetch(Undertaker::totem, TOTEMS_KEPT - has(Undertaker::totem));
+                }
                 note = null;
                 w.setStatus("Undertaker: working");
                 state = State.TO_GRAVE;
@@ -190,6 +209,10 @@ public final class Undertaker extends Job {
                     return;
                 }
                 effort = 0;
+                if (totemChance() > 0 && ThreadLocalRandom.current().nextDouble() <= TOTEM_BREAKS) {
+                    use(Undertaker::totem, 1);
+                    at.getWorld().playSound(at, org.bukkit.Sound.ITEM_TOTEM_USE, org.bukkit.SoundCategory.NEUTRAL, 1, 1);
+                }
                 if (ThreadLocalRandom.current().nextDouble() < chance()) {
                     Grave g = grave;
                     removeGrave(g);
