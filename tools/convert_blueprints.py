@@ -60,11 +60,14 @@ FIXED = {
     "minecolonies:composted_dirt": "minecraft:dirt",
     "minecolonies:barrel_block": "minecraft:composter",
     "minecolonies:blockhutfield": "minecraft:hay_block",
+    "minecolonies:blockhutplantationfield": "minecraft:oak_trapdoor",  # Plantation.FIELD_BLOCK
 }
 # Blocks swapped silently: they are markers with no look of their own, so there is nothing to fix.
 SILENT = {"structurize:blocksubstitution", "minecolonies:blockwaypoint", "minecolonies:decorationcontroller"}
 FIELD = "minecolonies:blockhutfield"  # the scarecrow, which marks a farm field
 FIELD_TAG = "minecp_field"           # tag of the marker entity at its position (BuildOrder.FIELD_TAG)
+PLANT_FIELD = "minecolonies:blockhutplantationfield"  # a plantation field's block
+PLANT_FIELD_TAG = "minecp_plantfield_"                # + each of the blueprint's field tags ("sugar_field"), on a marker there (BuildOrder.PLANT_FIELD_TAG)
 GRAVE = "minecolonies:blockminecoloniesnamedgrave"  # a graveyard's burial spot, left as structure void
 GRAVE_TAG = "minecp_grave"                           # tag of the marker entity there (BuildOrder.GRAVE_TAG), plus minecp_facing_<facing>
 # Mod items in containers (only the supply camp and ship's starting kit has any): a tagged vanilla item the plugin
@@ -73,7 +76,8 @@ STARTER_ITEMS = {"minecolonies:blockhuttownhall": ("minecraft:bell", "town_hall"
                  "structurize:sceptergold": ("minecraft:stick", "build_tool")}
 SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the tavern's chairs; BuildOrder.SIT_TAG)
 SPOT_TAG = "minecp_spot_"  # + the mod's tag, on its sitting and standing spots: sit, sit_in, sit_out, stand_in, stand_out (BuildOrder.SPOT_TAG)
-PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
+PLANT_TAGS = ("sugar", "cactus", "bamboo", "cocoa", "vine", "kelp", "seagrass", "seapickle", "glowb_vine", "weepv_vine", "twistv_vine",
+              "crimsonp_ground", "warpedp_ground", "work", "knight", "archer", "gate", "portal", "stall", "patrol_point")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal, a stable's stalls, patrol points: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
 WAYPOINT_TAG = "minecp_waypoint"  # marker on a waypoint (BuildOrder.WAYPOINT_TAG)
@@ -196,6 +200,16 @@ def tag_spots(root, wanted):
     return spots
 
 
+def tag_names(root):
+    """Every tag name in a blueprint."""
+    names = set()
+    for t_typed in root.get("tile_entities", (None, (None, [])))[1][1]:
+        provider = nbt.plain((nbt.COMPOUND, t_typed)).get("blueprintDataProvider") or {}
+        for entry in provider.get("posTagMap", []):
+            names.update(n.get("tagName", "") for n in entry.get("tagNameList", []))
+    return names
+
+
 def sit_spots(root):
     """A blueprint's seats: its "sit" tag positions ("sit", "sit_in", "sit_out"), relative to the blueprint's corner, with the tag."""
     return tag_spots(root, lambda n: n.startswith("sit"))
@@ -260,7 +274,9 @@ def convert(path, blocks, siblings=()):
         block = {"pos": (nbt.LIST, (nbt.INT, list(pos))), "state": (nbt.INT, out_index[key])}
         if te_typed and state["Name"].startswith("minecraft:"):  # keep vanilla block entity data (signs, banners)
             block["nbt"] = (nbt.COMPOUND, {k: starter_items(v, data_version) if k == "Items" else v for k, v in te_typed.items() if k not in ("x", "y", "z")})
-        if state["Name"] == FIELD:
+        if state["Name"] == PLANT_FIELD:  # a trapdoor, which can't carry a data tag: a marker with the field tags instead
+            out_entities.append(marker(pos, [PLANT_FIELD_TAG + t for t in sorted(tag_names(root)) if t.endswith("_field")]))
+        elif state["Name"] == FIELD:
             # The scarecrow is a hay bale, which can't carry a data tag: mark it with a marker entity instead, which the
             # plugin reads to register the field.
             out_entities.append(marker(pos, [FIELD_TAG]))

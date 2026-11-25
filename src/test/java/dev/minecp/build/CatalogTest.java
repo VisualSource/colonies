@@ -43,5 +43,8 @@ class CatalogTest {
         assertNull(Catalog.entry("infrastructure/mineshafts/minermainshaft"), "the miner's");
         assertNull(Catalog.entry("decorations/supplies/supplycamp"), "placed from its item");
         assertEquals(Catalog.entry("walls/gate/gate1").path(), "walls/gate/gate");
+        var field = Catalog.entry("agriculture/fields/bamboo"); // a plantation field
+        assertNull(field.hut());
+        assertEquals("Bamboo", field.name());
     }
 }

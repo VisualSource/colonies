@@ -33,7 +33,7 @@ public final class Leisure {
     private static final double READ_INTELLIGENCE = 12.5; // EntityAIStudy.BASE_SKILL_INCREASE_CHANCE
 
     private final Colony colony;
-    /** Decoration controllers whose build is a leisure site (the mod's "leisure" tag), as their builder finished them. Saved. */
+    /** Decoration controllers whose build is a leisure site (the mod's "leisure" tag), as their builder finished them, and plantation field blocks. Saved. */
     public final Set<Block> sites = new LinkedHashSet<>();
     private final Map<Colonist, Visit> visits = new HashMap<>(); // not saved: a visit starts over
     private final Map<Block, Map.Entry<Object, java.util.Optional<BuildOrder>>> builds = new HashMap<>(); // each site's build as it stands, by level or structure
@@ -194,7 +194,8 @@ public final class Leisure {
             if (h != null) return h.block;
         }
         if (raining) return th.block;
-        sites.removeIf(b -> b.getWorld().isChunkLoaded(b.getX() >> 4, b.getZ() >> 4) && !DecorationController.is(b)); // taken down
+        sites.removeIf(b -> b.getWorld().isChunkLoaded(b.getX() >> 4, b.getZ() >> 4) && !DecorationController.is(b)
+                && b.getType() != dev.minecp.job.Plantation.FIELD_BLOCK); // taken down
         return sites.isEmpty() ? null : List.copyOf(sites).get(rnd.nextInt(sites.size()));
     }
 

@@ -22,8 +22,10 @@ import java.util.stream.Stream;
  * aren't listed by its structure manager).
  */
 public final class Catalog {
+    /** The plantation fields' folder: every style also offers the original style's (the medieval styles have none of their own). */
+    private static final String FIELDS = "agriculture/fields";
     /** Top folders of builds without a hut; huts the plugin doesn't have (barracks, school...) aren't offered. */
-    private static final List<String> BUILDS = List.of("decorations", "infrastructure", "walls");
+    private static final List<String> BUILDS = List.of("decorations", "infrastructure", "walls", FIELDS);
     /** Not placed by hand: the miner's shafts, and the supply camp and ship (the mod places those from their items). */
     private static final List<String> HIDDEN = List.of("infrastructure/mineshafts", "decorations/supplies");
 
@@ -32,7 +34,8 @@ public final class Catalog {
         /** Its first level's structure in a style. */
         public String structure(String style) {
             String file = path + (leveled ? "1" : "");
-            return hut == null ? style + "/" + file : Hut.Type.orFallback(style, file); // huts only: a decoration is placed from its own style
+            // a build without a hut is placed from its own style, but for the plantation fields, which may be borrowed
+            return hut == null && !path.startsWith(FIELDS + "/") ? style + "/" + file : Hut.Type.orFallback(style, file);
         }
     }
 
@@ -120,6 +123,7 @@ public final class Catalog {
         for (String f : own(Hut.Type.FALLBACK_STYLE)) { // a hut the style lacks it borrows from the original style (the quarries, the stable)
             Entry e = entry(f);
             if (e != null && e.hut() != null && e.hut().structure(style, 1).startsWith(Hut.Type.FALLBACK_STYLE + "/")) all.add(f);
+            else if (e != null && f.startsWith(FIELDS + "/")) all.add(f);
         }
         return List.copyOf(all);
     }

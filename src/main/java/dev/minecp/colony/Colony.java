@@ -65,6 +65,10 @@ public final class Colony {
     public final java.util.Set<Block> freePositions = new java.util.LinkedHashSet<>();
     /** Waypoints its builder built (the mod's colony waypoints): recorded, for citizens' long walks later. Saved. */
     public final java.util.Set<Block> waypoints = new java.util.LinkedHashSet<>();
+    /** A plantation field (the mod's PlantationField): its field block (its building's hut block for its own plots), its kind, and its plots. */
+    public record PlantField(Block block, dev.minecp.job.Plantation.Kind kind, List<Block> plots) {}
+    /** The colony's plantation fields, as they were built (one per kind on a field block). Saved. */
+    public final List<PlantField> plantFields = new ArrayList<>();
     /** Chunks claimed and first chunks let go with the claim command, as {@link Claims#key} values. Saved. */
     final java.util.Set<Long> claimsAdded = new java.util.HashSet<>(), claimsRemoved = new java.util.HashSet<>();
 
@@ -574,6 +578,13 @@ public final class Colony {
             for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
             waypoints.addAll(order.waypoints); // the mod's: a builder's waypoint is registered, not left as a block
             if (order.leisure && order.controller != null) leisure.sites.add(order.controller.block()); // the mod's leisure-tagged controller
+            List<PlantField> planted = dev.minecp.job.Plantation.fieldsOf(order); // the mod's plantation field block, placed
+            if (!planted.isEmpty()) {
+                plantFields.removeIf(f -> order.plantFields.containsKey(f.block())); // built again
+                plantFields.addAll(planted);
+                for (PlantField f : planted) leisure.sites.add(f.block()); // the mod's: the field block is a leisure site
+                tell("A plantation field is ready for a planter.");
+            }
             for (Block f : order.fields) // a field that came with the building (the farmer's scarecrow)
                 if (hutAt(f) == null && f.getType() == Hut.Type.FIELD.block) {
                     addHut(Hut.Type.FIELD, f);

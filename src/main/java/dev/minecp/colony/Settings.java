@@ -62,7 +62,7 @@ public final class Settings {
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
-            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", BUILD_MODE = "build_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
+            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", BUILD_MODE = "build_mode";
     static final String HIRE_TRAINEE = "hire_trainee";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
@@ -134,8 +134,8 @@ public final class Settings {
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));
             case LUMBERJACK -> List.of(bool(REPLANT, "Replant saplings"), bool(RESTRICT, "Only cut trees in the zone set with its Forest Tool", false));
-            // ours: the mod's players assign its fields in a list; here each of its own kinds is a switch
-            case PLANTATION -> List.of(bool(GROW_SUGAR, "Grow sugar cane"), bool(GROW_CACTUS, "Grow cactus"), bool(GROW_BAMBOO, "Grow bamboo (needs research)"));
+            // ours: the mod's players assign its fields in a list; here each kind is a switch
+            case PLANTATION -> java.util.Arrays.stream(dev.minecp.job.Plantation.Kind.values()).map(k -> bool(k.setting(), k.label())).toList();
             case FARMER -> List.of(bool(FERTILIZE, "Ask for compost or bone meal to fertilize crops"));
             // not its "min warehouse stock" (16): MineCP's warehouse keeps nothing back from requests
             case COMPOSTER -> List.of(bool(MAKE_DIRT, "Make dirt instead of compost", false));

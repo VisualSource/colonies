@@ -226,11 +226,13 @@ public final class BuildOrder {
             String spot = tags.stream().filter(t -> t.startsWith(WORK_SPOT_TAG)).findFirst().orElse(null);
             if (tags.contains(LEISURE_TAG)) { order.leisure = true; continue; }
             String stand = tags.stream().filter(t -> t.startsWith(SPOT_TAG)).findFirst().orElse(null);
-            if (!tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && !tags.contains(WAYPOINT_TAG) && spot == null && stand == null) continue;
+            List<String> plantField = tags.stream().filter(t -> t.startsWith(PLANT_FIELD_TAG)).map(t -> t.substring(PLANT_FIELD_TAG.length())).sorted().toList();
+            if (plantField.isEmpty() && !tags.contains(FIELD_TAG) && !tags.contains(GRAVE_TAG) && !tags.contains(SIT_TAG) && !tags.contains(WAYPOINT_TAG) && spot == null && stand == null) continue;
             var l = e.getLocation(); // relative to the structure's corner
             BlockVector at = transform(l.getBlockX(), l.getBlockY(), l.getBlockZ(), rotation, mirror);
             Block block = base.getRelative(at.getBlockX(), at.getBlockY(), at.getBlockZ());
             if (tags.contains(FIELD_TAG)) { order.fields.add(block); continue; }
+            if (!plantField.isEmpty()) { order.plantFields.put(block, plantField); continue; }
             if (tags.contains(WAYPOINT_TAG)) { order.waypoints.add(block); continue; }
             if (stand != null) order.spots.computeIfAbsent(stand.substring(SPOT_TAG.length()), k -> new ArrayList<>()).add(block);
             if (tags.contains(SIT_TAG)) { order.seats.add(block); continue; }
@@ -268,6 +270,10 @@ public final class BuildOrder {
     static final String FIELD_TAG = "minecp_field";
     /** Where the structure has a field block (a MineColonies scarecrow), to register as a field once built. */
     public final List<Block> fields = new ArrayList<>();
+    /** Tag prefix of the marker on a plantation field block, + each of the mod's field tags its blueprint has ("sugar_field"). */
+    static final String PLANT_FIELD_TAG = "minecp_plantfield_";
+    /** Where the structure has a plantation field block, with its field tags, to register as fields once built. */
+    public final Map<Block, List<String>> plantFields = new java.util.LinkedHashMap<>();
     /** Tag of the marker entities on a structure's waypoints (the mod's waypoint blocks, built as air). */
     static final String WAYPOINT_TAG = "minecp_waypoint";
     /** Where the structure has a waypoint, for the colony to record once built. */

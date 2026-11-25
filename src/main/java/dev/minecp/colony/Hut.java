@@ -127,7 +127,7 @@ public final class Hut {
         BAKER("Bakery", Material.CHEST, "craftsmanship/luxury/baker", "baker", "A baker bakes bread, cookies, pumpkin pie and cake",
                 () -> new RecipeChoice.MaterialChoice(Material.WHEAT), "Baker", Type::baker, false),
         // Unlocked by research; the mod's recipe: a cactus in the middle
-        PLANTATION("Plantation", Material.CHEST, "agriculture/horticulture/plantation", "plantation", "A planter grows sugar cane, cactus and bamboo",
+        PLANTATION("Plantation", Material.CHEST, "agriculture/horticulture/plantation", "plantation", "A planter works plantation fields: sugar cane, cactus, kelp, vines and more",
                 () -> new RecipeChoice.MaterialChoice(Material.CACTUS), "Planter", Plantation::new, false),
         // Unlocked by research; the mod's recipe has its barrel block in the middle: a vanilla composter here
         COMPOSTER("Composter's Hut", Material.CHEST, "agriculture/horticulture/composter", "composter", "A composter turns plants and food into compost",

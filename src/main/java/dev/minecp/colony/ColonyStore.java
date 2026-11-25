@@ -111,6 +111,12 @@ public final class ColonyStore {
         s.set("free-blocks", colony.freeBlocks.stream().map(Material::name).toList());
         s.set("free-positions", colony.freePositions.stream().map(ColonyStore::spot).toList());
         s.set("waypoints", colony.waypoints.stream().map(ColonyStore::spot).toList());
+        for (int i = 0; i < colony.plantFields.size(); i++) {
+            Colony.PlantField f = colony.plantFields.get(i);
+            s.set("plant-fields." + i + ".block", spot(f.block()));
+            s.set("plant-fields." + i + ".kind", f.kind().name());
+            s.set("plant-fields." + i + ".plots", f.plots().stream().map(ColonyStore::spot).toList());
+        }
         if (!colony.leisure.sites.isEmpty()) s.set("leisure-sites", colony.leisure.sites.stream().map(ColonyStore::spot).toList());
         if (!colony.claimsAdded.isEmpty()) s.set("claims-added", List.copyOf(colony.claimsAdded));
         if (!colony.claimsRemoved.isEmpty()) s.set("claims-removed", List.copyOf(colony.claimsRemoved));
@@ -245,6 +251,13 @@ public final class ColonyStore {
         for (String m : s.getStringList("free-blocks")) { Material x = Material.matchMaterial(m); if (x != null) colony.freeBlocks.add(x); }
         for (String p : s.getStringList("free-positions")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.freePositions.add(b);
         for (String p : s.getStringList("waypoints")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.waypoints.add(b);
+        var pf = s.getConfigurationSection("plant-fields");
+        if (pf != null) for (String i : pf.getKeys(false)) {
+            List<org.bukkit.block.Block> plots = new ArrayList<>();
+            for (String p : pf.getStringList(i + ".plots")) if (spotAt(p) instanceof org.bukkit.block.Block b) plots.add(b);
+            if (spotAt(pf.getString(i + ".block", "")) instanceof org.bukkit.block.Block b && !plots.isEmpty())
+                colony.plantFields.add(new Colony.PlantField(b, dev.minecp.job.Plantation.Kind.valueOf(pf.getString(i + ".kind")), List.copyOf(plots)));
+        }
         for (String p : s.getStringList("leisure-sites")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.leisure.sites.add(b);
         colony.claimsAdded.addAll(s.getLongList("claims-added"));
         colony.claimsRemoved.addAll(s.getLongList("claims-removed"));

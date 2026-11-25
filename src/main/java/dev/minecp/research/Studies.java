@@ -187,8 +187,11 @@ public final class Studies {
             case Effects.MORE_ORES -> "Miners find ore in the stone they mine " + pct + " more often";
             case Effects.CRUSHING_ONE_TO_ONE -> "The crusher crushes one block into one, not two into one (bones give 5 bone meal)";
             case Effects.DEPTH_KNOWLEDGE -> "The crusher crushes cobbled deepslate into tuff, and tuff into cobblestone";
-            case Effects.PLANTATION_JUNGLE -> "The plantation grows bamboo";
-            case Effects.PLANTATION_LARGE -> "A plantation can work one more field (Colonies' plantations work only their own plots)";
+            case Effects.PLANTATION_JUNGLE -> "The plantation grows bamboo, cocoa and vines";
+            case Effects.PLANTATION_LARGE -> "A plantation can work one more field";
+            case Effects.PLANTATION_SEA -> "The plantation grows kelp and seagrass";
+            case Effects.PLANTATION_EXOTIC -> "The plantation grows glow berries";
+            case Effects.PLANTATION_NETHER -> "The plantation grows weeping and twisting vines, and crimson and warped plants";
             case Effects.PODZOL_CHANCE -> "A composter making dirt makes podzol " + pct + " more often";
             case Effects.SOFT_SHOES -> "Farmers don't trample farmland (Colonies' citizens never do)";
             default -> e.id() + " " + n + " (not in Colonies yet)";
