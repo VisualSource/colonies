@@ -227,6 +227,8 @@ public final class ColonyStore {
         }
         if (s.isConfigurationSection("building")) colony.building = getDecoration(s.getConfigurationSection("building"));
 
+        // Research before jobs: a job's load can read it (the builder's mode).
+        if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
         for (Hut h : colony.huts) colony.addJob(h);
         for (Job j : colony.jobs) {
             var js = s.getConfigurationSection(jobKey(colony, j));
@@ -247,7 +249,6 @@ public final class ColonyStore {
         colony.claimsAdded.addAll(s.getLongList("claims-added"));
         colony.claimsRemoved.addAll(s.getLongList("claims-removed"));
         if (s.isConfigurationSection("connections")) colony.connections.load(s.getConfigurationSection("connections"));
-        if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
         colony.assignHomes();
         colony.assignJobs();
         return colony;

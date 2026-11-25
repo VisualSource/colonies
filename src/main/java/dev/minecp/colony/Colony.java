@@ -130,6 +130,7 @@ public final class Colony {
         default void taught(org.bukkit.Material result) {}
         default void buried() {}
         default void resurrected() {}
+        default void totem() {}
     }
 
     public Milestones milestones = new Milestones() {};

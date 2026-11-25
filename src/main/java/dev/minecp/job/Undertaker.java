@@ -209,9 +209,12 @@ public final class Undertaker extends Job {
                     return;
                 }
                 effort = 0;
-                if (totemChance() > 0 && ThreadLocalRandom.current().nextDouble() <= TOTEM_BREAKS) {
-                    use(Undertaker::totem, 1);
-                    at.getWorld().playSound(at, org.bukkit.Sound.ITEM_TOTEM_USE, org.bukkit.SoundCategory.NEUTRAL, 1, 1);
+                if (totemChance() > 0) {
+                    colony.milestones.totem(); // the mod's undertaker_totem advancement
+                    if (ThreadLocalRandom.current().nextDouble() <= TOTEM_BREAKS) {
+                        use(Undertaker::totem, 1);
+                        at.getWorld().playSound(at, org.bukkit.Sound.ITEM_TOTEM_USE, org.bukkit.SoundCategory.NEUTRAL, 1, 1);
+                    }
                 }
                 if (ThreadLocalRandom.current().nextDouble() < chance()) {
                     Grave g = grave;

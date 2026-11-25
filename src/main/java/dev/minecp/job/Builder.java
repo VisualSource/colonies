@@ -59,6 +59,8 @@ public final class Builder extends Job {
 
     public void start(BuildOrder o, Hut.WorkOrder w) {
         o.fillWith(hut.block(dev.minecp.colony.Settings.FILL_BLOCK));
+        // the mod's builder mode: the chosen order with Builder Modes researched, else Structurize's default
+        o.arrange(colony.research.effect(dev.minecp.research.Effects.BUILDER_MODE) > 0 ? hut.setting(dev.minecp.colony.Settings.BUILD_MODE) : "default");
         order = o;
         work = w;
         needed = null;

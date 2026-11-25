@@ -140,6 +140,7 @@ public final class Studies {
             case Effects.MORE_AIR -> "Citizens hold their breath twice as long";
             case Effects.VINES -> "Citizens climb vines";
             case Effects.MIN_ORDER -> "Postboxes restock only once a quarter of the stock is gone";
+            case Effects.BUILDER_MODE -> "The builder can place blocks in other orders: rings, a Hilbert curve, at random (its hut's Settings)";
             case Effects.RECIPE_MODE -> "Crafters can choose between recipes by what the warehouse has most of (a hut's Settings)";
             case Effects.HONEY_POT -> "Beekeepers can take both honeycomb and honey bottles (a hut's Settings)";
             case Effects.END_KNOWLEDGE -> "The Stonemason makes end stone from sandstone and an ender pearl";

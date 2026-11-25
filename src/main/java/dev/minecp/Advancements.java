@@ -58,6 +58,7 @@ public final class Advancements {
         add("minecolonies/citizen_eat_food_first", "minecolonies/place_townhall", "cooked_beef", "First Meal", "A citizen eats for the first time", "task");
         add("minecolonies/citizen_bury", "minecolonies/build_tavern", "bone", "Rest in Peace", "Your undertaker buries a citizen", "task");
         add("minecolonies/citizen_resurrect", "minecolonies/citizen_bury", "totem_of_undying", "Back From the Grave", "Your undertaker brings a citizen back to life", "task");
+        add("minecolonies/undertaker_totem", "minecolonies/citizen_resurrect", "totem_of_undying", "A Powerful Artifact", "Your undertaker tries to bring a citizen back with a totem of undying (needs Raising the Dead)", "task");
         add("minecolonies/building_add_recipe_torch", "minecolonies/start_builder", "torch", "Let There Be Light", "Teach a crafter to make torches", "task");
         // The production tab.
         add(PRODUCTION, null, "crafting_table", "Colony Production", "Finish the Builder's Hut", "task");
@@ -262,6 +263,11 @@ public final class Advancements {
             @Override
             public void resurrected() {
                 award(c, "minecolonies/citizen_resurrect");
+            }
+
+            @Override
+            public void totem() {
+                award(c, "minecolonies/undertaker_totem");
             }
 
             @Override

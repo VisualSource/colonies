@@ -9,6 +9,15 @@ claims:
   # No claim reaches farther than this many chunks from the town hall's chunk.
   max-size: 20
 
+# Keeping colonies loaded. The numbers are MineColonies' defaults.
+chunk-loading:
+  # While a colony's owner or an officer is on its land, its loaded chunks stay loaded, and for a while after they leave.
+  enabled: true
+  # How long after they leave, in minutes (1 to 1440). With no owner or officer online it runs out three times as fast.
+  minutes: 20
+  # 1 to 15: only chunks at least this many of the colony's huts claim (1: every chunk a hut claims; higher: fewer, the inner ones).
+  strictness: 3
+
 protection:
   # Inside a colony's border, other players can only do what their rank there allows.
   enabled: true

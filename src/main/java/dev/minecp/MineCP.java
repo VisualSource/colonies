@@ -72,6 +72,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
+    private final ChunkLoading chunkLoading = new ChunkLoading(this);
 
     @Override
     public void onEnable() {
@@ -82,6 +83,9 @@ public final class MineCP extends JavaPlugin implements Listener {
         Claims.minDistance = cfg.getInt("claims.min-distance", Claims.minDistance);
         Claims.maxSize = cfg.getInt("claims.max-size", Claims.maxSize);
         protection.enabled = cfg.getBoolean("protection.enabled", true);
+        chunkLoading.enabled = cfg.getBoolean("chunk-loading.enabled", true);
+        chunkLoading.minutes = Math.clamp(cfg.getInt("chunk-loading.minutes", 20), 1, 1440);
+        chunkLoading.strictness = Math.clamp(cfg.getInt("chunk-loading.strictness", 3), 1, 15);
         dev.minecp.colony.Raids.enabled = cfg.getBoolean("raids.enabled", true);
         dev.minecp.colony.Raids.breakDoors = cfg.getBoolean("raids.break-doors", true);
         dev.minecp.colony.Raids.difficulty = Math.clamp(cfg.getInt("raids.difficulty", 5), 0, 10);
@@ -123,6 +127,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getPluginManager().registerEvents(mapBorders, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
+        getServer().getScheduler().runTaskTimer(this, chunkLoading::tick, ChunkLoading.PERIOD, ChunkLoading.PERIOD);
         Objects.requireNonNull(getCommand("colonies")).setExecutor(new Commands(this)); // a TabExecutor: Bukkit uses it for suggestions too
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
             try {

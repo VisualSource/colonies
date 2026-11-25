@@ -62,7 +62,7 @@ public final class Settings {
             MILKING = "milking_amount", MILKING_DAYS = "milking_days", STEWING = "stewing_amount",
             CRUSHER_MODE = "crusher_mode", DAILY_LIMIT = "daily_limit", GUARD_TYPE = "guard_type",
             MAKE_DIRT = "make_dirt", CLOSE_PORTAL = "close_portal", FERTILIZE = "fertilize",
-            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
+            BEE_MODE = "beekeeper_mode", RECIPE_MODE = "recipe_mode", BUILD_MODE = "build_mode", GROW_SUGAR = "grow_sugar_cane", GROW_CACTUS = "grow_cactus", GROW_BAMBOO = "grow_bamboo";
     static final String HIRE_TRAINEE = "hire_trainee";
     public static final String GUARD_TASK = "guard_task", PATROL_MODE = "patrol_mode", FOLLOW_MODE = "follow_mode", RETREAT = "retreat";
     /** The miner's max depth default, which means "no limit but the hut level's" (the mod's). */
@@ -93,6 +93,8 @@ public final class Settings {
             case "HUSCARL" -> c.research.effect(Effects.HUSCARL) > 0;
             case "BOTH" -> c.research.effect(Effects.HONEY_POT) > 0; // the mod's BeekeeperCollectionSetting
             case "MAX_STOCK" -> c.research.effect(Effects.RECIPE_MODE) > 0; // the mod's CrafterRecipeSetting
+            case "hilbert", "inwardcircle", "inwardcircleheight1", "inwardcircleheight2", "inwardcircleheight3", "inwardcircleheight4", "random" ->
+                    c.research.effect(Effects.BUILDER_MODE) > 0; // the mod's BuilderModeSetting
             default -> true;
         };
     }
@@ -126,7 +128,8 @@ public final class Settings {
                     bool(AUTO_HOUSING, "Homes take in the homeless on their own"),
                     bool(TAPE, "Construction tape around build sites"),
                     bool(ENTER_LEAVE, "Title for visitors entering or leaving the colony"));
-            case BUILDER -> List.of(block(FILL_BLOCK, "Foundation fill block", org.bukkit.Material.DIRT));
+            case BUILDER -> List.of(block(FILL_BLOCK, "Foundation fill block", org.bukkit.Material.DIRT),
+                    words(BUILD_MODE, "Order blocks go down in (other than default: research)", dev.minecp.build.BuildOrder.MODES.toArray(String[]::new)));
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));

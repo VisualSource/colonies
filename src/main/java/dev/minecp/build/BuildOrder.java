@@ -400,6 +400,88 @@ public final class BuildOrder {
         return want;
     }
 
+    /** Structurize's builder iterators (the mod's builder mode setting): the order blocks go down in within each layer. */
+    public static final List<String> MODES = List.of("default", "hilbert", "inwardcircle", "inwardcircleheight1", "inwardcircleheight2",
+            "inwardcircleheight3", "inwardcircleheight4", "random");
+
+    /**
+     * Puts the steps in a builder mode's order (Structurize's BlueprintIterator*), keeping its stages: clearing top
+     * down, then solid blocks bottom up, then the rest. Within a layer: "default" row by row, turning at each end;
+     * "hilbert" along a Hilbert curve, every other layer back again; "inwardcircle" ring by ring from the outside in,
+     * clockwise ("inwardcircleheightN": each ring N layers up before the next ring); "random" in a shuffled column order.
+     */
+    public void arrange(String mode) {
+        if (steps.isEmpty()) return;
+        int y0 = Integer.MAX_VALUE;
+        for (Step s : steps) y0 = Math.min(y0, s.block.getY());
+        int sx = maxX - minX + 1, sz = maxZ - minZ + 1;
+        int[][] rank = new int[sx][sz], ring = new int[sx][sz];
+        List<int[]> layer = layerOrder(mode, sx, sz);
+        for (int i = 0; i < layer.size(); i++) { int[] p = layer.get(i); rank[p[0]][p[1]] = i; ring[p[0]][p[1]] = p[2]; }
+        int height = mode.startsWith("inwardcircleheight") ? Integer.parseInt(mode.substring("inwardcircleheight".length())) : 1;
+        boolean hilbert = mode.equals("hilbert"), rings = mode.startsWith("inwardcircle");
+        int n = layer.size(), fy = y0;
+        steps.sort(Comparator.comparingInt((Step s) -> s.isClear() ? 0 : s.data.getMaterial().isSolid() ? 1 : 2).thenComparingLong(s -> {
+            int y = s.block.getY() - fy, x = s.block.getX() - minX, z = s.block.getZ() - minZ;
+            boolean down = s.isClear();
+            int r = rank[x][z];
+            if (hilbert && (y & 1) == 1) r = n - 1 - r; // back along the curve on odd layers
+            int h = down ? 1 : height; // clearing goes a layer at a time (Structurize's decrement)
+            if (rings && h > 1) return ((long) (y / h) << 40) + ((long) ring[x][z] << 28) + ((long) (y % h) << 20) + r; // a ring N layers up, then the next ring
+            return ((long) (down ? -y : y) << 20) + r;
+        }));
+        cursor = 0;
+    }
+
+    /** One layer's columns in a mode's order, each as {x, z, ring}. */
+    static List<int[]> layerOrder(String mode, int sx, int sz) {
+        List<int[]> out = new ArrayList<>();
+        if (mode.startsWith("inwardcircle")) {
+            boolean[][] seen = new boolean[sx][sz];
+            for (int r = 0; ; r++) {
+                int ax = r, bx = sx - 1 - r, az = r, bz = sz - 1 - r;
+                if (ax > bx || az > bz) break;
+                for (int x = ax; x <= bx; x++) add(out, seen, x, az, r);
+                for (int z = az + 1; z <= bz; z++) add(out, seen, bx, z, r);
+                for (int x = bx - 1; x >= ax; x--) add(out, seen, x, bz, r);
+                for (int z = bz - 1; z > az; z--) add(out, seen, ax, z, r);
+            }
+        } else if (mode.equals("hilbert")) {
+            if (sx >= sz) hilbert(out, 0, 0, sx, 0, 0, sz);
+            else hilbert(out, 0, 0, 0, sz, sx, 0);
+        } else {
+            for (int z = 0; z < sz; z++) for (int i = 0; i < sx; i++) out.add(new int[]{z % 2 == 0 ? i : sx - 1 - i, z, 0}); // default: turning at each end
+            if (mode.equals("random")) java.util.Collections.shuffle(out);
+        }
+        return out;
+    }
+
+    private static void add(List<int[]> out, boolean[][] seen, int x, int z, int ring) {
+        if (seen[x][z]) return;
+        seen[x][z] = true;
+        out.add(new int[]{x, z, ring});
+    }
+
+    /** Structurize's generalized Hilbert curve over a w x h area (BlueprintIteratorHilbert.generateHilbert). */
+    private static void hilbert(List<int[]> out, int x, int z, int ax, int az, int bx, int bz) {
+        int w = Math.abs(ax + az), h = Math.abs(bx + bz);
+        int dax = Integer.compare(ax, 0), daz = Integer.compare(az, 0), dbx = Integer.compare(bx, 0), dbz = Integer.compare(bz, 0);
+        if (h == 1) { for (int i = 0; i < w; i++, x += dax, z += daz) out.add(new int[]{x, z, 0}); return; }
+        if (w == 1) { for (int i = 0; i < h; i++, x += dbx, z += dbz) out.add(new int[]{x, z, 0}); return; }
+        int ax2 = ax / 2, az2 = az / 2, bx2 = bx / 2, bz2 = bz / 2;
+        int w2 = Math.abs(ax2 + az2), h2 = Math.abs(bx2 + bz2);
+        if (2 * w > 3 * h) {
+            if ((w2 & 1) != 0 && w > 2) { ax2 += dax; az2 += daz; }
+            hilbert(out, x, z, ax2, az2, bx, bz);
+            hilbert(out, x + ax2, z + az2, ax - ax2, az - az2, bx, bz);
+        } else {
+            if ((h2 & 1) != 0 && h > 2) { bx2 += dbx; bz2 += dbz; }
+            hilbert(out, x, z, bx2, bz2, ax2, az2);
+            hilbert(out, x + bx2, z + bz2, ax, az, bx - bx2, bz - bz2);
+            hilbert(out, x + (ax - dax) + (bx2 - dbx), z + (az - daz) + (bz2 - dbz), -bx2, -bz2, -(ax - ax2), -(az - az2));
+        }
+    }
+
     /** Steps from the current one on, for planning what materials to carry. */
     public List<Step> upcoming() {
         return steps.subList(cursor, steps.size());
