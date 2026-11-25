@@ -87,12 +87,13 @@
   <section>
     <div id="title" class="muted">No structure open.</div>
     <div class="row" id="layerRow" style="margin-top:8px; display:none">
-      <button id="mode" title="Switch between the layer grid and a 3D view">3D</button>
+      <button id="mode" title="Switch between the 3D view and the layer grid">2D</button>
       <button id="down" title="Layer below">▼</button>
       <input id="layer" type="range" min="0" max="0" value="0" style="flex:1; min-width:160px">
       <button id="up" title="Layer above">▲</button>
       <span id="layerLabel"></span>
-      <label class="row muted"><input id="ghost" type="checkbox" checked> Show layer below through air</label>
+      <label class="row muted" style="display:none"><input id="ghost" type="checkbox" checked> Show layer below through air</label>
+      <label class="row muted" id="texturesRow"><input id="textures" type="checkbox" checked> Textures</label>
       <label class="row muted"><input id="filler" type="checkbox"> Highlight foundation filler</label>
       <label class="row muted"><input id="showTags" type="checkbox" checked> Show tags</label>
     </div>
@@ -409,7 +410,7 @@ function colourOf(name) {
 
 // ---- drawing ------------------------------------------------------------------------------------------------------
 let cell = 20;
-let view3d = false; // the 3D view (its module below) instead of the layer grid
+let view3d = true; // the 3D view (its module below) instead of the layer grid: the default
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 function replacedSet(s) {
@@ -489,9 +490,10 @@ function render() {
   }
   $("legend").innerHTML = [...legend].sort((a, b) => b[1] - a[1])
     .map(([n, c]) => `<li><span class="sw" style="background:${colourOf(n)}"></span><code>${esc(n.replace("minecraft:", ""))}</code><span class="muted">${c}</span></li>`).join("");
-  $("grid").style.display = view3d ? "none" : "";
-  $("view3d").style.display = view3d ? "" : "none";
-  if (view3d) window.render3d?.(s, replaced);
+  const show3d = view3d && !!window.render3d; // the grid until three.js has loaded (or if it can't)
+  $("grid").style.display = show3d ? "none" : "";
+  $("view3d").style.display = show3d ? "" : "none";
+  if (show3d) window.render3d(s, replaced);
   renderSelected();
   renderGroups();
   renderList();
@@ -657,12 +659,13 @@ $("mode").onclick = () => {
   view3d = !view3d;
   $("mode").textContent = view3d ? "2D" : "3D";
   $("ghost").parentElement.style.display = view3d ? "none" : "";
+  $("texturesRow").style.display = view3d ? "" : "none";
   render();
 };
 $("layer").oninput = () => render();
 $("up").onclick = () => { $("layer").value = +$("layer").value + 1; render(); };
 $("down").onclick = () => { $("layer").value = +$("layer").value - 1; render(); };
-$("ghost").onchange = $("filler").onchange = () => render();
+$("ghost").onchange = $("filler").onchange = $("textures").onchange = () => render();
 $("filter").oninput = $("onlyReplaced").onchange = () => renderList();
 window.addEventListener("resize", () => render());
 window.addEventListener("beforeunload", ev => { if ([...opened.values()].some(s => s.dirty)) ev.preventDefault(); });
@@ -692,6 +695,8 @@ $("grid").onclick = ev => { const p = cellAt(ev); if (p) { selected = p; fillNam
 <script type="module">
 // The 3D view: every block up to the chosen layer as a box (rough shapes for slabs, carpets, posts and plants), replaced
 // blocks edged orange, edited green, the selection blue, and the plugin's tags as coloured balls. Uses the page's state.
+// With "Textures" on, each block wears the game's textures (the server reads them from a client jar: its blockstate's
+// first model, through its parents); blocks it has none for keep their plain colour.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
@@ -723,9 +728,53 @@ function shapeOf(entry) {
 }
 const isAir = n => n === "minecraft:air" || n === "minecraft:cave_air";
 
+// ---- textures ---------------------------------------------------------------------------------------------------
+const loader = new THREE.TextureLoader();
+const textures = new Map(); // texture path -> THREE.Texture
+const faces = new Map();    // block name -> its six materials, null (none: plain colour), or a Promise while loading
+const TINT = { water: "#3f76e4", grass: "#91bd59", foliage: "#48b518" }; // plains' colours for grey textures the game tints
+const ORDER = ["east", "west", "up", "down", "south", "north"]; // a three.js box's faces: +x, -x, +y, -y, +z, -z
+
+function texture(path) {
+  if (!textures.has(path)) {
+    const t = loader.load(`/api/texture/${path}.png`, t => { // an animated texture is a strip of frames: show the first
+      const { width, height } = t.image;
+      if (height > width) { t.repeat.set(1, width / height); t.offset.set(0, 1 - width / height); }
+    });
+    t.magFilter = t.minFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    textures.set(path, t);
+  }
+  return textures.get(path);
+}
+
+/** A block's face materials, fetched once; re-renders when they arrive. */
+function materialsOf(name) {
+  if (!faces.has(name)) {
+    faces.set(name, fetch(`/api/faces/${name.split(":")[1]}`).then(r => r.ok ? r.json() : null).catch(() => null).then(f => {
+      const short = name.split(":")[1], see = /glass|ice$/.test(short);
+      const tint = /water/.test(short) ? TINT.water : /grass|fern/.test(short) ? TINT.grass : TINT.foliage;
+      const any = f && Object.values(f)[0];
+      faces.set(name, f ? ORDER.map(side => {
+        const face = f[side] || any;
+        const m = new THREE.MeshLambertMaterial({ map: texture(face.texture), alphaTest: see ? 0 : 0.5, transparent: see, depthWrite: !see,
+          color: face.tint ? tint : "#ffffff", side: THREE.DoubleSide });
+        m.userData.keep = true; // shared between renders
+        return m;
+      }) : null);
+      if (!faces.size || [...faces.values()].every(v => !(v instanceof Promise))) requestAnimationFrame(() => render());
+    }));
+  }
+  const v = faces.get(name);
+  return v instanceof Promise ? undefined : v; // undefined: still loading
+}
+
 function clear() {
   scene.remove(content);
-  content.traverse(o => { o.geometry?.dispose(); o.material?.dispose?.(); });
+  content.traverse(o => {
+    o.geometry?.dispose();
+    for (const m of [o.material].flat()) if (m && !m.userData?.keep) m.dispose?.();
+  });
   content = new THREE.Group();
   scene.add(content);
   meshes = [];
@@ -765,19 +814,27 @@ window.render3d = (s, replaced) => {
     (/glass|ice$/.test(name) ? glass : solid).push({ pos: [x, y, z], e, name });
   }
   const unit = new THREE.BoxGeometry(1, 1, 1), m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
-  for (const [list, mat] of [[solid, new THREE.MeshLambertMaterial()], [glass, new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.35, depthWrite: false })]]) {
-    if (!list.length) continue;
-    const mesh = new THREE.InstancedMesh(unit, mat, list.length);
+  const place = (mesh, list, tinted) => {
     list.forEach(({ pos: [x, y, z], e, name }, i) => {
       const [bw, bh, bd, lift] = shapeOf(e);
       m.compose(new THREE.Vector3(x + 0.5, y + lift + bh / 2, z + 0.5), q, new THREE.Vector3(bw, bh, bd));
       mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, col.setStyle(colourOf(name)));
+      if (tinted) mesh.setColorAt(i, col.setStyle(colourOf(name)));
     });
     mesh.userData.list = list;
     content.add(mesh);
     meshes.push(mesh);
-  }
+  };
+  const plainSolid = [], plainGlass = [], byName = new Map();
+  for (const [list, plain] of [[solid, plainSolid], [glass, plainGlass]])
+    for (const b of list) {
+      const mats = $("textures").checked ? materialsOf(b.name) : null;
+      if (mats) (byName.get(b.name) || byName.set(b.name, { mats, list: [] }).get(b.name)).list.push(b);
+      else plain.push(b);
+    }
+  for (const { mats, list } of byName.values()) place(new THREE.InstancedMesh(unit, mats, list.length), list, false);
+  for (const [list, mat] of [[plainSolid, new THREE.MeshLambertMaterial()], [plainGlass, new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.35, depthWrite: false })]])
+    if (list.length) place(new THREE.InstancedMesh(unit, mat, list.length), list, true);
   const shown = p => p[1] <= top;
   const rep = [...replaced].filter(([k, g]) => !isFiller(g) || $("filler").checked).map(([k]) => k.split(",").map(Number)).filter(shown);
   const edited = [...s.edited].map(k => k.split(",").map(Number)).filter(shown);
@@ -820,6 +877,7 @@ renderer.domElement.addEventListener("mousemove", ev => {
 });
 renderer.domElement.addEventListener("mouseleave", () => { $("tip").style.display = "none"; });
 renderer.setAnimationLoop(() => { if (view3d) { controls.update(); renderer.render(scene, camera); } });
+if (cur) render(); // a structure opened before three.js had loaded: now in 3D
 </script>
 </body>
 </html>
