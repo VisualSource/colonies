@@ -601,7 +601,7 @@ public final class Miner extends Job {
         return null;
     }
 
-    private static boolean isOre(Material m) {
+    static boolean isOre(Material m) {
         return m.name().endsWith("_ORE") || m == Material.ANCIENT_DEBRIS;
     }
 

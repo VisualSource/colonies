@@ -31,7 +31,8 @@ public final class Catalog {
     public record Entry(String path, String name, Hut.Type hut, boolean leveled) {
         /** Its first level's structure in a style. */
         public String structure(String style) {
-            return style + "/" + path + (leveled ? "1" : "");
+            String file = path + (leveled ? "1" : "");
+            return hut == null ? style + "/" + file : Hut.Type.orFallback(style, file); // huts only: a decoration is placed from its own style
         }
     }
 
@@ -98,7 +99,8 @@ public final class Catalog {
     /** Every structure of every installed style, as "style/path" (for /colony build's suggestions). */
     public static List<String> structures() {
         List<String> out = new ArrayList<>();
-        for (String style : dev.minecp.colony.Colony.styles()) for (String f : files(style)) out.add(style + "/" + f);
+        for (String style : dev.minecp.colony.Colony.styles()) for (String f : own(style)) out.add(style + "/" + f);
+        for (String f : own(Hut.Type.FALLBACK_STYLE)) out.add(Hut.Type.FALLBACK_STYLE + "/" + f); // the borrowed ones, once, under their own name
         return out;
     }
 
@@ -113,6 +115,14 @@ public final class Catalog {
      * reads both), and hand-fixed ones.
      */
     private static List<String> files(String style) {
+        if (style.equals(Hut.Type.FALLBACK_STYLE)) return own(style);
+        TreeSet<String> all = new TreeSet<>(own(style));
+        all.addAll(own(Hut.Type.FALLBACK_STYLE)); // what any style lacks it borrows from the original style (only its quarries are installed)
+        return List.copyOf(all);
+    }
+
+    /** A style's own structure files. */
+    private static List<String> own(String style) {
         return FILES.computeIfAbsent(style, s -> {
             TreeSet<String> out = new TreeSet<>();
             // The save's own folder, which holds datapacks/ and generated/ (a world's folder is its dimension's in 26.3).

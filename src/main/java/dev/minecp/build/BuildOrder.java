@@ -165,9 +165,11 @@ public final class BuildOrder {
         Block base = origin.getBlock();
         var entities = s.getEntities(); // new ones each call
         var controller = entities.stream().filter(e -> e.getScoreboardTags().contains(CONTROLLER_TAG)).findFirst().orElse(null);
-        if (hut != null && controller != null) {
+        // where {@code hut} lands: its decoration controller, else (a quarry's shaft, no hut block) its primary offset's anchor
+        var anchor = controller != null ? controller : entities.stream().filter(e -> e.getScoreboardTags().contains(ANCHOR_TAG)).findFirst().orElse(null);
+        if (hut != null && anchor != null) {
             if (rotation == null) rotation = StructureRotation.NONE;
-            BlockVector at = transform(controller.getLocation().getBlockX(), controller.getLocation().getBlockY(), controller.getLocation().getBlockZ(), rotation, mirror);
+            BlockVector at = transform(anchor.getLocation().getBlockX(), anchor.getLocation().getBlockY(), anchor.getLocation().getBlockZ(), rotation, mirror);
             base = hut.getRelative(-at.getBlockX(), -at.getBlockY(), -at.getBlockZ());
         } else if (hut != null) for (var state : blocks) {
             if (state instanceof TileState ts && ts.getPersistentDataContainer().has(HUT_MARKER)) {
@@ -265,6 +267,8 @@ public final class BuildOrder {
     static final String GRAVE_TAG = "minecp_grave";
     /** Tag of the marker entity on a build's decoration controller, with minecp_facing_<the way its sign faces>. */
     static final String CONTROLLER_TAG = "minecp_controller";
+    /** Tag of the marker at a hutless blueprint's primary offset (a quarry's shaft), which {@code hut} lands on. */
+    static final String ANCHOR_TAG = "minecp_anchor";
     /** Where its decoration controller goes, or null (DecorationController). */
     public GraveSpot controller;
     /** A graveyard's burial spot (or a decoration controller's) and the way its grave faces. */

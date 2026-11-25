@@ -87,7 +87,7 @@ public abstract class Job {
             case FLORIST -> sk(DEXTERITY, AGILITY);
             case COOK -> sk(ADAPTABILITY, KNOWLEDGE);
             case COURIER -> sk(AGILITY, ADAPTABILITY);
-            case MINER -> sk(STRENGTH, STAMINA);
+            case MINER, SIMPLE_QUARRY, MEDIUM_QUARRY -> sk(STRENGTH, STAMINA); // the quarrier's are the miner's
             case SAWMILL, BAKER -> sk(KNOWLEDGE, DEXTERITY);
             case STONEMASON, DYER -> sk(CREATIVITY, DEXTERITY);
             case STONE_SMELTERY -> sk(ATHLETICS, DEXTERITY);
@@ -435,6 +435,9 @@ public abstract class Job {
         return fetch(i -> i.getType() == m && i.getPersistentDataContainer().isEmpty(), n);
     }
 
+    /** Before {@link #keepsOnHand} is asked about each slot in turn: a job that keeps only so many of something resets its count. */
+    void startHandIn() {}
+
     /** What a kind of job keeps on hand when its worker hands things in, besides its tools and a stack of food (the herder's breeding item). */
     boolean keepsOnHand(ItemStack i) {
         return false;
@@ -454,6 +457,7 @@ public abstract class Job {
         Inventory bag = bag();
         List<Integer> out = new ArrayList<>();
         if (bag == null) return out;
+        startHandIn();
         boolean food = false;
         java.util.Set<Tool> tools = java.util.EnumSet.noneOf(Tool.class);
         for (int i = 0; i < bag.getSize(); i++) {

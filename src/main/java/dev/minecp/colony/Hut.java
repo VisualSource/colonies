@@ -23,6 +23,7 @@ import dev.minecp.job.KnightTrainee;
 import dev.minecp.job.Lumberjack;
 import dev.minecp.job.Mesh;
 import dev.minecp.job.Miner;
+import dev.minecp.job.Quarrier;
 import dev.minecp.job.NetherWorker;
 import dev.minecp.job.Plantation;
 import dev.minecp.job.PostBox;
@@ -153,6 +154,12 @@ public final class Hut {
         // Unlocked by research (Ambition); no worker; the mod's recipe: a diamond in the middle
         MYSTICAL_SITE("Mystical Site", Material.CHEST, "mystic/mysticalsite", "mysticalsite", "Its level makes citizens happier and helps the undertaker bring the dead back",
                 () -> new RecipeChoice.MaterialChoice(Material.DIAMOND), false),
+        // The mod's quarries: one level, no research; recipes with an iron or diamond pickaxe over a barrel (Items). Their pit
+        // (the shaft blueprint) is dug by the quarrier who works there. Only the original style has them (FALLBACK_STYLE)
+        SIMPLE_QUARRY("Simple Quarry", Material.CHEST, "infrastructure/mineshafts/simplequarry", "simplequarry",
+                "A quarrier digs out a pit a chunk across below it", () -> new RecipeChoice.MaterialChoice(Material.IRON_PICKAXE), "Quarrier", Quarrier::new, false),
+        MEDIUM_QUARRY("Medium Quarry", Material.CHEST, "infrastructure/mineshafts/mediumquarry", "mediumquarry",
+                "A quarrier digs out a pit two chunks across below it", () -> new RecipeChoice.MaterialChoice(Material.DIAMOND_PICKAXE), "Quarrier", Quarrier::new, false),
         // Unlocked by research; the mod's recipe: a carrot in the middle
         HOSPITAL("Hospital", Material.CHEST, "fundamentals/hospital", "hospital", "A healer cures the colony's sick and heals the hurt",
                 () -> new RecipeChoice.MaterialChoice(Material.CARROT), "Healer", Healer::new, false),
@@ -287,7 +294,7 @@ public final class Hut {
 
         /** Its highest level: the mod's building max level (the tavern stops at 3). */
         public int maxLevel() {
-            return this == TAVERN || this == GATE_HOUSE ? 3 : MAX_LEVEL;
+            return isQuarry() ? 1 : this == TAVERN || this == GATE_HOUSE ? 3 : MAX_LEVEL;
         }
 
         /** Citizens it houses at {@code level}: a house one per level, the tavern 4 (the mod's LivingBuildingModule). */
@@ -334,6 +341,20 @@ public final class Hut {
         private static final java.util.Map<Type, String> OTHER_PATHS = java.util.Map.of(
                 ENCHANTER, "craftsmanship/luxury/enchanter", GATE_HOUSE, "military/gatehouses/atlasgatehouse");
 
+        /** The style whose buildings any style lacking one borrows: the quarries pack (build.gradle.kts) is made from it. */
+        public static final String FALLBACK_STYLE = "original";
+
+        /** "style/file" if that structure exists, else the original style's if that does (the mod falls back too), else "style/file". */
+        public static String orFallback(String style, String file) {
+            String own = style + "/" + file, borrowed = FALLBACK_STYLE + "/" + file;
+            return !dev.minecp.build.BuildOrder.exists(own) && dev.minecp.build.BuildOrder.exists(borrowed) ? borrowed : own;
+        }
+
+        /** The simple and medium quarries. */
+        public boolean isQuarry() {
+            return this == SIMPLE_QUARRY || this == MEDIUM_QUARRY;
+        }
+
         private static final java.util.Map<String, String> RESOLVED = new java.util.concurrent.ConcurrentHashMap<>();
 
         /**
@@ -349,7 +370,8 @@ public final class Hut {
                 String nested = style + "/" + path.substring(0, slash + 1) + "default/" + path.substring(slash + 1) + level;
                 if (dev.minecp.build.BuildOrder.exists(nested)) return nested;
                 String other = OTHER_PATHS.get(this); // a style that keeps it elsewhere
-                return other != null && dev.minecp.build.BuildOrder.exists(style + "/" + other + level) ? style + "/" + other + level : plain;
+                if (other != null && dev.minecp.build.BuildOrder.exists(style + "/" + other + level)) return style + "/" + other + level;
+                return orFallback(style, path + level);
             });
         }
 

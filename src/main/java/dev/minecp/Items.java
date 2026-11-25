@@ -62,6 +62,10 @@ public final class Items implements Listener {
             r.shape("PTP", type.sides != null ? "SXS" : "PXP", type == Hut.Type.SCHOOL ? "PXP" : "PPP");
             r.setIngredient('P', new RecipeChoice.MaterialChoice(Tag.PLANKS));
             if (type.sides != null) r.setIngredient('S', type.sides.get());
+            if (type.isQuarry()) { // the mod's: the pickaxe over a barrel
+                r.shape("PTP", "PXP", "PBP");
+                r.setIngredient('B', Material.BARREL);
+            }
             if (type == Hut.Type.GATE_HOUSE) { // the mod's: an iron sword and a bow either side of planks
                 r.shape("PTP", "SXB", "PPP");
                 r.setIngredient('S', Material.IRON_SWORD);

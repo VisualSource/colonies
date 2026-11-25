@@ -75,6 +75,7 @@ SIT_TAG = "minecp_sit"  # marker on a blueprint's "sit" tag positions (the taver
 PLANT_TAGS = ("sugar", "cactus", "bamboo", "work", "knight", "archer", "gate", "portal")  # a plantation's plots (the ground under each plant), other work spots, a gatehouse's guard and gate spots, a nether mine's portal: the mod's tags
 PLANT_TAG = "minecp_plant_"  # + the tag: marker on each spot (BuildOrder.PLANT_TAG)
 CONTROLLER = "minecolonies:decorationcontroller"  # a build's decoration controller, left as structure void
+ANCHOR_TAG = "minecp_anchor"  # marker at the primary offset of a blueprint with no hut block (a quarry's shaft; BuildOrder.ANCHOR_TAG)
 CONTROLLER_TAG = "minecp_controller"  # tag of the marker entity there (BuildOrder.CONTROLLER_TAG), plus minecp_facing_<facing>
 OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 RACK = "minecolonies:blockminecoloniesrack"  # the mod's storage rack, built as a chest
@@ -275,6 +276,8 @@ def convert(path, blocks, siblings=()):
         for t in tagged:
             if t.pop("minecp:subhut", None) is not None:
                 t["minecp:hut"] = (nbt.BYTE, 1)
+    if primary is not None and not any("minecp:hut" in t for t in tagged) and all(0 <= c < m for c, m in zip(primary, (sx, sy, sz))):
+        out_entities.append(marker(primary, [ANCHOR_TAG]))  # no hut block: its anchor, for placing it against another building
     seats = sit_spots(root)
     for other in siblings:  # some packs' blueprints lost their tags (medieval birch's taverns 2 and 3): the same
         if seats:           # building in another style, where each of its seats is a stair here too

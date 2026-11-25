@@ -114,6 +114,8 @@ public final class Settings {
                     bool(TAPE, "Construction tape around build sites"),
                     bool(ENTER_LEAVE, "Title for visitors entering or leaving the colony"));
             case BUILDER -> List.of(block(FILL_BLOCK, "Foundation fill block", org.bukkit.Material.DIRT));
+            // ours: the mod's quarrier uses its mine's fill block; here the quarry has its own
+            case SIMPLE_QUARRY, MEDIUM_QUARRY -> List.of(block(FILL_BLOCK, "Fill block (ores in its walls, liquids, gaps)", org.bukkit.Material.COBBLESTONE));
             case MINER -> List.of(block(FILL_BLOCK, "Fill block (holes, liquids, floors)", org.bukkit.Material.COBBLESTONE),
                     number(MAX_DEPTH, "Deepest y to dig to (" + NO_MAX_DEPTH + ": as deep as the hut level allows)", NO_MAX_DEPTH, NO_MAX_DEPTH, 320));
             case NETHER_WORKER -> List.of(bool(CLOSE_PORTAL, "Close the portal when it comes back"));
