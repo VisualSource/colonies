@@ -65,6 +65,8 @@ public final class Colony {
     public final java.util.Set<Block> freePositions = new java.util.LinkedHashSet<>();
     /** Waypoints its builder built (the mod's colony waypoints): recorded, for citizens' long walks later. Saved. */
     public final java.util.Set<Block> waypoints = new java.util.LinkedHashSet<>();
+    /** Chunks claimed and first chunks let go with the claim command, as {@link Claims#key} values. Saved. */
+    final java.util.Set<Long> claimsAdded = new java.util.HashSet<>(), claimsRemoved = new java.util.HashSet<>();
 
     /** Whether anyone but the hostile may right-click it here (the mod's isFreeToInteractWith). */
     public boolean freeToUse(Block b) {
@@ -152,8 +154,22 @@ public final class Colony {
         return claims;
     }
 
+    /**
+     * The claim command (the mod's staticClaimInRange): the chunks within {@code range} of a chunk claimed or let go
+     * by hand, in the town hall's world. Letting go only undoes direct claims (the first chunks and hand-made ones):
+     * a building's own claims stay, as in the mod.
+     */
+    public void claimByHand(int chunkX, int chunkZ, int range, boolean add) {
+        for (int x = chunkX - range; x <= chunkX + range; x++) for (int z = chunkZ - range; z <= chunkZ + range; z++) {
+            long k = Claims.key(x, z);
+            if (add) { claimsAdded.add(k); claimsRemoved.remove(k); }
+            else { claimsAdded.remove(k); claimsRemoved.add(k); }
+        }
+        claimsChanged();
+    }
+
     /** Huts or their levels changed: the claims are worked out again. */
-    void claimsChanged() {
+    public void claimsChanged() {
         claims = null;
         onClaimsChanged.run();
     }
@@ -252,9 +268,14 @@ public final class Colony {
 
     /** One of the starting citizens moves in at the town hall. */
     private void moveIn() {
+        tell(spawnNew().name + " moved into " + name + ".");
+    }
+
+    /** A new citizen at the town hall, room or not (also the spawnNew command, the mod's spawnOrCreateCivilian). */
+    public Colonist spawnNew() {
         Colonist c = newCitizen(townHall().block.getLocation().toCenterLocation());
         join(c);
-        tell(c.name + " moved into " + name + ".");
+        return c;
     }
 
     /** {@code c} becomes a citizen (a starting citizen, a newborn, or a recruited visitor). */
@@ -758,6 +779,18 @@ public final class Colony {
             health.heal(c);
             if (c.fleeTicks > 0) { c.fleeTicks--; c.setStatus("Fleeing"); continue; }
             if (c.talkTicks > 0) { c.talkTicks--; continue; } // a player clicked it: it stands still for a moment
+            if (c.sentTo != null) { // the walk command (the mod's: within 4 blocks or 3 minutes, then it stands 5 s)
+                Location at = c.location();
+                if (at.getWorld() == c.sentTo.getWorld() && at.distance(c.sentTo) > 4 && at.getWorld().getGameTime() < c.sentUntil) {
+                    // nowhere a route gets closer: the walk ends rather than searching again every tick
+                    if (!c.isMoving() && !c.walk(c.sentTo) && !c.approach(c.sentTo, Double.MAX_VALUE)) c.sentUntil = 0;
+                    c.setStatus("Sent by a command");
+                    continue;
+                }
+                c.sentTo = null;
+                c.talkTicks = 100;
+                continue;
+            }
             if (sickness.inHospital(c) && sickness.careFor(c, job)) continue; // in a hospital bed: before a raid or the night, as the mod
             boolean hide = raids.underway() && !(job instanceof dev.minecp.job.Guard); // the mod: citizens shelter at home during a raid
             if (hide || time > Routine.NIGHT - 2000 && (c.bedtime || routine.shouldGoSleep(c, job, time))) { // from late evening to dawn

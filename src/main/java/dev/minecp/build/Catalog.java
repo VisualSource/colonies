@@ -96,7 +96,7 @@ public final class Catalog {
         return new Entry(path, nice.isEmpty() ? name : Character.toUpperCase(nice.charAt(0)) + nice.substring(1), null, !level.isEmpty());
     }
 
-    /** Every structure of every installed style, as "style/path" (for /colony build's suggestions). */
+    /** Every structure of every installed style, as "style/path" (for /colonies build's suggestions). */
     public static List<String> structures() {
         List<String> out = new ArrayList<>();
         for (String style : dev.minecp.colony.Colony.styles()) for (String f : own(style)) out.add(style + "/" + f);

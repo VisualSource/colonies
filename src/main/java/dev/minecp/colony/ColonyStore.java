@@ -110,6 +110,8 @@ public final class ColonyStore {
         s.set("free-blocks", colony.freeBlocks.stream().map(Material::name).toList());
         s.set("free-positions", colony.freePositions.stream().map(ColonyStore::spot).toList());
         s.set("waypoints", colony.waypoints.stream().map(ColonyStore::spot).toList());
+        if (!colony.claimsAdded.isEmpty()) s.set("claims-added", List.copyOf(colony.claimsAdded));
+        if (!colony.claimsRemoved.isEmpty()) s.set("claims-removed", List.copyOf(colony.claimsRemoved));
         colony.connections.save(s.createSection("connections"));
         colony.research.save(s.createSection("research"));
     }
@@ -238,6 +240,8 @@ public final class ColonyStore {
         for (String m : s.getStringList("free-blocks")) { Material x = Material.matchMaterial(m); if (x != null) colony.freeBlocks.add(x); }
         for (String p : s.getStringList("free-positions")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.freePositions.add(b);
         for (String p : s.getStringList("waypoints")) if (spotAt(p) instanceof org.bukkit.block.Block b) colony.waypoints.add(b);
+        colony.claimsAdded.addAll(s.getLongList("claims-added"));
+        colony.claimsRemoved.addAll(s.getLongList("claims-removed"));
         if (s.isConfigurationSection("connections")) colony.connections.load(s.getConfigurationSection("connections"));
         if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
         colony.assignHomes();

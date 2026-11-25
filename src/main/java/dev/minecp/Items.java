@@ -216,7 +216,7 @@ public final class Items implements Listener {
                 io.papermc.paper.datacomponent.item.CustomModelData.customModelData().addString("minecp:" + id).build());
     }
 
-    /** The Build Tool: places huts (Placement) and every hut recipe needs it; made from a stick with /colony buildtool. Kept when crafting, as in the mod. */
+    /** The Build Tool: places huts (Placement) and every hut recipe needs it; made from a stick with /colonies buildtool. Kept when crafting, as in the mod. */
     public ItemStack buildTool() {
         ItemStack item = new ItemStack(Material.STICK);
         item.editMeta(m -> {

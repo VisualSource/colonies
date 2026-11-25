@@ -180,6 +180,11 @@ public final class Placement implements Listener {
 
     private static final String SUPPLIES_USED = "supplies_used";
 
+    /** The resetsupplies command: the player may place a camp or ship again (the mod takes one off the item's use count). */
+    public static void resetSupplies(Player p) {
+        p.getPersistentDataContainer().remove(new org.bukkit.NamespacedKey(MineCP.NAMESPACE, SUPPLIES_USED));
+    }
+
     /** Whether the player has placed a camp or ship before (the mod counts uses of the item); creative may place more. */
     private boolean usedSupplies(Player p) {
         return p.getGameMode() != GameMode.CREATIVE

@@ -32,6 +32,17 @@ raids:
   # Zombie raiders break doors (on Normal and Hard).
   break-doors: true
 
+# Commands MineColonies' server config can open to players who aren't admins (minecp.admin); its defaults.
+commands:
+  # /colonies colony info, for a colony's owner and officers.
+  colony-info: true
+  # /colonies colony addOfficer, for a colony's owner and officers.
+  add-officer: true
+  # /colonies citizens kill, for a colony's owner and officers.
+  kill-citizens: false
+  # /colonies citizens modify, for a colony's owner and officers in creative mode.
+  modify-citizens: false
+
 research:
   # Research a creative player starts is finished at once (as the mod's default).
   creative-completion: true

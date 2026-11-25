@@ -123,7 +123,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(border, this);
         getServer().getPluginManager().registerEvents(mapBorders, this);
         getServer().getScheduler().runTaskTimer(this, border::tick, 10L, 10L);
-        Objects.requireNonNull(getCommand("colony")).setExecutor(new Commands(this)); // a TabExecutor: Bukkit uses it for suggestions too
+        Objects.requireNonNull(getCommand("colonies")).setExecutor(new Commands(this)); // a TabExecutor: Bukkit uses it for suggestions too
         getServer().getScheduler().runTaskTimer(this, () -> colonies.values().forEach(c -> {
             try {
                 c.tick();

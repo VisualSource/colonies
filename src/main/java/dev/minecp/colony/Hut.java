@@ -213,7 +213,7 @@ public final class Hut {
         public final String title;
         public final Material block;
         public final String path;     // structure path inside a style pack, + level; null for blocks that aren't buildings
-        final String command;  // /colony <command> gives an admin its item
+        final String command;  // /colonies give <command> gives an admin its item
         public final String lore;     // on its item
         public final Supplier<RecipeChoice> centre; // the middle of its recipe (planks around, Build Tool on top); null: none or special
         public final String worker;   // the job's name ("Cook"), null for huts without a worker
@@ -386,7 +386,7 @@ public final class Hut {
             return path == null ? null : path.substring(path.lastIndexOf('/') + 1);
         }
 
-        /** The /colony subcommands that give a hut's item (admins). */
+        /** The names /colonies give takes for each hut's item (admins). */
         public static java.util.List<String> commands() {
             return java.util.Arrays.stream(values()).map(t -> t.command).toList();
         }

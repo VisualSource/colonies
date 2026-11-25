@@ -84,33 +84,34 @@ public final class Raids {
      * Enchanter's ancient tome; the Norse chief rolls twice, as in the mod.
      */
     enum Culture {
-        BARBARIANS("Barbarians",
+        BARBARIANS("Barbarians", "barbarian_raid",
                 new Spec(Zombie.class, Material.STONE_AXE, null, set("LEATHER", 2), 1, D1, 0,
                         new Object[]{97, Material.DIAMOND_AXE, 1, Material.GOLDEN_AXE, 2, Material.IRON_AXE, 5, Material.STONE_AXE, 6, TOME, 3}),
                 new Spec(Skeleton.class, Material.BOW, null, set("LEATHER", 2), 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Zombie.class, Material.IRON_SWORD, null, set("CHAINMAIL", 4), 1.5, d -> 2 * d, 1, // the mod's chief sword and chainmail
                         new Object[]{121, Material.DIAMOND_SWORD, 5, Material.GOLDEN_SWORD, 5, Material.IRON_SWORD, 10, CHIEF_SWORD, 1, Material.STONE_SWORD, 20, TOME, 30})),
-        MUMMIES("Mummies",
+        MUMMIES("Mummies", "egyptian_raid",
                 new Spec(Husk.class, null, null, new Material[0], 1, D1, 0, new Object[]{95, TOME, 15}),
                 new Spec(Skeleton.class, Material.BOW, null, new Material[0], 1, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Skeleton.class, Material.BOW, null, set("GOLDEN", 2), 4.5, d -> 2 * d, 1, // the pharaoh's fire-arrow scepter: a Flame bow
                         new Object[]{113, PHARAOH_SCEPTER, 3, Material.ARROW, 20, FIRE_ARROW, 10, TOME, 30})),
-        AMAZONS("Amazons",
+        AMAZONS("Amazons", "amazon_raid",
                 new Spec(Zombie.class, Material.STONE_SPEAR, null, set("LEATHER", 2), 1, D1, 0, new Object[]{100, SPEAR, 15, TOME, 5}),
                 new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 1), 1, D1, 0, new Object[]{100, Material.BOW, 15, TOME, 5}),
                 new Spec(Bogged.class, Material.BOW, null, set("LEATHER", 4), 1.5, d -> 4 * d, 1, new Object[]{190, Material.BOW, 80, TOME, 30})),
-        NORSEMEN("Norsemen",
+        NORSEMEN("Norsemen", "norsemen_raid",
                 new Spec(Zombie.class, Material.STONE_AXE, Material.SHIELD, set("IRON", 2), 1 / 1.25, d -> 15, 0, // the shieldmaiden
                         new Object[]{95, Material.SHIELD, 10, TOME, 5}),
                 new Spec(Stray.class, Material.BOW, null, set("CHAINMAIL", 1), 1 / 1.25, D1, 0, new Object[]{95, Material.BOW, 10, TOME, 5}),
                 new Spec(Zombie.class, Material.STONE_AXE, null, set("IRON", 4), 1, d -> 2 * d + 15, 1,
                         new Object[]{125, Material.LEATHER, 15, Material.DIAMOND_AXE, 10, TOME, 50}));
 
-        final String title;
+        final String title, id; // id: the mod's raid event type, for the raid command
         final Spec melee, archer, chief;
 
-        Culture(String title, Spec melee, Spec archer, Spec chief) {
+        Culture(String title, String id, Spec melee, Spec archer, Spec chief) {
             this.title = title;
+            this.id = id;
             this.melee = melee;
             this.archer = archer;
             this.chief = chief;
@@ -150,7 +151,9 @@ public final class Raids {
     private Hut target; // the hut the raiders march on, shared, changed after max(6, raiders / 3) picks
     // Saved between raids:
     int nightsSince, raidDifficulty = 7, extraNights;
-    public boolean raidTonight; // set by /colony raid tonight too
+    public boolean raidTonight; // set by /colonies colony raid tonight too
+    private Culture tonightType; // the raid command's type for tonight's raid, else null: by biome
+    private int tonightAmount;   // and its amount, else 0: the mod's size
     boolean adaptPending;
     int lastLost, lastMax;
 
@@ -199,7 +202,7 @@ public final class Raids {
         }
         nightsSince++;
         if (raidTonight) { // kept until a raid starts, as in the mod
-            if (canRaid() && start(false, 0) == null) raidTonight = false;
+            if (canRaid() && start(false, tonightAmount, tonightType) == null) { raidTonight = false; tonightType = null; tonightAmount = 0; }
             return;
         }
         var rnd = ThreadLocalRandom.current();
@@ -243,11 +246,38 @@ public final class Raids {
 
     // ---- start ----------------------------------------------------------------------------------------------------
 
+    /** The mod's raid types the raid command takes (land raids only). */
+    public static List<String> types() {
+        return java.util.Arrays.stream(Culture.values()).map(c -> c.id).toList();
+    }
+
+    /** The raid command: a raid now, of a type ({@link #types}, null: by biome) and size (0: the mod's). @return why not, or null. */
+    public String start(int amount, String type) {
+        Culture culture = culture(type);
+        if (type != null && culture == null) return "No raid type " + type + ". Try one of " + String.join(", ", types()) + ".";
+        return start(true, amount, culture);
+    }
+
+    /** The raid command's "tonight": the next nightfall's raid, with its type and size kept until it starts, as the mod's setRaidNextNight. */
+    public String raidTonight(int amount, String type) {
+        Culture culture = culture(type);
+        if (type != null && culture == null) return "No raid type " + type + ". Try one of " + String.join(", ", types()) + ".";
+        raidTonight = true;
+        tonightType = culture;
+        tonightAmount = amount;
+        return null;
+    }
+
+    private static Culture culture(String type) {
+        for (Culture c : Culture.values()) if (c.id.equals(type)) return c;
+        return null;
+    }
+
     /**
-     * Starts a raid now. {@code amount} 0: the mod's size, 1 + level / 60 × modifier × (1 + 5% per member online) ×
-     * 0.85 to 1.15, at most the configured maximum. @return why not, or null when it started.
+     * Starts a raid now, of {@code culture} (null: by biome). {@code amount} 0: the mod's size, 1 + level / 60 ×
+     * modifier × (1 + 5% per member online) × 0.85 to 1.15, at most the configured maximum. @return why not, or null when it started.
      */
-    public String start(boolean forced, int amount) {
+    private String start(boolean forced, int amount, Culture culture) {
         if (underway()) return "A raid is already under way.";
         int level = level();
         if (!forced && level < MIN_LEVEL) return "The colony is too small to be raided (raid level " + level + " of " + MIN_LEVEL + ").";
@@ -266,7 +296,7 @@ public final class Raids {
         }
         if (spots.isEmpty()) return "No place to spawn raiders was found around the colony.";
         for (Location at : spots) { // split among the points found, as in the mod
-            Horde h = new Horde(Culture.at(centre), at);
+            Horde h = new Horde(culture != null ? culture : Culture.at(centre), at);
             spawn(h, at, (int) Math.ceil((double) amount / spots.size()), level, d);
             camp(h, at, centre);
             hordes.add(h);
@@ -707,6 +737,8 @@ public final class Raids {
         s.set("difficulty", raidDifficulty);
         s.set("extra-nights", extraNights);
         s.set("tonight", raidTonight);
+        if (tonightType != null) s.set("tonight-type", tonightType.id);
+        if (tonightAmount > 0) s.set("tonight-amount", tonightAmount);
         if (adaptPending) s.set("last-lost", List.of(lastLost, lastMax));
     }
 
@@ -715,6 +747,8 @@ public final class Raids {
         raidDifficulty = s.getInt("difficulty", 7);
         extraNights = s.getInt("extra-nights");
         raidTonight = s.getBoolean("tonight");
+        tonightType = culture(s.getString("tonight-type"));
+        tonightAmount = s.getInt("tonight-amount");
         List<Integer> last = s.getIntegerList("last-lost");
         if (last.size() == 2) { adaptPending = true; lastLost = last.get(0); lastMax = last.get(1); }
     }

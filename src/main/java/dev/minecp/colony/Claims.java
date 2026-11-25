@@ -6,7 +6,8 @@ import java.util.Set;
 /**
  * The chunks a colony claims (the mod's {@code ChunkDataHelper}): a square around the town hall's chunk from the
  * start, plus a square around each hut's chunk by its level and every chunk its building covers, none farther from
- * the town hall's chunk than {@link #maxSize}. Worked out from the huts, so nothing extra is saved.
+ * the town hall's chunk than {@link #maxSize}. Worked out from the huts; only the claim command's chunks (claimed
+ * anywhere in its world, or first chunks let go) are saved.
  */
 public final class Claims {
     // The mod's server config defaults; MineCP sets them from config.yml.
@@ -20,11 +21,11 @@ public final class Claims {
         return (long) chunkX << 32 | chunkZ & 0xFFFFFFFFL;
     }
 
-    static int x(long key) {
+    public static int x(long key) {
         return (int) (key >> 32);
     }
 
-    static int z(long key) {
+    public static int z(long key) {
         return (int) key;
     }
 
@@ -37,17 +38,39 @@ public final class Claims {
         return out;
     }
 
-    /** The chunks claimed when the colony was founded: never given up while it stands. */
+    /** The chunks claimed when the colony was founded, less those let go by the claim command: never given up while it stands. */
     static Set<Long> core(Colony c) {
         Set<Long> out = new HashSet<>();
         int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4;
         square(out, cx, cz, initialSize, cx, cz);
+        out.removeAll(c.claimsRemoved);
+        return out;
+    }
+
+    /** Whether {@code c} claims this chunk directly (the mod's static claims): a first chunk, or claimed by hand. */
+    public static boolean direct(Colony c, long key) {
+        return c.claimsAdded.contains(key) || core(c).contains(key);
+    }
+
+    /** The huts whose claims (a square by level, or the building's own chunks) reach this chunk (the mod's building claims). */
+    public static java.util.List<Hut> claimers(Colony c, long key) {
+        java.util.List<Hut> out = new java.util.ArrayList<>();
+        int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4, x = x(key), z = z(key);
+        if (!near(x, z, cx, cz)) return out;
+        for (Hut h : c.huts) {
+            int r = c.claimRadius(h), hx = h.block.getX() >> 4, hz = h.block.getZ() >> 4;
+            int[] box = c.footprint(h);
+            boolean inBox = false;
+            if (box != null) for (long k : chunks(box)) inBox |= k == key;
+            if (Math.abs(x - hx) <= r && Math.abs(z - hz) <= r || inBox) out.add(h);
+        }
         return out;
     }
 
     /** All the chunks {@code c} claims, as {@link #key} values in its town hall's world. */
     static Set<Long> of(Colony c) {
         Set<Long> out = core(c);
+        out.addAll(c.claimsAdded); // ours: anywhere in its world, as the mod's claim command doesn't check the distance
         int cx = c.townHall().block.getX() >> 4, cz = c.townHall().block.getZ() >> 4;
         for (Hut h : c.huts) {
             square(out, h.block.getX() >> 4, h.block.getZ() >> 4, c.claimRadius(h), cx, cz);

@@ -100,6 +100,11 @@ public final class Health {
         die(c, null, "died in the Nether", false);
     }
 
+    /** The kill command: dies as from any other cause, with a grave (the mod kills it with the console's damage). */
+    public void kill(Colonist c) {
+        die(c, null, "was killed by a command", true);
+    }
+
     void die(Colonist c, DamageCause cause, Entity source) {
         die(c, source, deathCause(cause, source), true);
     }

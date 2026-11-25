@@ -164,7 +164,9 @@ public final class Colonist {
     private Route.Goal routeGoal;
     private Location routeFrom;
     private int routeIdle, replans;
-    public final Stats stats = new Stats(); // movement counters for /colony movement; not saved
+    public final Stats stats = new Stats(); // movement counters for /colonies movement; not saved
+    public Location sentTo; // the walk command's target, until it gets there or sentUntil (game time) passes; not saved
+    public long sentUntil;
 
     /** How often moving went wrong, to compare movement systems. */
     public static final class Stats {
@@ -183,6 +185,16 @@ public final class Colonist {
 
     public Location location() {
         return last.clone();
+    }
+
+    /** The steps it still has to walk, for the trackPath command; empty when it isn't walking a route. */
+    public List<Location> path() {
+        List<Location> out = new ArrayList<>();
+        if (route != null) for (int i = routeAt; i < route.size(); i++) {
+            Route.Step s = route.get(i);
+            out.add(new Location(last.getWorld(), s.x() + 0.5, s.h(), s.z() + 0.5));
+        }
+        return out;
     }
 
     /** One server tick: keeps the entities spawned and the body on the legs. @return false while despawned. */
