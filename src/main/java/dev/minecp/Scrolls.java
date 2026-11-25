@@ -281,7 +281,7 @@ public final class Scrolls implements Listener {
     }
 
     /** The nearest spot within 5 of {@code at} with room for a player and solid ground under it, or null. */
-    private static Block spotAround(Block at) {
+    static Block spotAround(Block at) {
         Block best = null;
         double bestD = Double.MAX_VALUE;
         for (int dx = -SPOT_RANGE; dx <= SPOT_RANGE; dx++) for (int dy = -SPOT_RANGE; dy <= SPOT_RANGE; dy++) for (int dz = -SPOT_RANGE; dz <= SPOT_RANGE; dz++) {

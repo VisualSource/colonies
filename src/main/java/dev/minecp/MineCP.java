@@ -67,6 +67,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     public final GuardTools guardTools = new GuardTools(this);
     public final Flags flags = new Flags(this);
     final Scrolls scrolls = new Scrolls(this);
+    public final ColonySigns colonySigns = new ColonySigns(this);
     private final Placement placement = new Placement(this);
     private final Border border = new Border(this);
     final Protection protection = new Protection(this);
@@ -114,6 +115,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(guardTools, this);
         getServer().getPluginManager().registerEvents(flags, this);
         getServer().getPluginManager().registerEvents(scrolls, this);
+        getServer().getPluginManager().registerEvents(colonySigns, this);
         getServer().getPluginManager().registerEvents(new Decorations(this), this);
         getServer().getPluginManager().registerEvents(placement, this);
         getServer().getPluginManager().registerEvents(border, this);
@@ -198,7 +200,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     }
 
     /** The colony whose owner has this id, or null. */
-    Colony colonyOwnedBy(UUID owner) {
+    public Colony colonyOwnedBy(UUID owner) {
         return colonies.get(owner);
     }
 
@@ -222,6 +224,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private void hook(Colony c) {
         c.onClaimsChanged = this::reindex;
         c.claimMap = claims;
+        c.connections.colonies = colonies::get;
         c.milestones = Advancements.forColony(c);
         // A removal order finished, maybe with nobody near: its chest's contents and the hut item go to the warehouse,
         // then the Builder's Hut chest; only what fits in neither drops, at the Builder's Hut, where someone will look.
@@ -386,6 +389,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         c.graves.forEach(Grave::dropAll); // grave contents only live in the colony
         getLogger().info("Colony " + c.where() + " disbanded by " + p.getName() + " (" + c.colonists.size() + " citizens).");
         colonies.remove(c.owner);
+        for (Colony o : colonies.values()) o.connections.forget(c.owner);
         saves.delete(c.owner);
         reindex(); // its land is free
         at.getWorld().dropItemNaturally(at, items.hutItem(Hut.Type.TOWN_HALL));
@@ -428,8 +432,13 @@ public final class MineCP extends JavaPlugin implements Listener {
         // The block's own use (a chest), which Protection checks: sneaking, and always for a stash, which opens as the mod's.
         if (p.isSneaking() || c.hutAt(e.getClickedBlock()).type == Hut.Type.STASH) return;
         e.setCancelled(true);
+        Hut hut = c.hutAt(e.getClickedBlock());
+        if (hut.type == Hut.Type.GATE_HOUSE && hut.level > 0 && !c.permissions.has(p, Action.ACCESS_HUTS)) { // the mod's: it shows everyone where it leads
+            menus.travel(p, c, hut);
+            return;
+        }
         if (!mayAccess(p, c)) return;
-        menus.hut(p, c, c.hutAt(e.getClickedBlock()));
+        menus.hut(p, c, hut);
     }
 
     /** Hut menus, citizens and the clipboard and scroll need ACCESS_HUTS; says so if not. */

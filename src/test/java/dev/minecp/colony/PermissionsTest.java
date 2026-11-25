@@ -46,6 +46,8 @@ class PermissionsTest {
         assertTrue(perms.has(Rank.OWNER, Action.ACCESS_HUTS));
         perms.allow(Rank.NEUTRAL, Action.EDIT_PERMISSIONS, true);
         assertFalse(perms.has(Rank.NEUTRAL, Action.EDIT_PERMISSIONS), "neutral never edits permissions, as in the mod");
+        perms.allow(Rank.NEUTRAL, Action.TELEPORT_TO_COLONY, true);
+        assertFalse(perms.has(Rank.NEUTRAL, Action.TELEPORT_TO_COLONY), "nor travels");
     }
 
     @Test

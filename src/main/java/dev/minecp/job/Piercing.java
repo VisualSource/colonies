@@ -2,7 +2,7 @@ package dev.minecp.job;
 
 /** How huscarls' and marksmen's damage is split (the mod's MeleeCombatAI and RangeCombatAI); apart from Guard, which only loads on a server. */
 final class Piercing {
-    private static final double MARKSMAN = 10; // the mod's; OPEN QUESTION in docs/parity.md
+    private static final double MARKSMAN = 10; // the mod's, kept on purpose (docs/parity.md)
 
     private Piercing() {}
 

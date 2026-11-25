@@ -47,10 +47,17 @@ public final class Menus {
     private final MineCP plugin;
 
     private final ResearchMenus research;
+    private final ConnectionMenus connections;
 
     public Menus(MineCP plugin) {
         this.plugin = plugin;
         this.research = new ResearchMenus(plugin, this);
+        this.connections = new ConnectionMenus(plugin, this);
+    }
+
+    /** Where one can travel from a gatehouse: all a player who may not open its hut menu sees of it. */
+    public void travel(Player p, Colony c, Hut gate) {
+        connections.travel(p, c, gate);
     }
 
     /** The menu of any hut: level and upgrade, plus what that kind of hut shows. */
@@ -226,7 +233,9 @@ public final class Menus {
         }
         if (Settings.hires(h.type) || !Settings.of(h.type).isEmpty())
             buttons.add(button("Settings", p, c, h, player -> settings(player, c, h)));
+        if (h.type == Hut.Type.GATE_HOUSE && h.level > 0) buttons.add(button("Travel", p, c, h, player -> travel(player, c, h)));
         if (h.type == Hut.Type.TOWN_HALL) {
+            buttons.add(button("Alliances", p, c, h, player -> connections.alliances(player, c, h)));
             buttons.add(button("Citizens", p, c, h, player -> citizens(player, c, h)));
             buttons.add(button("Requests (" + c.requests.all().size() + ")", p, c, h, player -> requests(player, c, h, null)));
             if (c.permissions.has(p, Action.EDIT_PERMISSIONS)) buttons.add(button("Permissions", p, c, h, player -> permissions(player, c, h)));
@@ -977,7 +986,7 @@ public final class Menus {
 
     private void rankActions(Player p, Colony c, Hut townHall, Rank r) {
         List<Action> shown = new ArrayList<>(List.of(Action.values()));
-        if (r == Rank.NEUTRAL) shown.remove(Action.EDIT_PERMISSIONS); // never theirs, as in the mod
+        if (r == Rank.NEUTRAL) shown.removeAll(List.of(Action.EDIT_PERMISSIONS, Action.TELEPORT_TO_COLONY)); // never theirs, as in the mod
         List<DialogInput> inputs = new ArrayList<>();
         for (Action a : shown) inputs.add(DialogInput.bool(a.name().toLowerCase(), Component.text(a.label)).initial(c.permissions.has(r, a)).build());
         List<ActionButton> buttons = List.of(button("Save", p, c, townHall, (player, view) -> {
@@ -994,7 +1003,7 @@ public final class Menus {
         Dialogs.show(p, r.title(), List.of(text(Component.text("What a " + r.title() + " may do inside " + c.name + "'s border."))), inputs, buttons, 1);
     }
 
-    private static void refuse(Player p, Colony c, Action a) {
+    static void refuse(Player p, Colony c, Action a) {
         p.sendMessage(Component.text("You can't " + a.label.toLowerCase() + " in " + c.name + ".", NamedTextColor.RED));
     }
 

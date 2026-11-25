@@ -2,7 +2,7 @@ package dev.minecp.colony;
 
 /**
  * What a player may do in a colony, switched on or off per {@link Rank} (the mod's {@code Action}). Only the actions
- * we enforce are here; the mod's scan tool, map, visitor, teleport and explosion actions wait for those features.
+ * we enforce are here; the mod's scan tool, map, visitor and explosion actions wait for those features.
  */
 public enum Action {
     ACCESS_HUTS("Open hut menus"),
@@ -26,7 +26,8 @@ public enum Action {
     ATTACK_CITIZEN("Attack citizens"),
     HURT_CITIZEN("Hit citizens for more than 1 damage"),
     HURT_VISITOR("Hit visitors for more than 1 damage"),
-    RALLY_GUARDS("Rally guards with a banner");
+    RALLY_GUARDS("Rally guards with a banner"),
+    TELEPORT_TO_COLONY("Travel between gatehouses");
 
     public final String label;
 

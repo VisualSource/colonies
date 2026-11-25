@@ -159,7 +159,7 @@ public final class Hut {
         GUARD_TOWER("Guard Tower", Material.CHEST, "military/guardtower", "guardtower", "A guard (knight or ranger) patrols the colony and fights monsters",
                 () -> new RecipeChoice.MaterialChoice(Material.BOW), "Guard", Guard::new, false),
         // No research; the mod's recipe: an iron sword and a bow beside planks (Items). Two guards that each hold a spot;
-        // colony connections are the mod's other use for it
+        // colony connections start at it (Connections)
         GATE_HOUSE("Gatehouse", Material.CHEST, "military/gatehouse", "gatehouse", "Two guards stand watch at its gate; visitors arrive there",
                 () -> new RecipeChoice.MaterialChoice(Tag.PLANKS), "Guard", Guard::new, false),
         // Unlocked by research; the mod's recipes: three bows or three iron swords across the middle

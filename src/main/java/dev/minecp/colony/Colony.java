@@ -100,6 +100,7 @@ public final class Colony {
     public final Happiness happiness = new Happiness(this);
     public final Visitors visitors = new Visitors(this);
     public final Raids raids = new Raids(this);
+    public final Connections connections = new Connections(this);
     public final dev.minecp.research.Studies research = new dev.minecp.research.Studies(this);
     public ClaimMap claimMap; // every colony's claims, set by the plugin: raids don't spawn on another colony's land
     public long founded; // when, in ms: where two colonies' buildings claim the same chunk, the older one keeps it
@@ -510,6 +511,7 @@ public final class Colony {
         if (hut.type == Hut.Type.TAVERN) visitors.tavernRemoved(hut);
         removeTape(hut);
         huts.remove(hut);
+        if (hut.type == Hut.Type.GATE_HOUSE) connections.gateRemoved(hut.block);
         assignHomes();
         claimsChanged();
     }
@@ -540,6 +542,7 @@ public final class Colony {
             done.hut().level = done.level();
             addJob(done.hut()); // a barracks tower takes another guard each level
             if (done.hut().type == Hut.Type.BARRACKS) addTowers(done.hut(), order);
+            if (done.hut().type == Hut.Type.GATE_HOUSE && done.level() == 1) connections.gateBuilt(done.hut().block);
             assignHomes();
             assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
@@ -706,6 +709,7 @@ public final class Colony {
         if (colonyTick % 20 == 0) requests.refresh(); // who fills what each hut is waiting for
         if (colonyTick % 20 == 0) for (Job j : jobs) j.everySecond();
         if (colonyTick % 20 == 0) for (Hut h : huts) if (h.post != null) h.post.checkFollow();
+        if (colonyTick % 20 == 0) connections.tick();
         visitors.tick();
         raids.tick();
         sickness.tick();

@@ -35,7 +35,7 @@ public final class Permissions {
     public boolean has(Rank rank, Action action) {
         // The owner can always reach the menus and these settings, whatever was saved (the mod's upgradePermissions).
         if (rank == Rank.OWNER && (action == Action.ACCESS_HUTS || action == Action.MANAGE_HUTS || action == Action.EDIT_PERMISSIONS)) return true;
-        if (rank == Rank.NEUTRAL && action == Action.EDIT_PERMISSIONS) return false; // as the mod
+        if (rank == Rank.NEUTRAL && (action == Action.EDIT_PERMISSIONS || action == Action.TELEPORT_TO_COLONY)) return false; // as the mod
         return actions.get(rank).contains(action);
     }
 

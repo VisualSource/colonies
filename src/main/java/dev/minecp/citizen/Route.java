@@ -3,6 +3,7 @@ package dev.minecp.citizen;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Openable;
@@ -24,7 +25,7 @@ import java.util.Set;
  * (docs/research/citizen-movement-system.md): A* over block positions with ladders, drops, doors and wading,
  * on the main thread with live block reads, like vanilla's search.
  */
-final class Route {
+public final class Route {
     /** A place to stand on the route: block position of the feet, the height the feet are at, and how it is used. */
     record Step(int x, int y, int z, double h, boolean ladder, boolean door) {}
 
@@ -44,6 +45,7 @@ final class Route {
     private static final double STEP_UP = 0.6;        // what the legs step up without jumping
     private static final int MAX_NODES = 8000;        // the mod's MAX_NODES
     private static final double HEURISTIC = 2;
+    private static boolean swims; // whether this search may swim: citizens don't
     static final double HEIGHT = 1.8; // the legs' (the mod's CITIZEN_HEIGHT)
     /** Where a search may start, nearest first: the feet block, a block up or down, then the 8 around at each height. */
     private static final int[][] START_OFFSETS;
@@ -160,6 +162,7 @@ final class Route {
         if (feet.climb) return head.body || head.climb ? y : Double.NaN;  // on a ladder
         if (!head.body) return Double.NaN;
         if (feet.body) {
+            if (swims && feet.water) return y;
             Info below = info(w, x, y - 1, z);
             return below.floor && !below.danger ? y - 1 + below.top : Double.NaN;
         }
@@ -190,14 +193,30 @@ final class Route {
      * @return null if the start can't be stood on; else the route to the goal, or (reached false) to the node closest to it
      */
     static Result find(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal) {
+        int d = Math.abs(gx - sx) + Math.abs(gy - sy) + Math.abs(gz - sz);
+        double r = Math.min(20, 3 + d / 20.0);
+        int maxNodes = (int) Math.min(MAX_NODES, 300 + 16.0 * d + 2.0 * d * r * r); // the mod's node limit for a distance
         try {
-            return search(w, sx, sy, sz, gx, gy, gz, goal);
+            return search(w, sx, sy, sz, gx, gy, gz, goal, maxNodes);
         } finally {
             SEEN.clear(); // blocks change between searches
         }
     }
 
-    private static Result search(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal) {
+    /** Whether one can walk or swim from {@code from} to within 2 blocks of {@code to}, its height aside (the mod's PathJobSignConnection). */
+    public static boolean connects(Block from, Block to, int maxNodes) {
+        swims = true;
+        try {
+            Result r = search(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getX(), to.getY(), to.getZ(),
+                    (x, y, z) -> (x - to.getX()) * (x - to.getX()) + (z - to.getZ()) * (z - to.getZ()) <= 4, maxNodes);
+            return r != null && r.reached;
+        } finally {
+            swims = false;
+            SEEN.clear();
+        }
+    }
+
+    private static Result search(World w, int sx, int sy, int sz, int gx, int gy, int gz, Goal goal, int maxNodes) {
         // Where it stands, or (inside a block: a new citizen at its hut block, a chest it was pushed into) the next spot.
         Node start = null;
         for (int[] d : START_OFFSETS) {
@@ -206,9 +225,6 @@ final class Route {
             if (!Double.isNaN(h)) { start = new Node(x, y, z, h, info(w, x, y, z).climb); break; }
         }
         if (start == null) return null;
-        int d = Math.abs(gx - sx) + Math.abs(gy - sy) + Math.abs(gz - sz);
-        double r = Math.min(20, 3 + d / 20.0);
-        int maxNodes = (int) Math.min(MAX_NODES, 300 + 16.0 * d + 2.0 * d * r * r); // the mod's node limit for a distance
         Map<Long, Node> seen = new HashMap<>();
         PriorityQueue<Node> open = new PriorityQueue<>();
         start.f = heuristic(start, gx, gy, gz);

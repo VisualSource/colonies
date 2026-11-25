@@ -129,6 +129,12 @@ public final class Items implements Listener {
         flag.setIngredient('W', new RecipeChoice.MaterialChoice(Tag.WOOL));
         flag.setIngredient('T', tool);
         add(flag);
+        // MineColonies' colony signs: two rows of planks over the build tool make 6.
+        ShapedRecipe sign = new ShapedRecipe(key("colony_sign"), dev.minecp.colony.ColonySign.item(6));
+        sign.shape("XXX", "XXX", " T ");
+        sign.setIngredient('X', new RecipeChoice.MaterialChoice(Tag.PLANKS));
+        sign.setIngredient('T', tool);
+        add(sign);
         // MineColonies' colony map: maps around the build tool.
         ShapedRecipe map = new ShapedRecipe(key("colony_map"), colonyMap());
         map.shape("XXX", "XTX", "XXX");

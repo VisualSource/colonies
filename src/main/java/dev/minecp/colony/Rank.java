@@ -21,7 +21,7 @@ public enum Rank {
             case FRIEND, OFFICER, OWNER -> {
                 a.addAll(NEUTRAL.defaults());
                 a.addAll(EnumSet.of(ACCESS_HUTS, TOSS_ITEM, PICKUP_ITEM, RIGHTCLICK_BLOCK, RIGHTCLICK_ENTITY, THROW_POTION,
-                        SHOOT_ARROW, ATTACK_CITIZEN, ATTACK_ENTITY));
+                        SHOOT_ARROW, ATTACK_CITIZEN, ATTACK_ENTITY, TELEPORT_TO_COLONY));
                 if (this != FRIEND) a.addAll(EnumSet.of(PLACE_HUTS, BREAK_HUTS, MANAGE_HUTS, RECEIVE_MESSAGES, PLACE_BLOCKS,
                         BREAK_BLOCKS, FILL_BUCKET, OPEN_CONTAINER, RALLY_GUARDS));
                 if (this == OWNER) a.add(EDIT_PERMISSIONS);
@@ -33,7 +33,7 @@ public enum Rank {
     /** The mod's actions for a server operator in creative mode, whatever their rank. */
     static final Set<Action> OP = EnumSet.of(ACCESS_HUTS, TOSS_ITEM, PICKUP_ITEM, RIGHTCLICK_BLOCK, RIGHTCLICK_ENTITY,
             THROW_POTION, SHOOT_ARROW, ATTACK_CITIZEN, ATTACK_ENTITY, ACCESS_TOGGLEABLES, PLACE_HUTS, BREAK_HUTS, MANAGE_HUTS,
-            PLACE_BLOCKS, BREAK_BLOCKS, FILL_BUCKET, OPEN_CONTAINER, RALLY_GUARDS);
+            PLACE_BLOCKS, BREAK_BLOCKS, FILL_BUCKET, OPEN_CONTAINER, RALLY_GUARDS, TELEPORT_TO_COLONY);
 
     /** "Officer". */
     public String title() {
