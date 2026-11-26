@@ -134,6 +134,16 @@ public final class Undertaker extends Job {
         return spots;
     }
 
+    /** The mod's EMPTY_GRAVE (walking there too), TRY_RESURRECT, DIG_GRAVE, BURY_CITIZEN and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return switch (state) {
+            case TO_GRAVE, EMPTY, RESURRECT, DIG, BURY -> false;
+            case DUMP -> !unloading(true, chest());
+            default -> true;
+        };
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {

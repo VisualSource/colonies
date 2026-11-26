@@ -15,7 +15,7 @@ import java.util.Set;
 /** What citizens eat, and what the cook cooks. */
 public final class Food {
     public static final double MAX_SATURATION = 20;
-    public static final double LOW_SATURATION = 6; // below this a citizen goes to eat (the mod's "low saturation")
+    public static final double LOW_SATURATION = 6; // the mod's LOW_SATURATION: "hungry"; a meal starts lower (Routine.wantsMeal)
 
     /** Edible, but citizens won't eat it: harmful, or too precious to eat as a meal. */
     private static final Set<Material> NEVER = EnumSet.of(Material.ROTTEN_FLESH, Material.SPIDER_EYE, Material.POISONOUS_POTATO,
@@ -43,6 +43,12 @@ public final class Food {
         if (item == null || item.isEmpty()) return false;
         Material m = item.getType();
         return m.isEdible() && !NEVER.contains(m) && !cooked().containsKey(m) && nutrition(item) > 0;
+    }
+
+    /** What eating one leaves (a stew's bowl, a honey bottle's glass bottle: its use remainder), or null. */
+    public static ItemStack remainder(ItemStack item) {
+        var r = item.getData(DataComponentTypes.USE_REMAINDER);
+        return r == null || r.transformInto().isEmpty() ? null : r.transformInto().clone();
     }
 
     public static int nutrition(ItemStack item) {

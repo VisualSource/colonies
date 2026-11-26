@@ -67,13 +67,13 @@ public final class Menus {
         if (h.type.isBuilding()) body.add(text(Component.text(h.level == 0 ? "Not built yet (level 0)" : "Level " + h.level + " of " + h.type.maxLevel(),
                 NamedTextColor.GOLD)));
         Hut.WorkOrder up = c.upgradeOf(h);
-        Builder b = c.builder;
-        if (up != null && b != null && b.work == up) {
+        Builder b = up == null ? null : c.builders().stream().filter(x -> x.work == up).findFirst().orElse(null);
+        if (b != null) {
             int total = b.order.steps.size(), left = (int) b.order.upcoming().stream().filter(s -> !s.done()).count();
             body.add(text(Component.text((up.remove() ? "Taking it down" : "Building level " + up.level()) + ": " + (100 * (total - left) / Math.max(total, 1))
                     + "% (" + left + " blocks left)")));
         } else if (up != null)
-            body.add(text(Component.text(up.what() + " is queued for the builder (#"
+            body.add(text(Component.text(up.what() + " is queued for a builder (#"
                     + (c.workOrders.indexOf(up) + 1) + ").")));
 
         switch (h.type) {
@@ -134,7 +134,7 @@ public final class Menus {
                 if (mine && worker == null && (anyone || j != jobs.getFirst())) continue;
                 String who = jobs.size() > 1 && !(mine && worker == null) ? j.title() + ": " : "";
                 if (h.type.worker != null) body.add(text(Component.text(who + (worker == null ? "No " + (mine ? "miner or quarrier" : h.type.worker.toLowerCase())
-                        + (h.level < 1 && j != c.builder ? " until level 1 is built." : ": every citizen has a job.")
+                        +  (h.level < 1 && !(j instanceof Builder) ? " until level 1 is built." : ": every citizen has a job.")
                         : worker.name + " — " + worker.status()))));
                 if (j.note != null) body.add(text(Component.text(j.note, NamedTextColor.YELLOW)));
             }
@@ -255,8 +255,8 @@ public final class Menus {
                     String why = c.mercenaries.hire();
                     if (why != null) player.sendMessage(Component.text(why, NamedTextColor.RED));
                 }));
-            if (c.building != null || !c.decorations.isEmpty())
-                buttons.add(button("Builds (" + (c.decorations.size() + (c.building != null ? 1 : 0)) + ")", p, c, h, player -> builds(player, c, h)));
+            int builds = c.decorations.size() + (int) c.builders().stream().filter(x -> x.decoration != null).count();
+            if (builds > 0) buttons.add(button("Builds (" + builds + ")", p, c, h, player -> builds(player, c, h)));
         }
         if (h.block.getState(false) instanceof Container && c.permissions.has(p, Action.OPEN_CONTAINER))
             buttons.add(button("Open storage", p, c, h, Action.OPEN_CONTAINER, player -> {
@@ -480,10 +480,13 @@ public final class Menus {
     void builds(Player p, Colony c, Hut townHall) {
         List<DialogBody> body = new ArrayList<>();
         List<ActionButton> buttons = new ArrayList<>();
-        if (c.building != null) {
-            body.add(text(Component.text("Being built: " + c.building.name(), NamedTextColor.GOLD)));
-            buttons.add(button("Cancel " + c.building.name(), p, c, townHall, Action.MANAGE_HUTS, player -> {
-                c.cancelBuilding();
+        for (Builder b : c.builders()) {
+            Colony.Decoration d = b.decoration;
+            if (d == null) continue;
+            Colonist worker = c.worker(b);
+            body.add(text(Component.text("Being built" + (worker == null ? "" : " by " + worker.name) + ": " + d.name(), NamedTextColor.GOLD)));
+            buttons.add(button("Cancel " + d.name(), p, c, townHall, Action.MANAGE_HUTS, player -> {
+                c.cancelDecoration(d);
                 plugin.save(c);
                 builds(player, c, townHall);
             }));
@@ -492,7 +495,7 @@ public final class Menus {
             var at = d.origin();
             body.add(text(Component.text(d.name() + " at " + at.getBlockX() + " " + at.getBlockY() + " " + at.getBlockZ())));
             buttons.add(button("Cancel " + d.name(), p, c, townHall, Action.MANAGE_HUTS, player -> {
-                c.decorations.remove(d);
+                c.cancelDecoration(d);
                 plugin.save(c);
                 builds(player, c, townHall);
             }));
@@ -503,25 +506,30 @@ public final class Menus {
     }
 
     /**
-     * The colony's work orders, as its builder takes them (the mod's builder work order window): hut upgrades and
-     * removals first, then builds. In manual mode it takes only those assigned here (MANAGE_HUTS).
+     * The colony's work orders, as builders take them (the mod's builder work order window): hut upgrades and
+     * removals first, then builds. In manual mode this hut's builder takes only those assigned to it here (MANAGE_HUTS);
+     * one assigned to another Builder's Hut can be taken over.
      */
     void workOrders(Player p, Colony c, Hut builderHut) {
-        boolean manual = c.manualBuilder();
+        Builder self = c.builderAt(builderHut);
+        boolean manual = self != null && Colony.manual(self);
         List<DialogBody> body = new ArrayList<>();
         List<ActionButton> buttons = new ArrayList<>();
-        body.add(text(Component.text(manual ? "Manual: the builder takes only the work orders assigned to it here."
-                : "Automatic: the builder takes every work order in turn (switch to manual in its Settings).", NamedTextColor.GRAY)));
+        body.add(text(Component.text(manual ? "Manual: this builder takes only the work orders assigned to it here."
+                : "Automatic: this builder takes every work order in turn that it may (within 100 blocks and its hut's level; switch to manual in its Settings).", NamedTextColor.GRAY)));
         List<Object> orders = new ArrayList<>(c.workOrders);
         orders.addAll(c.decorations);
         for (Object o : orders) {
             String what = o instanceof Hut.WorkOrder w ? w.hut().type.title + ": " + w.what().toLowerCase()
                     : ((Colony.Decoration) o).name() + " at " + ((Colony.Decoration) o).origin().getBlockX() + " " + ((Colony.Decoration) o).origin().getBlockY()
                       + " " + ((Colony.Decoration) o).origin().getBlockZ();
-            boolean mine = c.assigned.contains(o);
-            body.add(text(Component.text(what + (manual && mine ? " (assigned)" : ""), manual && mine ? NamedTextColor.GREEN : NamedTextColor.WHITE)));
+            Hut to = c.claimed.get(o);
+            boolean mine = to == builderHut;
+            String note = mine ? " (assigned here)" : to != null ? " (assigned to the Builder's Hut at " + to.block.getX() + " " + to.block.getY() + " " + to.block.getZ() + ")" : "";
+            body.add(text(Component.text(what + note, mine ? NamedTextColor.GREEN : to != null ? NamedTextColor.GRAY : NamedTextColor.WHITE)));
             if (manual) buttons.add(button((mine ? "Unassign " : "Assign ") + what, p, c, builderHut, Action.MANAGE_HUTS, player -> {
-                if (!c.assigned.remove(o)) c.assigned.add(o);
+                if (c.claimed.get(o) == builderHut) c.claimed.remove(o);
+                else if (c.workOrders.contains(o) || c.decorations.contains(o)) c.claimed.put(o, builderHut);
                 plugin.save(c);
                 workOrders(player, c, builderHut);
             }));
@@ -752,11 +760,12 @@ public final class Menus {
      * carries and what the warehouse holds (the mod keeps a snapshot from clicking the warehouse; ours reads it live).
      * Sorted as the mod's: what is supplied first, then what the player has enough of, then what is short.
      */
-    public void resourceScroll(Player p, Colony c) {
+    public void resourceScroll(Player p, Colony c, Block builderHut) {
         List<DialogBody> body = new ArrayList<>();
-        Builder b = c.builder;
+        Hut h = builderHut == null ? null : c.hutAt(builderHut);
+        Builder b = h == null ? null : c.builderAt(h);
         Map<ItemStack, int[]> list = b == null ? Map.of() : b.resources();
-        if (b == null) body.add(text(Component.text("The colony has no Builder's Hut.", NamedTextColor.RED)));
+        if (b == null) body.add(text(Component.text("That Builder's Hut is gone: right-click a Builder's Hut to link the scroll again.", NamedTextColor.RED)));
         else {
             Colonist worker = c.worker(b);
             body.add(text(Component.text((worker == null ? "No builder" : worker.name) + ": "

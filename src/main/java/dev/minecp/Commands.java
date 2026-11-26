@@ -174,22 +174,28 @@ final class Commands implements TabExecutor {
 
     private boolean build(Player player, String[] a) {
         Colony c = plugin.colonyOf(player);
-        if (c == null || c.builder == null) {
+        Block looked = player.getTargetBlockExact(10);
+        Hut at = c == null ? null : c.hutAt(looked == null ? player.getLocation().getBlock() : looked);
+        dev.minecp.job.Builder own = at == null ? null : c.builderAt(at);
+        boolean cancel = a.length == 1 && a[0].equals("cancel"); // cancel picks a busy builder, a new build a free one
+        dev.minecp.job.Builder builder = c == null ? null : own != null ? own
+                : c.builders().stream().filter(b -> (b.order != null) == cancel).findFirst().orElse(c.builders().isEmpty() ? null : c.builders().getFirst());
+        if (builder == null) {
             player.sendMessage(red("You need a colony with a Builder's Hut."));
             return true;
         }
         if (a.length != 1) return false;
-        if (a[0].equals("cancel")) {
-            c.builder.cancel();
+        if (cancel) { // the builder whose hut you look at, else a busy one, else the first
+            builder.cancel();
             player.sendMessage("Build cancelled.");
             return true;
         }
         if (!admin(player)) return true; // any structure anywhere, past protection plugins: a test command
-        if (c.builder.order != null) {
-            player.sendMessage(red("The builder is busy. Use /colonies build cancel first."));
+        if (builder.order != null) {
+            player.sendMessage(red("Every builder is busy. Look at a Builder's Hut and use /colonies build cancel first."));
             return true;
         }
-        Block target = player.getTargetBlockExact(10);
+        Block target = looked;
         if (target == null) {
             player.sendMessage(red("Look at the block to build on."));
             return true;
@@ -199,7 +205,7 @@ final class Commands implements TabExecutor {
             player.sendMessage(red("No structure named " + a[0] + ". Save one with a structure block first."));
             return true;
         }
-        c.builder.start(order, null);
+        builder.start(order, null);
         plugin.save(c);
         player.sendMessage("Build of " + a[0] + " queued (" + order.steps.size() + " blocks). "
                 + "Put materials in the Builder's Hut. Huts are built from their own menus.");
@@ -438,7 +444,20 @@ final class Commands implements TabExecutor {
             if (w != null) w.sentTo = null;
             return true;
         }
-        if (!CITIZENS.contains(sub) || a.length == 0) return false;
+        if (!CITIZENS.contains(sub)) return false;
+        if (sub.equals("list") && (a.length == 0 || a[0].matches("\\d{1,6}"))) { // [page] (ours): the colony you stand in or own, as colony info
+            Colony c = here(p);
+            if (c == null) { p.sendMessage("You aren't in a colony and don't have one: /colonies citizens list <owner> [page]."); return true; }
+            if (!officer(p, c)) return true;
+            list(p, c, Bukkit.getOfflinePlayer(c.owner).getName(), a.length > 0 ? Integer.parseInt(a[0]) : 1);
+            return true;
+        }
+        if (a.length == 0) {
+            p.sendMessage(red("Usage: /colonies citizens " + sub + " <owner>" + (sub.equals("spawnNew") ? "" : " <citizen number>")
+                    + (sub.equals("teleport") || sub.equals("walk") ? " <x y z>" : sub.equals("modify") ? " saturation <=|+|-> <value>" : "")
+                    + ". Numbers are from /colonies citizens list."));
+            return true;
+        }
         Colony c = colonyNamed(p, a[0]);
         if (c == null) return true;
         if (sub.equals("spawnNew")) { // <owner> (CommandCitizenSpawnNew, operators): room or not

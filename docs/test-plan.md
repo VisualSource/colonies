@@ -63,7 +63,7 @@ Do these first, because they are committed but have never been run in game.
 - [ ] Upgrade a hut to its top level, check the repair option, and take it down. Its block comes back.
 - [ ] Decoration controller sign: right-click it to upgrade, repair or cancel. Breaking it follows the BREAK_HUTS rule.
 - [ ] Waypoints are recorded for built huts.
-- [ ] Hut levels are capped by the Town Hall's level, and tools are capped by the hut level.
+- [ ] A hut upgrade needs a Builder's Hut at that level (a Builder's Hut can always take its own next level); there's no Town Hall cap. Tools are capped by the hut level.
 - [ ] Repeat one build in each style. Blocks look right, with no missing or odd states. See the reports in `docs/structures/`.
 - [ ] Every hut recipe in the Hut recipes entry crafts the right hut item.
 

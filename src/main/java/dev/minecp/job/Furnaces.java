@@ -28,7 +28,8 @@ final class Furnaces {
     /** Burns in a furnace and isn't food (lava buckets would leave an empty bucket in the furnace). */
     static boolean isFuel(ItemStack i) {
         Material m = i.getType();
-        return m.isFuel() && !m.isEdible() && m != Material.LAVA_BUCKET;
+        return m.isFuel() && !m.isEdible() && m != Material.LAVA_BUCKET
+                && !dev.minecp.Items.ours(i); // not our sticks (Build Tool, scepters)
     }
 
     /**

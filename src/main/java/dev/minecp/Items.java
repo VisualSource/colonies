@@ -317,11 +317,20 @@ public final class Items implements Listener {
         }
     }
 
-    /** Binds a clipboard or resource scroll to a colony, and says which on the item. */
-    void bind(ItemStack item, dev.minecp.colony.Colony c) {
+    private static final NamespacedKey SCROLL_HUT = new NamespacedKey(MineCP.NAMESPACE, "resource_scroll_hut");
+
+    /** The Builder's Hut a resource scroll is linked to (the mod's: one builder), or null. */
+    Block scrollHut(ItemStack item) {
+        return placeAt(item.getPersistentDataContainer().get(SCROLL_HUT, PersistentDataType.STRING));
+    }
+
+    /** Binds a clipboard or resource scroll to a colony (a scroll to one of its Builder's Huts), and says which on the item. */
+    void bind(ItemStack item, dev.minecp.colony.Colony c, Block hut) {
         NamespacedKey key = isClipboard(item) ? clipboardKey : scrollKey;
+        boolean scroll = !isClipboard(item);
         item.editMeta(m -> {
             m.getPersistentDataContainer().set(key, PersistentDataType.STRING, c.owner.toString());
+            if (scroll) m.getPersistentDataContainer().set(SCROLL_HUT, PersistentDataType.STRING, place(hut));
             m.lore(List.of(Component.text((isClipboard(item) ? "Requests of " : "Builder of ") + c.name, NamedTextColor.GRAY)));
         });
     }
@@ -459,8 +468,14 @@ public final class Items implements Listener {
             }
     }
 
+    /** Our items are never burnt: the Build Tool and the scepters are sticks, which vanilla burns as fuel. */
+    @EventHandler(ignoreCancelled = true)
+    public void onBurn(org.bukkit.event.inventory.FurnaceBurnEvent e) {
+        if (ours(e.getFuel())) e.setCancelled(true);
+    }
+
     /** One of MineCP's own items. */
-    static boolean ours(ItemStack item) {
+    public static boolean ours(ItemStack item) {
         return item != null && item.getPersistentDataContainer().getKeys().stream().anyMatch(key -> key.getNamespace().equals(MineCP.NAMESPACE));
     }
 

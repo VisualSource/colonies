@@ -348,9 +348,20 @@ public abstract class Job {
         return 1;
     }
 
-    /** Whether its worker may leave the job now to be treated (the mod's canAIBeInterrupted: not a knight in a fight). */
+    /**
+     * Whether its worker may leave the job now, for free time, a meal or treatment (the mod's canAIBeInterrupted: its
+     * AI's state allows it). Jobs override it with the mod's states that don't.
+     */
     public boolean interruptible() {
         return true;
+    }
+
+    /**
+     * The mod's INVENTORY_FULL, which can't be interrupted: {@code going} to put a load in {@code into}. Ours: a worker
+     * waiting for room in a full chest may leave, or it could never eat or be treated.
+     */
+    static boolean unloading(boolean going, Inventory into) {
+        return going && into != null && into.firstEmpty() >= 0;
     }
 
     /** Walking speed multiplier for what it is doing now (1: walking; an undertaker may run to a grave). */
@@ -465,32 +476,44 @@ public abstract class Job {
         return false;
     }
 
-    /** Whether its worker keeps a tool of each kind and a stack of food when it hands things in (not a courier: all it carries is for others). */
+    /** Whether its worker keeps a tool of each kind and some food when it hands things in (not a courier: all it carries is for others). */
     boolean keepsOwn() {
         return true;
     }
 
+    private static final int FOOD_PER_LEVEL = 2; // the mod's keepFood: 2 food a hut level
+
+    /** The mod's keepFood: its worker keeps food to eat, except the cook's and the baker's (theirs is for others). */
+    boolean keepsFood() {
+        return hut.type != Hut.Type.COOK && hut.type != Hut.Type.BAKER;
+    }
+
     /**
-     * The slots of its worker's inventory it would hand in: all but one tool of each kind (the first; more, from a grave
-     * or caught as junk, go in), its first stack of food (to eat; ours: so a farmer's carrots still go to the hut) and
-     * what its job keeps on hand.
+     * What of its worker's inventory it would hand in, by slot, how many of each: all but one tool of each kind (the
+     * first; more, from a grave or caught as junk, go in), up to 2 food a hut level that it may eat (the mod's keepFood)
+     * and what its job keeps on hand.
      */
-    private List<Integer> handInSlots() {
+    private Map<Integer, Integer> handInSlots() {
         Inventory bag = bag();
-        List<Integer> out = new ArrayList<>();
+        Map<Integer, Integer> out = new java.util.LinkedHashMap<>();
         if (bag == null) return out;
         startHandIn();
-        boolean food = false;
+        int food = keepsOwn() && keepsFood() ? FOOD_PER_LEVEL * hut.level : 0;
         java.util.Set<Tool> tools = java.util.EnumSet.noneOf(Tool.class);
         for (int i = 0; i < bag.getSize(); i++) {
             ItemStack it = bag.getItem(i);
             if (it == null || it.isEmpty()) continue;
+            int give = it.getAmount();
             if (keepsOwn()) {
                 Tool kind = Tool.kindOf(it);
                 if (kind != null && tools.add(kind) || keepsOnHand(it)) continue;
-                if (!food && dev.minecp.citizen.Food.isMeal(it)) { food = true; continue; }
+                if (food > 0 && dev.minecp.citizen.Food.isMeal(it) && canEat(it)) {
+                    int kept = Math.min(food, give);
+                    food -= kept;
+                    give -= kept;
+                }
             }
-            out.add(i);
+            if (give > 0) out.put(i, give);
         }
         return out;
     }
@@ -499,7 +522,12 @@ public abstract class Job {
     List<ItemStack> unload() {
         Inventory bag = bag();
         List<ItemStack> out = new ArrayList<>();
-        for (int i : handInSlots()) { out.add(bag.getItem(i)); bag.setItem(i, null); }
+        for (var e : handInSlots().entrySet()) {
+            ItemStack it = bag.getItem(e.getKey());
+            out.add(it.asQuantity(e.getValue()));
+            it.subtract(e.getValue());
+            bag.setItem(e.getKey(), it.isEmpty() ? null : it);
+        }
         return out;
     }
 
@@ -507,7 +535,7 @@ public abstract class Job {
     Map<Material, Integer> holding() {
         Map<Material, Integer> out = new java.util.EnumMap<>(Material.class);
         Inventory bag = bag();
-        for (int i : handInSlots()) out.merge(bag.getItem(i).getType(), bag.getItem(i).getAmount(), Integer::sum);
+        handInSlots().forEach((i, n) -> out.merge(bag.getItem(i).getType(), n, Integer::sum));
         return out;
     }
 
@@ -518,13 +546,13 @@ public abstract class Job {
     int handIn(Material m, int n) {
         Inventory chest = chest(), bag = bag();
         if (chest == null || bag == null) return n;
-        for (int i : handInSlots()) {
-            ItemStack it = bag.getItem(i);
+        for (var e : handInSlots().entrySet()) {
+            ItemStack it = bag.getItem(e.getKey());
             if (n <= 0 || it.getType() != m) continue;
-            ItemStack give = it.asQuantity(Math.min(n, it.getAmount()));
+            ItemStack give = it.asQuantity(Math.min(n, e.getValue()));
             int left = chest.addItem(give.clone()).values().stream().mapToInt(ItemStack::getAmount).sum(), moved = give.getAmount() - left;
             it.subtract(moved);
-            bag.setItem(i, it.isEmpty() ? null : it);
+            bag.setItem(e.getKey(), it.isEmpty() ? null : it);
             n -= moved;
             if (left > 0) break; // the chest is full
         }

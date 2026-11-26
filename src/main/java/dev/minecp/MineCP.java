@@ -178,8 +178,9 @@ public final class MineCP extends JavaPlugin implements Listener {
             boolean leaving = shows(was, p), entering = shows(now, p);
             if (!leaving && !entering) continue;
             // one title: straight from one colony into another names both (the mod sends both messages)
-            p.showTitle(net.kyori.adventure.title.Title.title(Component.text(entering ? now.name : was.name, NamedTextColor.GOLD),
-                    Component.text(entering ? "Entering colony" + (leaving ? " (leaving " + was.name + ")" : "") : "Leaving colony")));
+            // the short line big, the colony's name (a player's, which can be long) in the smaller subtitle
+            p.showTitle(net.kyori.adventure.title.Title.title(Component.text(entering ? "Entering colony" : "Leaving colony", NamedTextColor.GOLD),
+                    Component.text(entering ? now.name + (leaving ? " (leaving " + was.name + ")" : "") : was.name)));
         }
     }
 
@@ -264,14 +265,13 @@ public final class MineCP extends JavaPlugin implements Listener {
         c.milestones = Advancements.forColony(c);
         // A removal order finished, maybe with nobody near: its chest's contents and the hut item go to the warehouse,
         // then the Builder's Hut chest; only what fits in neither drops, at the Builder's Hut, where someone will look.
-        c.onTakenDown = hut -> {
+        c.onTakenDown = (hut, builderHut) -> {
             List<ItemStack> left = new ArrayList<>(Job.takeContents(hut.block));
             left.add(items.hutItem(hut.type));
             hut.block.setType(Material.AIR);
             c.removeHut(hut);
             var wh = c.warehouse(); // the hut just removed is no longer the colony's warehouse
             if (wh != null) left = wh.store(left);
-            Block builderHut = c.builder != null ? c.builder.hut.block : hut.block;
             if (builderHut.getState(false) instanceof Container ct)
                 left = new ArrayList<>(ct.getInventory().addItem(left.toArray(ItemStack[]::new)).values());
             var at = builderHut.getLocation().toCenterLocation();
@@ -453,7 +453,7 @@ public final class MineCP extends JavaPlugin implements Listener {
                 p.sendMessage(Component.text("A resource scroll links only to a Builder's Hut.", NamedTextColor.RED));
                 return;
             }
-            items.bind(held, c);
+            items.bind(held, c, hut.block);
             p.sendMessage(Component.text(items.isClipboard(held) ? "Noting the requests of " + c.name + " on the clipboard."
                     : "Linked to the Builder's Hut of " + c.name + ".", NamedTextColor.GREEN));
             return;
@@ -510,7 +510,7 @@ public final class MineCP extends JavaPlugin implements Listener {
         }
         if (!mayAccess(p, c)) return;
         if (clipboard) menus.clipboard(p, c);
-        else menus.resourceScroll(p, c);
+        else menus.resourceScroll(p, c, items.scrollHut(held));
     }
 
     /** Right-click a citizen for its menu (the mod's citizen window), or a visitor to recruit it. */
@@ -526,6 +526,8 @@ public final class MineCP extends JavaPlugin implements Listener {
             if (!mayAccess(p, c)) return;
             // a golden apple or poisonous food is given instead of opening the menu (sneak to open it anyway), as the mod's
             if (w != null && !p.isSneaking() && c.sickness.interact(p, w, p.getInventory().getItemInMainHand())) return;
+            // food is eaten at once (a child takes only a cookie), as the mod's; sneak to open the menu instead
+            if (w != null && !p.isSneaking() && dev.minecp.citizen.Meal.fedBy(p, c, w, p.getInventory().getItemInMainHand())) return;
             (w != null ? w : v.colonist).talkTo(p);
             if (w != null) menus.citizen(p, c, w);
             else menus.visitor(p, c, v);

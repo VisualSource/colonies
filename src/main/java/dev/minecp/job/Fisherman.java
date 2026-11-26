@@ -76,6 +76,12 @@ public final class Fisherman extends Job {
                 + ponds.size() + " of up to " + MAX_PONDS + ".", NamedTextColor.GRAY));
     }
 
+    /** The mod's FISHERMAN_START_FISHING (its line out) and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return state != State.CAST && state != State.WAIT && !unloading(state == State.TO_HUT, chest());
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {

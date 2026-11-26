@@ -78,10 +78,9 @@ final class Decorations implements Listener {
             }
             Colony.Decoration ordered = ordered(c, orders.keySet()); // one order at a time, as in the mod
             if (ordered != null) {
-                body.add(Dialogs.text(Component.text(ordered.equals(c.building) ? "The builder is on it." : "Waiting for the builder.", NamedTextColor.GOLD)));
+                body.add(Dialogs.text(Component.text(c.buildingIt(ordered) != null ? "A builder is on it." : "Waiting for a builder.", NamedTextColor.GOLD)));
                 buttons.add(button(ordered.structure().equals(now.structure()) ? "Cancel repair" : "Cancel build", p, b, c, () -> {
-                    if (ordered.equals(c.building)) c.cancelBuilding();
-                    else c.decorations.remove(ordered);
+                    c.cancelDecoration(ordered);
                     return null;
                 }));
             } else orders.forEach((d, o) -> buttons.add(button(d.structure().equals(now.structure()) ? "Repair" : "Upgrade to level " + d.name().substring(d.name().length() - 1), p, b, c,
@@ -93,7 +92,7 @@ final class Decorations implements Listener {
 
     /** Which of these the builder is on or will be, or null. */
     private static Colony.Decoration ordered(Colony c, Collection<Colony.Decoration> orders) {
-        for (Colony.Decoration d : orders) if (d.equals(c.building) || c.decorations.contains(d)) return d;
+        for (Colony.Decoration d : orders) if (c.buildingIt(d) != null || c.decorations.contains(d)) return d;
         return null;
     }
 

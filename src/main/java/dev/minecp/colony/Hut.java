@@ -54,7 +54,7 @@ public final class Hut {
         TOWN_HALL("Town Hall", Material.BELL, "fundamentals/townhall", "townhall", "Place to found a colony",
                 null, true), // its recipe has the Build Tool in the middle (Items)
         BUILDER("Builder's Hut", Material.CHEST, "fundamentals/builder", "builderhut", "Its chest holds building materials",
-                () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", Builder::new, true),
+                () -> new RecipeChoice.MaterialChoice(Tag.WOODEN_DOORS), "Builder", Builder::new, false), // any number, as in the mod
         HOUSE("House", Material.CHEST, "fundamentals/residence", "house", "Room for more citizens",
                 () -> new RecipeChoice.MaterialChoice(Material.TORCH), false),
         LUMBERJACK("Lumberjack's Hut", Material.CHEST, "fundamentals/lumberjack", "lumberjack", "A citizen cuts and replants trees nearby",

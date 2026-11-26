@@ -128,9 +128,23 @@ final class Routine {
                 drop += Math.min(drop / 2, c.takeEffort()); // its work since the last drop, at most half again (the mod's)
                 if (c.child) drop /= 2;                     // the mod's children eat half as much
                 c.saturation = Math.max(0, c.saturation - drop);
+                if (drop > 0) c.justAte = false; // the mod's decreaseSaturation
             }
         }
         c.setStarving(c.saturation <= 0);
-        if (c.meal == null && c.saturation < Food.LOW_SATURATION && --c.foodRetry <= 0) c.meal = new Meal(c);
+        if (c.meal == null && !c.justAte && wantsMeal(c, job) && --c.foodRetry <= 0) c.meal = new Meal(c);
+    }
+
+    static final double RESTAURANT_LIMIT = 2.5; // EntityAIEatTask.RESTAURANT_LIMIT
+    private static final double SEEK_DOCTOR_HEALTH = 6; // CitizenDiseaseHandler.SEEK_DOCTOR_HEALTH
+
+    /**
+     * The mod's shouldEat: at 2.5 saturation or less, or under 6 when its health is under 6 too. The cook (it eats at its
+     * work) goes 1 time in 200 a check, once a second here.
+     */
+    private static boolean wantsMeal(Colonist c, Job job) {
+        if (c.saturation >= Food.MAX_SATURATION) return false;
+        if (job instanceof dev.minecp.job.Cook && (c.hungerTicks % 20 != 0 || java.util.concurrent.ThreadLocalRandom.current().nextInt(200) > 0)) return false;
+        return c.saturation <= RESTAURANT_LIMIT || c.saturation < Food.LOW_SATURATION && c.health < SEEK_DOCTOR_HEALTH;
     }
 }

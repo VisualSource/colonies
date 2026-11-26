@@ -233,6 +233,14 @@ public final class Miner extends Job {
 
     // ---- the work ----------------------------------------------------------------------------------------
 
+    private boolean placing; // at its level or node's structure, with what it needs
+
+    /** The mod's miner builds its shaft and nodes as structures: LOAD_STRUCTURE, BUILDING_STEP, MINE_BLOCK and INVENTORY_FULL can't be interrupted; its own digging states and NEEDS_ITEM can. */
+    @Override
+    public boolean interruptible() {
+        return !(order != null && placing) && !unloading(delivering || loot() >= DELIVER_AT || bagFull() && loot() > 0, chest());
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {
@@ -384,6 +392,7 @@ public final class Miner extends Job {
     }
 
     private void workOrder(Colonist w) {
+        placing = true;
         BuildOrder.Step step = order.next(b -> b.getType() == Material.LADDER && b.getX() == ladder.getX() && b.getZ() == ladder.getZ());
         if (step == null) { finishOrder(); return; }
         Block b = step.block();
@@ -398,7 +407,7 @@ public final class Miner extends Job {
         }
         if (step.isClear()) return;
         Material cost = step.cost();
-        if (cost != null && !supplyFor(w, cost)) return; // materials first: fetching them means a trip up to the hut
+        if (cost != null && !supplyFor(w, cost)) { placing = false; return; } // materials first: fetching them means a trip up to the hut
         if (!near(w, b)) return;
         place(w, b, step.data(), cost);
     }

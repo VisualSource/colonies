@@ -31,7 +31,7 @@ import java.util.UUID;
 /**
  * The mod's Forest Tool, Hive Tool and Permission Tool (ItemScepterLumberjack, ItemScepterBeekeeper,
  * ItemScepterPermission), the mod's rules unless noted: no recipes; a hut's menu hands one out (MANAGE_HUTS), the
- * town hall's permissions page the last (EDIT_PERMISSIONS). A breeze rod with a tag stands in for each model.
+ * town hall's permissions page the last (EDIT_PERMISSIONS). A stick with a tag stands in for each model.
  */
 public final class Scepters implements Listener {
     /** The three tools: their tag, name, hint, and the pack's model. */
@@ -63,7 +63,7 @@ public final class Scepters implements Listener {
     // ---- the items ------------------------------------------------------------------------------------------------
 
     private static ItemStack item(Kind k, String target) {
-        ItemStack item = new ItemStack(Material.BREEZE_ROD);
+        ItemStack item = new ItemStack(Material.STICK);
         item.editMeta(m -> {
             m.itemName(Component.text(k.title, NamedTextColor.GOLD));
             m.lore(List.of(Component.text(k.hint, NamedTextColor.GRAY)));

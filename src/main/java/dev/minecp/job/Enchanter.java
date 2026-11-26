@@ -198,6 +198,12 @@ public final class Enchanter extends Crafter {
         return lines;
     }
 
+    /** The mod's ENCHANT and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return state != State.ENCHANT && !(state == State.DUMP && unloading(true, chest()));
+    }
+
     /** With no scroll asked for (the crafter's work comes first), it studies or enchants. */
     @Override
     boolean otherWork(Colonist w, org.bukkit.inventory.Inventory chest) {

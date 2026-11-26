@@ -86,6 +86,14 @@ public final class Beekeeper extends Job {
         return hut.setting(Settings.BEE_MODE);
     }
 
+    private boolean breedingNow; // on its way to a bee with a flower
+
+    /** The mod's HERDER_BREED (bees too) and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return !breedingNow && !unloading(actions >= DUMP_AFTER || bagFull() && loaded(), chest());
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {
@@ -94,6 +102,7 @@ public final class Beekeeper extends Job {
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
+        breedingNow = false;
         cooldown = DECIDE_TICKS + 99 / skill(1) - 1;
         if (actions >= DUMP_AFTER || bagFull() && loaded()) {
             if (!atHut(w)) { w.setStatus("Beekeeper: bringing in the harvest"); goToHut(w); return; }
@@ -185,6 +194,7 @@ public final class Beekeeper extends Job {
             fetch(this::listed, FLOWERS_WANTED);
             return true;
         }
+        breedingNow = true;
         w.setStatus("Beekeeper: breeding bees");
         if (!near(w, next.getLocation())) { w.walk(next.getLocation()); if (other != null) mate = null; return true; }
         w.swing();

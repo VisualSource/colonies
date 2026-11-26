@@ -155,6 +155,18 @@ public final class Quarrier extends Job {
         return s.isClear() ? null : s.item();
     }
 
+    private boolean digging; // at a step of the pit, with what it needs
+
+    /** The mod's quarrier builds its pit as a structure: MINE_BLOCK, BUILDING_STEP and INVENTORY_FULL can't be interrupted; NEEDS_ITEM can. */
+    @Override
+    public boolean interruptible() {
+        return !digging && !unloading(quarry != null && (dug >= hut.level * MAX_BLOCKS_MINED || bagFull() && loaded()), quarryChest());
+    }
+
+    private org.bukkit.inventory.Inventory quarryChest() {
+        return quarry != null && quarry.block.getState(false) instanceof org.bukkit.block.Container c ? c.getInventory() : null;
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {
@@ -163,6 +175,7 @@ public final class Quarrier extends Job {
             return;
         }
         if (w.isMoving() || --cooldown > 0) return;
+        digging = false;
         if (quarry() == null) {
             Hut q = freeQuarry();
             if (q == null) { idle(w, "Assign it to a quarry, or place one: every quarry is dug out or has its quarrier.", 200, hut.block); return; }
@@ -196,6 +209,7 @@ public final class Quarrier extends Job {
             if (fetch(need::isSimilar, need.getMaxStackSize()) == 0) { idle(w, "Waiting for " + name(need.getType()) + " in the Miner's Hut chest.", 100, hut.block); return; }
         }
         note = null;
+        digging = true;
         w.setStatus("Quarrier: digging");
         if (w.location().getWorld() != b.getWorld() || w.location().distance(b.getLocation().toCenterLocation()) > REACH) { w.goBeside(b); return; }
         work(w, step, tool, need);

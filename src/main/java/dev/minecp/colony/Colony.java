@@ -32,7 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * A player's colony: its huts (the town hall first), citizens, and the builder's queue of hut upgrades.
- * Rules: levels above 1 need the town hall at that level or higher; housing room is the beds of houses and taverns.
+ * Rules: a builder builds only up to its own hut's level, as in the mod (no Town Hall cap); housing room is the beds of houses and taverns.
  * A new colony has nobody: the first {@link #STARTING_CITIZENS} move in one by one at the town hall, as in the mod;
  * after them the colony grows only by children born in houses with room, and by recruiting the taverns' visitors.
  */
@@ -58,8 +58,7 @@ public final class Colony {
     public final List<Hut.WorkOrder> workOrders = new ArrayList<>(); // waiting for the builder, oldest first
     /** A build without a hut, queued with the build tool (the mod's decoration work order): which, where, turned how. */
     public record Decoration(String structure, String name, Location origin, StructureRotation rotation, boolean mirror) {}
-    public final List<Decoration> decorations = new ArrayList<>(); // waiting for the builder, after the huts' work orders
-    public Decoration building; // the build without a hut the builder works on; saved
+    public final List<Decoration> decorations = new ArrayList<>(); // waiting for a builder, after the huts' work orders
     public final List<Job> jobs = new ArrayList<>(); // one per worker (a barracks tower has one a level)
     public final List<Grave> graves = new ArrayList<>(); // where citizens died, until dug up or decayed
     /** Blocks of these kinds, and these spots, anyone but the hostile may use (the mod's free blocks and positions; the permission tool). Saved. */
@@ -67,18 +66,54 @@ public final class Colony {
     public final java.util.Set<Block> freePositions = new java.util.LinkedHashSet<>();
     /** Waypoints its builder built (the mod's colony waypoints): recorded, for citizens' long walks later. Saved. */
     public final java.util.Set<Block> waypoints = new java.util.LinkedHashSet<>();
-    /** Work orders and builds assigned to the builder, which in manual mode takes only those (the mod's claimed work orders). Saved with them. */
-    public final java.util.Set<Object> assigned = new java.util.HashSet<>();
+    /**
+     * Queued work orders and builds a player assigned to a Builder's Hut, by that hut (the mod's claimed work orders):
+     * only its builder takes them. Saved with them.
+     */
+    public final Map<Object, Hut> claimed = new HashMap<>();
 
-    /** The Builder's Hut takes only work orders assigned to it (its "manual" work order mode). */
-    public boolean manualBuilder() {
-        return builder != null && Settings.MANUAL.equals(builder.hut.setting(Settings.WORK_MODE));
+    /** The colony's builders, one per Builder's Hut (the mod allows any number), oldest hut first. */
+    public List<Builder> builders() {
+        List<Builder> out = new ArrayList<>();
+        for (Job j : jobs) if (j instanceof Builder b) out.add(b);
+        return out;
     }
 
-    /** The mod's completion suffix in manual mode, once nothing more is assigned. */
-    private String nothingAssigned() {
-        return manualBuilder() && workOrders.stream().noneMatch(assigned::contains) && decorations.stream().noneMatch(assigned::contains)
-                ? " It has no more work orders assigned." : "";
+    /** The builder of this Builder's Hut, or null. */
+    public Builder builderAt(Hut h) {
+        for (Job j : jobs) if (j instanceof Builder b && b.hut == h) return b;
+        return null;
+    }
+
+    /** Its builder takes only work orders assigned to it (its hut's "manual" work order mode). */
+    public static boolean manual(Builder b) {
+        return Settings.MANUAL.equals(b.hut.setting(Settings.WORK_MODE));
+    }
+
+    /** The mod's completion suffix in manual mode, once nothing more is assigned to that builder. */
+    private String nothingAssigned(Builder b) {
+        return manual(b) && !claimed.containsValue(b.hut) ? " It has no more work orders assigned." : "";
+    }
+
+    /** The mod's WorkOrderBuilding.MAX_DISTANCE_SQ: a builder takes hut work at most 100 blocks from its own hut. */
+    static final double BUILDER_RANGE_SQ = 100 * 100;
+
+    /**
+     * Whether a builder may take this work order (the mod's canBuild): a hut's work up to its own hut's level, unless
+     * its hut is at the top level or it is its own hut, within 100 blocks of its hut; any build once its hut is built.
+     */
+    public static boolean canTake(Builder b, Object order) {
+        if (order instanceof Decoration) return b.hut.level > 0; // the mod's WorkOrderDecoration: no distance
+        Hut.WorkOrder w = (Hut.WorkOrder) order;
+        return levelAllows(b, w.hut(), w.level()) && near(b, w.hut());
+    }
+
+    private static boolean levelAllows(Builder b, Hut hut, int level) {
+        return b.hut.level >= level || b.hut.level >= Hut.MAX_LEVEL || hut == b.hut;
+    }
+
+    private static boolean near(Builder b, Hut hut) {
+        return b.hut.block.getWorld() == hut.block.getWorld() && b.hut.block.getLocation().distanceSquared(hut.block.getLocation()) <= BUILDER_RANGE_SQ;
     }
     /** A plantation field (the mod's PlantationField): its field block (its building's hut block for its own plots), its kind, and its plots. */
     public record PlantField(Block block, dev.minecp.job.Plantation.Kind kind, List<Block> plots) {}
@@ -91,7 +126,6 @@ public final class Colony {
     public boolean freeToUse(Block b) {
         return freeBlocks.contains(b.getType()) || freePositions.contains(b);
     }
-    public Builder builder; // the builder's job (also in jobs); null until a Builder's Hut is placed
     public static final String DEFAULT_STYLE = "medievaloak";
     public final Flag flag = new Flag();
     public final int[] mapIds = {-1, -1}; // its near and far Colony Map's numbers (MapBorders), -1 until made
@@ -155,7 +189,7 @@ public final class Colony {
     }
 
     public Milestones milestones = new Milestones() {};
-    public java.util.function.Consumer<Hut> onTakenDown = h -> {}; // a removal order finished: the plugin removes the hut
+    public java.util.function.BiConsumer<Hut, org.bukkit.block.Block> onTakenDown = (h, by) -> {}; // a removal order finished: the plugin removes the hut
     private java.util.Set<Long> claims;
 
     Colony(UUID owner, String name, Block townHall, int townHallLevel) {
@@ -415,7 +449,7 @@ public final class Colony {
     /** Whether the hut can take a worker now (the mod's canAssignCitizens): built to level 1, or the Builder's Hut. */
     public boolean canHire(Job j) {
         if (j.hut.type == Hut.Type.MINER && jobsAt(j.hut).stream().anyMatch(o -> o != j && worker(o) != null)) return false; // a miner or a quarrier, not both
-        return j.hut.type.worker != null && (j.hut.level >= 1 || j == builder);
+        return j.hut.type.worker != null && (j.hut.level >= 1 || j instanceof Builder);
     }
 
     /**
@@ -481,7 +515,7 @@ public final class Colony {
         int own = (int) jobsAt(hut).stream().filter(j -> !(j instanceof dev.minecp.job.Stablemaster || j instanceof dev.minecp.job.Quarrier)).count();
         for (int n = own; n < Math.max(1, hut.type.workers(hut.level)); n++) {
             Job job = hut.type.job.apply(hut, this);
-            if (job instanceof Builder b) wire(builder = b);
+            if (job instanceof Builder b) wire(b);
             jobs.add(job);
         }
         // a Miner's Hut hires a miner or a quarrier (the mod's two work modules; one worker in all)
@@ -587,15 +621,13 @@ public final class Colony {
 
     public void removeHut(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
-        if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
+        for (Builder b : builders()) if (b.work != null && b.work.hut() == hut) b.cancel();
+        claimed.values().removeIf(h -> h == hut); // its builder's assigned work is free for the others (the mod's unclaim)
         for (Job job : jobsAt(hut)) {
             job.dropCarried();
             jobs.remove(job);
             reindexWorkers();
-            if (job == builder) {
-                builder = null;
-                if (building != null) { decorations.addFirst(building); building = null; } // built again by the next builder
-            }
+            if (job instanceof Builder b && b.decoration != null) decorations.addFirst(b.decoration); // built by another builder
         }
         for (Hut tower : towers(hut)) { // the mod clears its towers' hut blocks
             removeHut(tower);
@@ -618,6 +650,8 @@ public final class Colony {
     /** The builder tells the colony when an order is done, and never builds over a hut block. */
     private void wire(Builder b) {
         b.onFinish((done, order) -> {
+            Decoration built = b.decoration;
+            b.decoration = null;
             // A chest that already stood in a rack spot (kept rather than broken, so nothing in it is lost) becomes a rack.
             for (BuildOrder.Step s : order.steps) if (s.rack() && s.block().getType() == s.data().getMaterial()) Rack.tag(s.block());
             waypoints.addAll(order.waypoints); // the mod's: a builder's waypoint is registered, not left as a block
@@ -639,16 +673,15 @@ public final class Colony {
                     tell("A field came with the building: right-click its hay bale to choose a crop.");
                 }
             if (done == null) {
-                log.info(where() + ": the builder finished " + (building != null ? building.name() : order.structure) + ".");
+                log.info(where() + ": the builder finished " + (built != null ? built.name() : order.structure) + ".");
                 DecorationController.place(order);
-                tell("Your builder finished " + (building != null ? "the " + building.name().toLowerCase() : "the build") + "." + nothingAssigned());
-                building = null;
+                tell("Your builder finished " + (built != null ? "the " + built.name().toLowerCase() : "the build") + "." + nothingAssigned(b));
                 return;
             }
             if (done.remove()) {
                 log.info(where() + ": the builder took down the " + done.hut().type.title + ".");
-                tell("Your builder took down the " + done.hut().type.title + "." + nothingAssigned());
-                onTakenDown.accept(done.hut());
+                tell("Your builder took down the " + done.hut().type.title + "." + nothingAssigned(b));
+                onTakenDown.accept(done.hut(), b.hut.block); // the Builder's Hut that took it down
                 return;
             }
             done.hut().level = done.level();
@@ -659,7 +692,7 @@ public final class Colony {
             assignJobs(); // a hut finished at level 1 hires now
             claimsChanged(); // a higher level claims more
             log.info(where() + ": " + done.hut().type.title + " is now level " + done.level() + ".");
-            tell("Your " + done.hut().type.title + " is now level " + done.level() + "." + nothingAssigned());
+            tell("Your " + done.hut().type.title + " is now level " + done.level() + "." + nothingAssigned(b));
             milestones.built(done.hut().type, done.level());
         });
         b.protect = block -> isHutBlock(block) || DecorationController.is(block); // the mod's IBuilderUndestroyable
@@ -706,7 +739,7 @@ public final class Colony {
 
     /** The queued or in-progress upgrade of this hut, or null. */
     public Hut.WorkOrder upgradeOf(Hut hut) {
-        if (builder != null && builder.work != null && builder.work.hut() == hut) return builder.work;
+        for (Builder b : builders()) if (b.work != null && b.work.hut() == hut) return b.work;
         for (Hut.WorkOrder w : workOrders) if (w.hut() == hut) return w;
         return null;
     }
@@ -745,18 +778,18 @@ public final class Colony {
         h.tape.clear();
     }
 
-    /** Queues the hut's next level for the builder. @return why it can't, or null when queued. */
+    /** Queues the hut's next level for a builder. @return why it can't, or null when queued. */
     public String requestUpgrade(Hut hut, ClaimMap claims) {
         int next = hut.level + 1;
-        if (builder == null) return "Place a Builder's Hut first: the builder builds every hut.";
+        List<Builder> builders = builders();
+        if (builders.isEmpty()) return "Place a Builder's Hut first: builders build every hut.";
         if (hut.level >= hut.type.maxLevel()) return "The " + hut.type.title + " is at the highest level.";
         if (upgradeOf(hut) != null) return "That upgrade is already queued.";
-        if (hut.type != Hut.Type.TOWN_HALL && next > 1 && next > townHall().level)
-            return "Upgrade the Town Hall to level " + next + " first.";
-        // The mod's builder takes only work up to its hut's level, unless its hut is at the top level or it is its own hut.
-        // Ours: refused here with one builder, where the mod queues it for a builder that can take it.
-        if (hut != builder.hut && builder.hut.level < Hut.MAX_LEVEL && next > builder.hut.level)
-            return "The builder builds only up to its own hut's level: upgrade the Builder's Hut to level " + next + " first.";
+        // The mod's: refused if no builder could ever take it (its hut's level), or none is within 100 blocks.
+        if (builders.stream().noneMatch(b -> levelAllows(b, hut, next)))
+            return "A builder builds only up to its own hut's level: upgrade a Builder's Hut to level " + next + " first.";
+        if (builders.stream().noneMatch(b -> near(b, hut)))
+            return "No Builder's Hut is within 100 blocks of the " + hut.type.title + ".";
         if (hut.type == Hut.Type.BARRACKS_TOWER && (hut.barracks == null || next > hut.barracks.level)) // the mod's
             return "Upgrade the Barracks first: its towers go no higher than it.";
         if (!BuildOrder.exists(hut.structure(style, next))) return "Structure " + hut.structure(style, next) + " not found.";
@@ -775,7 +808,7 @@ public final class Colony {
      * left of it, then the hut is removed and its item dropped. @return why it can't, or null when queued.
      */
     public String requestRemoval(Hut hut) {
-        if (builder == null) return "Place a Builder's Hut first: the builder takes buildings down too.";
+        if (builders().isEmpty()) return "Place a Builder's Hut first: builders take buildings down too.";
         if (!hut.type.removable()) return "Break the hut block to remove the " + hut.type.title + ".";
         if (hut.level == 0) return "Nothing is built there: break the hut block to remove it.";
         if (upgradeOf(hut) != null) return "Cancel its queued work first.";
@@ -785,7 +818,7 @@ public final class Colony {
 
     public void cancelUpgrade(Hut hut) {
         workOrders.removeIf(w -> w.hut() == hut);
-        if (builder != null && builder.work != null && builder.work.hut() == hut) builder.cancel();
+        for (Builder b : builders()) if (b.work != null && b.work.hut() == hut) b.cancel();
     }
 
     /** A message to every online member allowed colony messages (the mod's RECEIVE_MESSAGES). */
@@ -796,13 +829,7 @@ public final class Colony {
 
     public void tick() {
         reindexWorkers(); // a change made elsewhere is seen from the next tick on
-        if (builder != null && builder.order == null) { // the next work order, or in manual mode the next one assigned to it
-            assigned.removeIf(o -> !workOrders.contains(o) && !decorations.contains(o)); // cancelled or started: not assigned any more
-            Hut.WorkOrder w = workOrders.stream().filter(o -> !manualBuilder() || assigned.contains(o)).findFirst().orElse(null);
-            Decoration d = w != null ? null : decorations.stream().filter(o -> !manualBuilder() || assigned.contains(o)).findFirst().orElse(null);
-            if (w != null) startWorkOrder(w);
-            else if (d != null) startDecoration(d);
-        }
+        assignWork();
         if (++colonyTick % COLONY_TICK == 0) {
             boolean moving = setting(Settings.MOVE_IN); // off: no new citizens, children or visitors (the mod's MOVE_IN)
             if (moving && colonists.size() < STARTING_CITIZENS && (moveIn -= COLONY_TICK + 60 * townHall().level) <= 0) { // also refills them if they die, as in the mod
@@ -944,28 +971,60 @@ public final class Colony {
         return null;
     }
 
-    /** Queues a build without a hut for the builder. @return why it can't, or null when queued. */
+    /** Queues a build without a hut for a builder. @return why it can't, or null when queued. */
     public String queueDecoration(Decoration d) {
-        if (builder == null) return "Place a Builder's Hut first: the builder builds it.";
+        if (builders().isEmpty()) return "Place a Builder's Hut first: builders build it.";
         decorations.add(d);
         return null;
     }
 
-    /** Stops the build without a hut the builder is on, if it is on one. */
-    public void cancelBuilding() {
-        if (builder != null && builder.order != null && builder.work == null) builder.cancel();
-        building = null;
+    /** The builder working on this build without a hut, or null. */
+    public Builder buildingIt(Decoration d) {
+        for (Builder b : builders()) if (d.equals(b.decoration)) return b;
+        return null;
     }
 
-    private void startDecoration(Decoration d) {
+    /** Cancels a build without a hut, queued or under way. */
+    public void cancelDecoration(Decoration d) {
+        decorations.remove(d);
+        claimed.remove(d);
+        Builder b = buildingIt(d);
+        if (b != null) b.cancel();
+    }
+
+    /**
+     * Hands out queued work (the mod's WorkManager.onColonyTick): hut work first, then builds, oldest first; one a player
+     * assigned goes to its builder once that one is free, any other to the first free builder in automatic mode that may take it.
+     */
+    private void assignWork() {
+        claimed.keySet().removeIf(o -> !workOrders.contains(o) && !decorations.contains(o)); // cancelled: not assigned any more
+        List<Builder> free = new ArrayList<>();
+        for (Builder b : builders()) if (b.order == null && worker(b) != null) free.add(b); // the mod's: a hut with its builder
+        if (free.isEmpty()) return;
+        List<Object> queue = new ArrayList<>(workOrders);
+        queue.addAll(decorations);
+        for (Object o : queue) {
+            Hut to = claimed.get(o);
+            Builder b = null;
+            for (Builder f : free) if (to != null ? f.hut == to : !manual(f) && canTake(f, o)) { b = f; break; }
+            if (b == null) continue;
+            free.remove(b);
+            claimed.remove(o);
+            if (o instanceof Hut.WorkOrder w) startWorkOrder(b, w);
+            else startDecoration(b, (Decoration) o);
+            if (free.isEmpty()) return;
+        }
+    }
+
+    private void startDecoration(Builder b, Decoration d) {
         decorations.remove(d);
         BuildOrder o = BuildOrder.create(d.structure(), d.origin(), d.rotation(), d.mirror(), null);
         if (o == null) { tell("Structure " + d.structure() + " not found; the " + d.name().toLowerCase() + " was skipped."); return; }
-        builder.start(o, null);
-        building = d;
+        b.start(o, null);
+        b.decoration = d;
     }
 
-    private void startWorkOrder(Hut.WorkOrder w) {
+    private void startWorkOrder(Builder b, Hut.WorkOrder w) {
         workOrders.remove(w);
         String structure = w.hut().structure(style, w.level());
         // A hut building is anchored on its hut block, turned as chosen with the build tool (by hand: the block's facing).
@@ -973,7 +1032,7 @@ public final class Colony {
         BuildOrder o = BuildOrder.create(structure, w.hut().block.getLocation(), w.hut().rotation, w.hut().mirror, w.hut().block);
         if (o != null && w.remove()) o = o.removal(); // the building at that level, as it stands
         if (o == null) tell("Structure " + structure + " not found; upgrade skipped.");
-        else builder.start(o, w);
+        else b.start(o, w);
     }
 
     public void despawn() {

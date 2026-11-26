@@ -388,6 +388,12 @@ public final class Plantation extends Crafter {
 
     // ---- the worker -------------------------------------------------------------------------------------------
 
+    /** The mod's PLANTATION_RETURN_TO_BUILDING (with its harvest) can't be interrupted. Ours: walking to and between its plots can (the mod's PLANTATION_MOVE_TO_FIELD and DECIDE can't). */
+    @Override
+    public boolean interruptible() {
+        return !unloading(delivering || bagFull() && loaded(), chest());
+    }
+
     /**
      * Its fields, when no crafting request is ready (the mod's planter crafts first, as its crafting AI decides): a step
      * a second. @return true: it always does something or waits here.

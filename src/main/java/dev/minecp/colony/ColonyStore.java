@@ -69,14 +69,15 @@ public final class ColonyStore {
         }
         for (int i = 0; i < colony.decorations.size(); i++) {
             putDecoration(s.createSection("decorations." + i), colony.decorations.get(i));
-            if (colony.assigned.contains(colony.decorations.get(i))) s.set("decorations." + i + ".assigned", true);
+            Hut to = colony.claimed.get(colony.decorations.get(i));
+            if (to != null) s.set("decorations." + i + ".claimed-by", colony.huts.indexOf(to));
         }
-        if (colony.building != null) putDecoration(s.createSection("building"), colony.building);
         for (int i = 0; i < colony.workOrders.size(); i++) {
             s.set("work-orders." + i + ".hut", colony.huts.indexOf(colony.workOrders.get(i).hut()));
             s.set("work-orders." + i + ".level", colony.workOrders.get(i).level());
             if (colony.workOrders.get(i).remove()) s.set("work-orders." + i + ".remove", true);
-            if (colony.assigned.contains(colony.workOrders.get(i))) s.set("work-orders." + i + ".assigned", true);
+            Hut to = colony.claimed.get(colony.workOrders.get(i));
+            if (to != null) s.set("work-orders." + i + ".claimed-by", colony.huts.indexOf(to));
         }
         for (Job j : colony.jobs) j.save(s.createSection(jobKey(colony, j)), colony);
         colony.requests.save(s.createSection("requests")); // crafters keep the requests they took
@@ -233,16 +234,17 @@ public final class ColonyStore {
             if (h == null) continue;
             var w = new Hut.WorkOrder(h, orders.getInt(i + ".level"), orders.getBoolean(i + ".remove"));
             colony.workOrders.add(w);
-            if (orders.getBoolean(i + ".assigned")) colony.assigned.add(w);
+            Hut to = colony.hutByIndex(orders.getInt(i + ".claimed-by", -1));
+            if (to != null) colony.claimed.put(w, to);
         }
         var decos = s.getConfigurationSection("decorations");
         if (decos != null) for (String i : decos.getKeys(false)) {
             var d = getDecoration(decos.getConfigurationSection(i));
             if (d == null) continue;
             colony.decorations.add(d);
-            if (decos.getBoolean(i + ".assigned")) colony.assigned.add(d);
+            Hut to = colony.hutByIndex(decos.getInt(i + ".claimed-by", -1));
+            if (to != null) colony.claimed.put(d, to);
         }
-        if (s.isConfigurationSection("building")) colony.building = getDecoration(s.getConfigurationSection("building"));
 
         // Research before jobs: a job's load can read it (the builder's mode).
         if (s.isConfigurationSection("research")) colony.research.load(s.getConfigurationSection("research"));
@@ -250,11 +252,6 @@ public final class ColonyStore {
         for (Job j : colony.jobs) {
             var js = s.getConfigurationSection(jobKey(colony, j));
             if (js != null) j.load(js, colony);
-        }
-        // The builder carries on with the build it saved; without one (or its order), the build waits in the queue again.
-        if (colony.building != null && (colony.builder == null || colony.builder.order == null || colony.builder.work != null)) {
-            colony.decorations.addFirst(colony.building);
-            colony.building = null;
         }
         if (s.isConfigurationSection("requests")) colony.requests.load(s.getConfigurationSection("requests"));
         if (s.isConfigurationSection("visitors")) colony.visitors.load(s.getConfigurationSection("visitors"));
@@ -313,7 +310,7 @@ public final class ColonyStore {
         return world == null ? null : new Location(world, ls.getDouble("x"), ls.getDouble("y"), ls.getDouble("z"));
     }
 
-    private static void putDecoration(ConfigurationSection s, Colony.Decoration d) {
+    public static void putDecoration(ConfigurationSection s, Colony.Decoration d) {
         s.set("structure", d.structure());
         s.set("name", d.name());
         putLocation(s, "origin", d.origin());
@@ -321,7 +318,7 @@ public final class ColonyStore {
         s.set("mirror", d.mirror());
     }
 
-    private static Colony.Decoration getDecoration(ConfigurationSection s) {
+    public static Colony.Decoration getDecoration(ConfigurationSection s) {
         var at = getLocation(s, "origin");
         return at == null ? null : new Colony.Decoration(s.getString("structure"), s.getString("name", "build"), at,
                 org.bukkit.block.structure.StructureRotation.valueOf(s.getString("rotation", "NONE")), s.getBoolean("mirror"));

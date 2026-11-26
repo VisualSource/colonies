@@ -63,6 +63,14 @@ public final class Courier extends Job {
                 + " per trip between the warehouse and the huts (more with each level).", NamedTextColor.GRAY));
     }
 
+    private boolean waitingForRoom; // with a load nowhere has room for
+
+    /** The mod's DELIVERY and DUMPING can't be interrupted: it carries a load (ours: unless it waits for room for it). */
+    @Override
+    public boolean interruptible() {
+        return !loaded() || waitingForRoom;
+    }
+
     @Override
     public void tick(Colonist w) {
         if (hut.level < 1) {
@@ -86,9 +94,11 @@ public final class Courier extends Job {
             gather(left, w); // what didn't fit, back in its inventory
             act(w);
             experience(w, 1.5); // the mod's, for each delivery
+            waitingForRoom = false;
             if (!left.isEmpty()) { // didn't fit
                 if (toJob != null && wh != null) { toWarehouse = true; return; } // take it back to the warehouse
                 // No warehouse to take it back to, or the warehouse is full: wait for room and try again.
+                waitingForRoom = true;
                 idle(w, "The " + (toJob != null ? toJob.hut.type.title : wh != null ? "warehouse" : hut.type.title) + "'s chest is full.", 60, to);
                 return;
             }

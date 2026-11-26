@@ -39,6 +39,7 @@ public final class Meal {
     }
 
     private boolean fromOwn; // eating from its own inventory: leftovers go back there
+    private boolean ateSome;
 
     public boolean isWaiting() {
         return state == State.WAITING;
@@ -59,6 +60,40 @@ public final class Meal {
     /** What a point of food value is worth to a citizen of this colony (the mod's getFoodValue research bonus). */
     public static double fills(Colony colony) {
         return 1 + colony.research.effect(Effects.SATURATION);
+    }
+
+    private static final int FED_COOLDOWN = 100;       // the mod's interactionCooldown after a player's food
+    private static final int COOKIE_SPEED_TICKS = 300; // the mod's: speed for 15 s
+
+    /**
+     * A player right-clicks a citizen with food (the mod's eatFoodInteraction): a grown-up eats it at once, a child only
+     * a cookie, which makes it run faster for 15 s (childFoodInteraction). Not a sick one (it shows its menu, as the mod's).
+     * @return true if the food was offered, so no menu opens.
+     */
+    public static boolean fedBy(org.bukkit.entity.Player p, Colony colony, Colonist c, ItemStack held) {
+        org.bukkit.Material m = held.getType();
+        if (!m.isEdible() || m == org.bukkit.Material.GOLDEN_APPLE || c.disease != null) return false;
+        if (c.interactCooldown > 0) { p.sendMessage(net.kyori.adventure.text.Component.text(c.name + " can't take that now.", net.kyori.adventure.text.format.NamedTextColor.RED)); return true; }
+        var at = c.location();
+        if (c.child && m != org.bukkit.Material.COOKIE) { // ours: refused; the mod throws the item out of your hand
+            at.getWorld().playSound(at, Sound.ENTITY_VILLAGER_NO, SoundCategory.NEUTRAL, 1, 1);
+            p.sendMessage(net.kyori.adventure.text.Component.text(c.name + " only wants a cookie.", net.kyori.adventure.text.format.NamedTextColor.RED));
+            return true;
+        }
+        ItemStack one = held.asOne();
+        if (c.child) c.speedUp(COOKIE_SPEED_TICKS);
+        else {
+            c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(one) * fills(colony));
+            c.ate(m);
+        }
+        at.getWorld().playSound(at, Sound.ENTITY_GENERIC_EAT, SoundCategory.NEUTRAL, 1.5f, 1);
+        if (p.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+            held.subtract();
+            ItemStack left = Food.remainder(one); // the bowl to the player, as the mod's consumeFood
+            if (left != null) p.getInventory().addItem(left).values().forEach(o -> p.getWorld().dropItemNaturally(p.getLocation(), o));
+        }
+        c.interactCooldown = FED_COOLDOWN;
+        return true;
     }
 
     /** What its job lets it eat (the mod's canEat): not the planter's crops. */
@@ -123,7 +158,10 @@ public final class Meal {
                 }
             }
             case EAT -> {
-                if (food.isEmpty() || c.saturation >= Food.MAX_SATURATION) return finish();
+                if (food.isEmpty() || c.saturation >= Food.MAX_SATURATION) {
+                    if (ateSome) c.justAte = true; // the mod's: no other meal until its saturation drops
+                    return finish();
+                }
                 ItemStack next = food.getFirst();
                 c.hold(next);
                 if (++timer % BITE_TICKS != 0) return false;
@@ -134,6 +172,9 @@ public final class Meal {
                 c.saturation = Math.min(Food.MAX_SATURATION, c.saturation + Food.nutrition(next) * fills(colony));
                 colony.milestones.ate();
                 c.ate(next.getType());
+                ateSome = true;
+                ItemStack left = Food.remainder(next); // the bowl back, as the mod's consumeFood
+                if (left != null) for (ItemStack over : c.inventory().addItem(left).values()) c.location().getWorld().dropItemNaturally(c.location(), over);
                 if (next.getAmount() > 1) next.subtract();
                 else food.removeFirst();
             }

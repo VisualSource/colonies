@@ -127,6 +127,12 @@ public final class Herder extends Job {
                 + " from this chest; butchers with an axe.", NamedTextColor.GRAY));
     }
 
+    /** The mod's HERDER_BREED, HERDER_BUTCHER, HERDER_FEED, COWBOY_MILK, COWBOY_STEW, SHEPHERD_SHEAR and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return (act == Act.NONE || act == Act.PICKUP) && !unloading(actions >= ACTIONS_FOR_DUMP || loaded() && actions == 0, chest());
+    }
+
     @Override
     public void tick(Colonist w) {
         String worker = hut.type.worker;

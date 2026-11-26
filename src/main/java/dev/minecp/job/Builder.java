@@ -39,9 +39,11 @@ public final class Builder extends Job {
     // Ours, not the mod's:
     private static final double LONG_REACH = 12;  // fallback when no walkable spot is near the block
     private int breaking; // ticks of mining what this step cleared
+    private boolean waiting; // for a tool or materials it lacks (the mod's NEEDS_ITEM): free time, a meal or the hospital may take it
 
     public BuildOrder order;
     public Hut.WorkOrder work; // the hut upgrade the current order builds, null for any other structure
+    public Colony.Decoration decoration; // the build without a hut the current order builds, or null; saved
     private Block workFrom; // ground spot it is working from
     private Tool neededTool; // a tool it is waiting for, for couriers
     private Block neededFor;
@@ -67,8 +69,10 @@ public final class Builder extends Job {
     }
 
     public void cancel() {
+        waiting = false;
         order = null;
         work = null;
+        decoration = null;
         needed = null;
     }
 
@@ -145,6 +149,7 @@ public final class Builder extends Job {
         s.set("order.rotation", order.rotation.name());
         s.set("order.mirror", order.mirror);
         ColonyStore.putLocation(s, "order.origin", order.origin);
+        if (decoration != null) ColonyStore.putDecoration(s.createSection("order.decoration"), decoration);
         if (work != null) {
             s.set("order.hut", c.huts.indexOf(work.hut()));
             s.set("order.level", work.level());
@@ -165,6 +170,7 @@ public final class Builder extends Job {
         if (o != null && remove) o = o.removal(); // taking it down
         if (o != null) start(o, h != null ? new Hut.WorkOrder(h, s.getInt("order.level"), remove) : null);
         else dev.minecp.colony.Colony.log.warning("Structure " + structure + " not found; build order of " + c.name + " dropped.");
+        if (o != null && h == null && s.isConfigurationSection("order.decoration")) decoration = ColonyStore.getDecoration(s.getConfigurationSection("order.decoration"));
     }
 
     @Override
@@ -189,6 +195,15 @@ public final class Builder extends Job {
         int n = 0;
         for (ItemStack i : inv.getContents()) if (i != null && item.isSimilar(i)) n += i.getAmount();
         return n;
+    }
+
+    /**
+     * The mod's canAIBeInterrupted for its builder: with a build, only while it waits for what it lacks (its NEEDS_ITEM);
+     * placing, digging, loading and finishing (START_BUILDING, BUILDING_STEP, MINE_BLOCK, ...) can't be interrupted.
+     */
+    @Override
+    public boolean interruptible() {
+        return order == null || waiting;
     }
 
     @Override
@@ -228,6 +243,7 @@ public final class Builder extends Job {
             if (!fetchTool(tool, toolFor)) {
                 neededTool = tool;
                 neededFor = toolFor;
+                waiting = true;
                 w.setStatus("Builder: needs tool");
                 note = "Needs " + toolLabel(tool) + " good enough for "
                         + Job.name(step.block().getType()) + " in the hut chest.";
@@ -247,15 +263,19 @@ public final class Builder extends Job {
             fetch(i -> i.isSimilar(need), need.getMaxStackSize()); // the next block first, whatever room the rest leaves
             restock(chest);
             if (carrying(need) == 0) {
+                waiting = true;
                 w.setStatus("Builder: needs materials");
                 note = "Waiting for " + name(need) + " in the hut chest.";
                 cooldown = 100; // check the chest again in 5 seconds
                 return;
             }
+            waiting = true; // the mod's pickUpMaterial passes through GATHERING_REQUIRED_MATERIALS: a meal or care may take it here
+            return;
         }
 
         note = null; // has what it needs
         neededTool = null;
+        waiting = false;
         double d = distance(w, step.block());
         // As the mod's builder (walkToConstructionSite): work in place when the block is within reach across; else walk
         // to the nearest spot a path reaches within 4 of it, inside the build or out; where none gets that close, work

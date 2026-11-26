@@ -330,6 +330,12 @@ public final class Lumberjack extends Job {
         return Material.matchMaterial(log.name().replace("_LOG", "_SAPLING"));
     }
 
+    /** The mod's LUMBERJACK_CHOP_TREE and INVENTORY_FULL can't be interrupted. */
+    @Override
+    public boolean interruptible() {
+        return state != State.CHOP && !unloading(state == State.TO_HUT, chest());
+    }
+
     /** Picks the nearest natural tree in range that is not known to be unreachable. */
     private boolean findTree() {
         Block hutBlock = hut.block;

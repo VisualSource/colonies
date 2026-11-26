@@ -142,7 +142,10 @@ public final class Colonist {
     public int immunity;           // ticks it can't fall sick again
     public int sickDays;           // nightfalls it has been sick, for happiness
     public int cureTicks;          // applying its cure (not saved)
-    public int interactCooldown;   // after a player's golden apple or poison (not saved)
+    public int interactCooldown;   // after a player's golden apple, poison or food (not saved)
+    // the mod's justAte: it had a meal and its saturation hasn't dropped since, so it doesn't go for another.
+    // shortcut: not saved (the mod's is); after a restart a citizen that ate but is still low may eat again at once
+    public boolean justAte;
     /** Its own inventory (the mod's citizen inventory), which players open from its menu: cures and gifts. Saved. */
     private Inventory inventory;
     private Location last; // where the colonist is, kept while despawned
@@ -834,6 +837,11 @@ public final class Colonist {
     /** The highlight scroll: its body glows and its legs run faster for {@code ticks} (glowing legs would outline the hidden mob). */
     public void highlight(int ticks) {
         if (body != null) body.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.GLOWING, ticks, 0));
+        speedUp(ticks);
+    }
+
+    /** A child's cookie: its legs run faster for {@code ticks} (the mod's speed effect). */
+    public void speedUp(int ticks) {
         if (legs != null) legs.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, ticks, 0));
     }
 
