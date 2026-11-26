@@ -253,8 +253,12 @@ public final class Gates implements Listener {
      */
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onPlace(BlockPlaceEvent e) {
+        if (e instanceof dev.minecp.build.Placement.Asked) return; // nothing is placed
         Kind k = Kind.ofItem(e.getItemInHand());
-        if (k == null) return;
+        if (k == null) { // a gate block gone without being broken (burnt, blown up, pushed): its record goes with what replaces it
+            if (e.getBlockPlaced().getChunk().getPersistentDataContainer().has(CELLS)) unregister(e.getBlockPlaced());
+            return;
+        }
         Block b = e.getBlockPlaced();
         for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++)
             if ((x != 0 || y != 0 || z != 0) && kind(b.getRelative(x, y, z)) != null) { e.setCancelled(true); return; }

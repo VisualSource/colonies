@@ -63,7 +63,7 @@ public final class Composter extends Job {
     private List<Block> spots() {
         if (spotsLevel != hut.level) {
             spotsLevel = hut.level;
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = hut.built(colony.style);
             spots = o == null ? List.of() : o.steps.stream().filter(s -> s.data().getMaterial() == Material.COMPOSTER).map(BuildOrder.Step::block).toList();
         }
         return spots;

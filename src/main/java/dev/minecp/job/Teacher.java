@@ -69,7 +69,7 @@ public final class Teacher extends Job {
     private Block randomSeat() {
         if (seatsLevel != hut.level) {
             seatsLevel = hut.level;
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = hut.built(colony.style);
             seats = o == null ? List.of() : !o.seats.isEmpty() ? o.seats
                     : o.steps.stream().filter(s -> Tag.WOOL_CARPETS.isTagged(s.data().getMaterial())).map(BuildOrder.Step::block).toList();
         }

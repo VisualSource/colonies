@@ -267,6 +267,23 @@ public final class Placement implements Listener {
     }
 
     /** Water, or lava in the Nether. */
+    /** A placement the build tool asks other plugins about (spawn protection and the like); Colonies' own hut handler ignores it. */
+    public static final class Asked extends org.bukkit.event.block.BlockPlaceEvent {
+        Asked(Player p, Block b, ItemStack item) {
+            super(b, b.getState(), b.getRelative(BlockFace.DOWN), item, p, true, EquipmentSlot.HAND);
+        }
+    }
+
+    /** Whether protection plugins let {@code p} build at {@code b}, asked as placing {@code item} there (nothing is placed). */
+    private static boolean mayPlace(Player p, Block b, ItemStack item) {
+        var spawn = b.getWorld().getSpawnLocation();
+        int r = org.bukkit.Bukkit.getSpawnRadius(); // vanilla's spawn protection, checked before any place event: as the server does
+        if (r > 0 && !p.isOp() && !org.bukkit.Bukkit.getOperators().isEmpty() && b.getWorld().getEnvironment() == org.bukkit.World.Environment.NORMAL
+                && Math.max(Math.abs(b.getX() - spawn.getBlockX()), Math.abs(b.getZ() - spawn.getBlockZ())) <= r) return false;
+        var e = new Asked(p, b, item);
+        return e.callEvent() && e.canBuild();
+    }
+
     private static boolean floats(Block b) {
         if (nether(b.getWorld())) return b.getType() == org.bukkit.Material.LAVA;
         return b.getType() == org.bukkit.Material.WATER || b.getBlockData() instanceof org.bukkit.block.data.Waterlogged wl && wl.isWaterlogged();
@@ -283,6 +300,7 @@ public final class Placement implements Listener {
         var inv = p.getInventory();
         for (int i = 0; i < inv.getSize() && slot < 0; i++) if (s.supply.equals(plugin.items.supplyKind(inv.getItem(i)))) slot = i;
         if (problem == null && slot < 0) problem = "You no longer carry the " + s.entry.name() + "."; // creative too, as in the mod
+        if (problem == null && !mayPlace(p, s.anchor, inv.getItem(slot))) problem = "You can't build here.";
         if (problem != null) {
             p.sendMessage(Component.text(problem, NamedTextColor.RED));
             return; // placement stays open to fix it
@@ -446,6 +464,7 @@ public final class Placement implements Listener {
         // Last, so it is only asked when the block really goes: as a player break, so protection plugins can refuse it.
         var broken = s.anchor.isEmpty() ? null : new org.bukkit.event.block.BlockBreakEvent(s.anchor, p);
         if (problem == null && broken != null && !broken.callEvent()) problem = "You can't break the block at the hut spot.";
+        if (problem == null && !mayPlace(p, s.anchor, slot >= 0 ? inv.getItem(slot) : plugin.items.hutItem(type))) problem = "You can't build here.";
         if (problem != null) {
             p.sendMessage(Component.text(problem, NamedTextColor.RED));
             return; // placement stays open to fix it

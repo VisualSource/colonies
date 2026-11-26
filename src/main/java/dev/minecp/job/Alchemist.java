@@ -186,7 +186,7 @@ public final class Alchemist extends Crafter {
         soil = leaf = null;
         soils.clear();
         leaves.clear();
-        BuildOrder o = BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+        BuildOrder o = hut.built(colony.style);
         stands = o == null ? List.of() : Trainee.blocks(o, Material.BREWING_STAND);
         if (o == null) return;
         soils.addAll(Trainee.blocks(o, Material.SOUL_SAND));

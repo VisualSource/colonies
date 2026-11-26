@@ -24,6 +24,7 @@ class GuardPostTest {
         Job j = new KnightTrainee(tower, colony);
         j.worker = c.id;
         colony.colonists.add(c);
+        colony.reindexWorkers();
         colony.jobs.add(j);
         return c;
     }

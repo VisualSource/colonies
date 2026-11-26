@@ -24,7 +24,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -302,6 +304,7 @@ public final class Colony {
     /** {@code c} becomes a citizen (a starting citizen, a newborn, or a recruited visitor). */
     void join(Colonist c) {
         colonists.add(c);
+        reindexWorkers();
         c.setStatus("Unemployed");
         assignHomes();
         assignJobs();
@@ -423,12 +426,14 @@ public final class Colony {
         Job old = jobOf(c);
         if (old != null) old.worker = null;
         j.worker = c.id;
+        reindexWorkers();
         assignJobs();
     }
 
     /** A player fires the hut's worker: jobless, and free for huts that hire on their own. */
     public void fire(Job j) {
         j.worker = null;
+        reindexWorkers();
         assignJobs();
     }
 
@@ -482,6 +487,7 @@ public final class Colony {
         // a Miner's Hut hires a miner or a quarrier (the mod's two work modules; one worker in all)
         if (hut.type == Hut.Type.MINER && jobsAt(hut).stream().noneMatch(j -> j instanceof dev.minecp.job.Quarrier))
             jobs.add(new dev.minecp.job.Quarrier(hut, this));
+        reindexWorkers();
     }
 
     /** The fields a farmer works: farmers, oldest hut first, each take the oldest fields left, one per hut level. */
@@ -515,8 +521,27 @@ public final class Colony {
     }
 
     public Job jobOf(Colonist c) {
-        for (Job j : jobs) if (c.id.equals(j.worker)) return j;
-        return null;
+        indexWorkers();
+        return jobByWorker.get(c.id);
+    }
+
+    // Jobs by worker and citizens by id, asked many times a tick. Built again on the next lookup after reindexWorkers(),
+    // which each tick calls, and so does every change in Colony to a job's worker, the jobs or the citizens.
+    private final Map<UUID, Job> jobByWorker = new HashMap<>();
+    private final Map<UUID, Colonist> colonistById = new HashMap<>();
+    private boolean indexed;
+
+    void reindexWorkers() {
+        indexed = false;
+    }
+
+    private void indexWorkers() {
+        if (indexed) return;
+        indexed = true;
+        jobByWorker.clear();
+        colonistById.clear();
+        for (Job j : jobs) if (j.worker != null) jobByWorker.putIfAbsent(j.worker, j); // the first, as the list order did
+        for (Colonist c : colonists) colonistById.put(c.id, c);
     }
 
     /** The citizens who work at the hut, in hiring order. */
@@ -525,8 +550,9 @@ public final class Colony {
     }
 
     public Colonist worker(Job j) {
-        for (Colonist c : colonists) if (c.id.equals(j.worker)) return c;
-        return null;
+        if (j.worker == null) return null;
+        indexWorkers();
+        return colonistById.get(j.worker);
     }
 
     /**
@@ -538,14 +564,16 @@ public final class Colony {
         boolean promoted = false;
         for (Job j : jobs) {
             if (worker(j) != null || !canHire(j) || !autoAssigns(j.hut, Settings.AUTO_HIRING)) continue;
-            Job trainee = j instanceof dev.minecp.job.Guard g && g.hut.on(Settings.HIRE_TRAINEE) ? mostSkilled(g::trainedBy, g.skills()[0]) : null;
+            Job trainee = j instanceof dev.minecp.job.Guard g && Settings.has(g.hut.type, Settings.HIRE_TRAINEE) && g.hut.on(Settings.HIRE_TRAINEE) ? mostSkilled(g::trainedBy, g.skills()[0]) : null;
             if (trainee != null) {
                 j.worker = trainee.worker;
                 trainee.worker = null;
+                reindexWorkers();
                 promoted = true;
                 continue;
             }
             j.worker = colonists.stream().filter(c -> !c.child && jobOf(c) == null).map(c -> c.id).findFirst().orElse(null);
+            reindexWorkers();
         }
         if (promoted) assignJobs(); // the trainee's place is open; each pass fills a guard's, so this ends
         else assignHomes();
@@ -563,6 +591,7 @@ public final class Colony {
         for (Job job : jobsAt(hut)) {
             job.dropCarried();
             jobs.remove(job);
+            reindexWorkers();
             if (job == builder) {
                 builder = null;
                 if (building != null) { decorations.addFirst(building); building = null; } // built again by the next builder
@@ -694,7 +723,7 @@ public final class Colony {
             if (up == null && (h.level > 0 || !h.type.isBuilding())) { removeTape(h); continue; }
             int level = up != null ? up.level() : 1;
             if (h.footprintLevel != level) { // the structure is loaded once per level, not every second
-                BuildOrder o = BuildOrder.create(h.structure(style, level), h.block.getLocation(), h.rotation, h.mirror, h.block);
+                BuildOrder o = h.built(style, level);
                 if (o == null) continue;
                 h.footprint = o.footprint();
                 h.footprintLevel = level;
@@ -766,6 +795,7 @@ public final class Colony {
     }
 
     public void tick() {
+        reindexWorkers(); // a change made elsewhere is seen from the next tick on
         if (builder != null && builder.order == null) { // the next work order, or in manual mode the next one assigned to it
             assigned.removeIf(o -> !workOrders.contains(o) && !decorations.contains(o)); // cancelled or started: not assigned any more
             Hut.WorkOrder w = workOrders.stream().filter(o -> !manualBuilder() || assigned.contains(o)).findFirst().orElse(null);

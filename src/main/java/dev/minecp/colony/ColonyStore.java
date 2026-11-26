@@ -277,6 +277,7 @@ public final class ColonyStore {
         if (s.isConfigurationSection("connections")) colony.connections.load(s.getConfigurationSection("connections"));
         colony.assignHomes();
         colony.assignJobs();
+        colony.reindexWorkers(); // the jobs' workers are read after the citizens
         return colony;
     }
 

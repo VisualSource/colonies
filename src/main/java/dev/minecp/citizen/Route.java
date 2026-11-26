@@ -343,6 +343,10 @@ public final class Route {
 
     /** Whether one can still stand at a step (blocks may have changed since the search). */
     static boolean standable(World w, Step s) {
-        return !Double.isNaN(stand(w, s.x(), s.y(), s.z()));
+        try {
+            return !Double.isNaN(stand(w, s.x(), s.y(), s.z()));
+        } finally {
+            SEEN.clear(); // read now, not from an earlier check
+        }
     }
 }

@@ -16,9 +16,9 @@ class LumberjackZoneTest {
 
     @Test
     void aFlatZoneIsStillLimitedByItsColumns() {
-        assertTrue(Lumberjack.columns(200_000, 200_000) > Lumberjack.MAX_ZONE, "spanning the world is refused");
+        assertTrue(Lumberjack.columns(200_000, 200_000) > Lumberjack.MAX_COLUMNS, "spanning the world is refused");
         assertEquals(1, Lumberjack.columns(0, 0), "one column");
-        assertTrue(Lumberjack.columns(499, 499) <= Lumberjack.MAX_ZONE, "500 by 500 is fine");
-        assertTrue(Lumberjack.columns(500, 500) > Lumberjack.MAX_ZONE, "501 by 501 isn't");
+        assertTrue(Lumberjack.columns(99, 99) <= Lumberjack.MAX_COLUMNS, "100 by 100 is fine");
+        assertTrue(Lumberjack.columns(100, 100) > Lumberjack.MAX_COLUMNS, "101 by 101 isn't");
     }
 }

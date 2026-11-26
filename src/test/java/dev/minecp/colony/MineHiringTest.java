@@ -30,11 +30,13 @@ class MineHiringTest {
         Colonist bob = new Colonist(UUID.randomUUID(), "Bob", 0, new Location(null, 0, 0, 0));
         colony.colonists.add(bob);
         miner.worker = bob.id;
+        colony.reindexWorkers(); // set directly, as the colony's own hiring would
         assertFalse(colony.canHire(quarrier), "with a miner, no quarrier");
         assertTrue(colony.canHire(miner), "the miner's own job stays open to it");
 
         miner.worker = null;
         quarrier.worker = bob.id;
+        colony.reindexWorkers();
         assertFalse(colony.canHire(miner), "with a quarrier, no miner");
     }
 }

@@ -79,14 +79,19 @@ public final class Studies {
         return out;
     }
 
+    private Map<String, Double> effects; // by effect id, from the finished researches; null: work out again
+
     /** An effect's strength: the strongest of the finished researches that give it (the mod's overrides), 0 if none. */
     public double effect(String id) {
-        double best = 0;
-        for (var en : started.entrySet()) {
-            if (!en.getValue().done) continue;
-            for (var e : ResearchTree.get(en.getKey()).effects()) if (e.id().equals(id) && Math.abs(e.strength()) > Math.abs(best)) best = e.strength();
+        if (effects == null) {
+            effects = new java.util.HashMap<>();
+            for (var en : started.entrySet()) {
+                if (!en.getValue().done) continue;
+                for (var e : ResearchTree.get(en.getKey()).effects())
+                    effects.merge(e.id(), e.strength(), (a, b) -> Math.abs(b) > Math.abs(a) ? b : a);
+            }
         }
-        return best;
+        return effects.getOrDefault(id, 0.0);
     }
 
     /** The research that unlocks this hut, if one does (the mod's blockhut effects); null if it needs none. */
@@ -314,6 +319,7 @@ public final class Studies {
         }
         Entry e = new Entry();
         started.put(r.id(), e);
+        effects = null;
         if (creative && creativeCompletion) finish(r, e);
         else Colony.log.info(colony.where() + ": " + p.getName() + " started research " + r.id() + ".");
         return null;
@@ -335,6 +341,7 @@ public final class Studies {
             }
         }
         started.remove(r.id());
+        effects = null;
         Colony.log.info(colony.where() + ": " + p.getName() + (e.done ? " undid" : " stopped") + " research " + r.id() + ".");
         return null;
     }
@@ -367,12 +374,14 @@ public final class Studies {
             Entry e = new Entry();
             e.done = true; // silent, as the mod's hidden branch: the unlocked recipes show in the crafters' menus
             started.put(r.id(), e);
+            effects = null;
             Colony.log.info(colony.where() + ": research " + r.id() + " finished.");
         }
     }
 
     private void finish(Research r, Entry e) {
         e.done = true;
+        effects = null;
         e.progress = ResearchTree.steps(r);
         Colony.log.info(colony.where() + ": research " + r.id() + " finished.");
         colony.tell("Research finished: " + r.name() + ".");
@@ -411,6 +420,7 @@ public final class Studies {
             e.done = v < 0;
             e.progress = e.done ? ResearchTree.steps(ResearchTree.get(id)) : v;
             started.put(id, e);
+            effects = null;
         }
     }
 }

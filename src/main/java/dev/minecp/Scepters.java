@@ -158,7 +158,9 @@ public final class Scepters implements Listener {
         if (a == null || b == null || a.getWorld() != b.getWorld()) return;
         long volume = Lumberjack.volume(a, b);
         if (!Lumberjack.zoneFits(a, b)) {
-            tell(p, "A zone of " + Math.max(volume, Lumberjack.columns(a, b)) + " blocks is too large. The most for the lumberjack is " + Lumberjack.MAX_ZONE + " blocks.", false);
+            tell(p, volume > Lumberjack.MAX_ZONE ? "A zone of " + volume + " blocks is too large. The most for the lumberjack is " + Lumberjack.MAX_ZONE + " blocks."
+                    : "A zone " + (Math.abs(a.getX() - b.getX()) + 1) + " by " + (Math.abs(a.getZ() - b.getZ()) + 1) + " blocks across is too wide. The most for the lumberjack is "
+                    + Lumberjack.MAX_COLUMNS + " blocks of ground (100 by 100).", false);
             return;
         }
         lj.zone(a, b);

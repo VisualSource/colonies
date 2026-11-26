@@ -41,8 +41,7 @@ public final class Warehouse {
         found.add(hut.block);
         for (int dx = -RANGE; dx <= RANGE; dx++) for (int dz = -RANGE; dz <= RANGE; dz++) for (int dy = -BELOW; dy <= ABOVE; dy++) {
             Block b = hut.block.getRelative(dx, dy, dz);
-            if (b.equals(hut.block) || colony.hutAt(b) != null) continue; // other huts' chests aren't storage
-            if (Rack.is(b)) found.add(b);
+            if (Rack.is(b) && !b.equals(hut.block) && colony.hutAt(b) == null) found.add(b); // other huts' chests aren't storage
         }
         return containers = found;
     }
@@ -51,15 +50,35 @@ public final class Warehouse {
     private List<Inventory> inventories() {
         List<Inventory> invs = new ArrayList<>();
         for (Block b : containers()) {
-            // A double chest's inventory covers both halves; count it once.
-            if (b.getState(false) instanceof Container c && invs.stream().noneMatch(i -> i.equals(c.getInventory()))) invs.add(c.getInventory());
+            // Each half of a double chest on its own: Paper's double inventory is a new object every time, so it can't be matched.
+            if (b.getState(false) instanceof org.bukkit.block.Chest c) invs.add(c.getBlockInventory());
+            else if (b.getState(false) instanceof Container c) invs.add(c.getInventory());
         }
         return invs;
     }
 
+    private List<ItemStack> held; // while held: its contents, read once for many counts
+
+    /** Reads its contents once, for the counts that follow until {@link #release} (nothing may be taken or stored meanwhile). */
+    void hold() {
+        held = null;
+        held = items();
+    }
+
+    void release() {
+        held = null;
+    }
+
+    private List<ItemStack> items() {
+        if (held != null) return held;
+        List<ItemStack> out = new ArrayList<>();
+        for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty()) out.add(i);
+        return out;
+    }
+
     public int count(Predicate<ItemStack> test) {
         int n = 0;
-        for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) if (i != null && test.test(i)) n += i.getAmount();
+        for (ItemStack i : items()) if (test.test(i)) n += i.getAmount();
         return n;
     }
 
@@ -79,7 +98,7 @@ public final class Warehouse {
     /** How many of each kind of item matching {@code test} it holds. */
     private java.util.Map<org.bukkit.Material, Integer> kinds(Predicate<ItemStack> test) {
         java.util.Map<org.bukkit.Material, Integer> found = new java.util.EnumMap<>(org.bukkit.Material.class);
-        for (Inventory inv : inventories()) for (ItemStack i : inv.getContents()) if (i != null && !i.isEmpty() && test.test(i)) found.merge(i.getType(), i.getAmount(), Integer::sum);
+        for (ItemStack i : items()) if (test.test(i)) found.merge(i.getType(), i.getAmount(), Integer::sum);
         return found;
     }
 

@@ -124,20 +124,25 @@ public final class Requests {
         if (--restoring <= 0) saved.clear();
         Warehouse wh = colony.warehouse();
         for (Job j : colony.jobs) if (j instanceof Crafter c) c.tasks.clear();
-        for (Request r : now) {
-            if (r.crafter == null || r.crafterShare <= 0 || !colony.jobs.contains(r.crafter) || !canCraft(r.crafter, r, before)) {
-                r.crafter = null;
-                r.crafterShare = 0;
-                int need = r.amount() - r.inTransit;
-                if (need <= 0) { r.state = State.DELIVERING; continue; } // all of it is being carried there
-                int stock = wh == null ? 0 : wh.count(r.test(), r.leave());
-                int fromWarehouse = stock >= Math.min(r.min(), need) ? Math.min(stock, need) : 0; // below the minimum it doesn't take it
-                Crafter c = fromWarehouse >= need ? null : crafterFor(r, before);
-                if (c != null) { r.crafter = c; r.crafterShare = need - fromWarehouse; }
-                else { r.state = fromWarehouse > 0 ? State.WAREHOUSE : State.WAITING; continue; }
+        if (wh != null) wh.hold(); // every request below counts its stock: read the racks once
+        try {
+            for (Request r : now) {
+                if (r.crafter == null || r.crafterShare <= 0 || !colony.jobs.contains(r.crafter) || !canCraft(r.crafter, r, before)) {
+                    r.crafter = null;
+                    r.crafterShare = 0;
+                    int need = r.amount() - r.inTransit;
+                    if (need <= 0) { r.state = State.DELIVERING; continue; } // all of it is being carried there
+                    int stock = wh == null ? 0 : wh.count(r.test(), r.leave());
+                    int fromWarehouse = stock >= Math.min(r.min(), need) ? Math.min(stock, need) : 0; // below the minimum it doesn't take it
+                    Crafter c = fromWarehouse >= need ? null : crafterFor(r, before);
+                    if (c != null) { r.crafter = c; r.crafterShare = need - fromWarehouse; }
+                    else { r.state = fromWarehouse > 0 ? State.WAREHOUSE : State.WAITING; continue; }
+                }
+                r.state = State.CRAFTING;
+                r.crafter.tasks.add(r);
             }
-            r.state = State.CRAFTING;
-            r.crafter.tasks.add(r);
+        } finally {
+            if (wh != null) wh.release();
         }
         all = List.copyOf(now);
     }

@@ -78,6 +78,7 @@ public final class Guard extends Job {
     private static final int HP_TOWER = 20, HP_PER_LEVEL = 2; // BONUS_HP_SINGLE_GUARD, BONUS_HEALTH_PER_LEVEL
     private static final double XP_PER_KILL = 15;      // EXP_PER_MOB_DEATH
     private static final int SEARCH_TICKS = 20;        // ours: how often it looks for a target
+    private static final int CHASE_RETRY_TICKS = 20;   // ours: the wait after a target no route reaches
     // The armor each tower level allows (AbstractEntityAIFight.itemsNeeded): leather 0, gold 1, chain 2, iron 3, diamond 4, netherite 5.
     private static final int[][] ARMOR = {{0, 1}, {0, 2}, {0, 3}, {2, 4}, {3, 5}};
     static final EquipmentSlot[] SLOTS = {EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
@@ -137,7 +138,7 @@ public final class Guard extends Job {
     private Location lastQuiet;                       // where it last saw to its task without a fight; null: its hut
     private boolean rallying, gearing;                // with a rally banner's bearer; on its way to fetch gear
     private int running;                              // a rallying guard's Speed level
-    private int attackIn, searchIn, taskIn, fighting, restTicks;
+    private int attackIn, searchIn, taskIn, fighting, restTicks, chaseIn;
     private long lastWhirlwind;
     private boolean fleeing, resting; // retreating to the tower, then resting there (not saved: it simply carries on)
     private int napTicks, napCheckIn = NAP_CHECK;    // napping while napTicks > 0 (not saved)
@@ -765,7 +766,11 @@ public final class Guard extends Job {
         Location at = w.location(), there = target.getLocation();
         if (at.distance(there) > reach()) {
             // A new route only when it stopped or the target has moved away from where it was heading: each search costs time.
-            if (!w.isMoving() || chasing == null || chasing.distance(there) > 2) { w.walk(there); chasing = there.clone(); }
+            if (chaseIn > 0) { chaseIn--; return; } // no route last time: don't search again every tick
+            if (!w.isMoving() || chasing == null || chasing.distance(there) > 2) {
+                chasing = there.clone();
+                if (!w.walk(there) && !w.approach(there, reach() + 4)) chaseIn = CHASE_RETRY_TICKS;
+            }
             return;
         }
         chasing = null;

@@ -48,6 +48,7 @@ class TraineeTest {
         assertSame(archery, low.home, "a trainee can't be moved out of its hut");
 
         for (Job j : colony.jobsAt(archery)) j.worker = null;
+        colony.reindexWorkers();
         colony.assignHomes();
         assertNull(low.home);
         assertNull(best.home);

@@ -267,7 +267,9 @@ final class Protection implements Listener {
     }
 
     private void keepColonyBlocks(List<Block> blocks) {
-        if (explosions != Explosions.EVERYTHING) blocks.removeIf(b -> plugin.claims.colonyAt(b.getLocation()) != null);
+        // Hut blocks, graves and decoration controllers always survive; the rest of the claim as config.yml says.
+        blocks.removeIf(b -> plugin.colonyAt(b) != null || plugin.graveColony(b) != null || DecorationController.is(b)
+                || explosions != Explosions.EVERYTHING && plugin.claims.colonyAt(b.getLocation()) != null);
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOW)

@@ -211,7 +211,7 @@ public final class Leisure {
         if (key == null || h != null && h.level < 1) return null;
         var known = builds.get(site);
         if (known == null || !known.getKey().equals(key)) {
-            BuildOrder o = h != null ? BuildOrder.create(h.structure(colony.style, h.level), h.block.getLocation(), h.rotation, h.mirror, h.block)
+            BuildOrder o = h != null ? h.built(colony.style)
                     : DecorationController.at(site).order(site);
             builds.put(site, known = Map.entry(key, java.util.Optional.ofNullable(o)));
         }

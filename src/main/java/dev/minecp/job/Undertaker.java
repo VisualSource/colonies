@@ -127,7 +127,7 @@ public final class Undertaker extends Job {
     /** The burial spots of the graveyard as built (the mod's named grave blocks in its blueprint). */
     private List<BuildOrder.GraveSpot> spots() {
         if (spotsLevel != hut.level) {
-            BuildOrder o = BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = hut.built(colony.style);
             spots = o == null ? List.of() : o.graves;
             spotsLevel = hut.level;
         }

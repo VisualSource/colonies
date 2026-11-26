@@ -78,7 +78,7 @@ abstract class Trainee extends Job {
         if (!ready(w)) { training = false; return; }
         if (spotsLevel != hut.level) {
             spotsLevel = hut.level;
-            findSpots(BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block));
+            findSpots(hut.built(colony.style));
         }
         note = lacks();
         if (!training) {

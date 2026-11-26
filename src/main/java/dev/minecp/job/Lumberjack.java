@@ -101,6 +101,8 @@ public final class Lumberjack extends Job {
 
     /** The largest zone: 2 × 50³ (the mod's 2 × SEARCH_RANGE³, its corners' plain differences multiplied). */
     public static final int MAX_ZONE = 2 * 50 * 50 * 50;
+    /** Ours: the most columns a zone covers, about its level-5 range (97 × 97): its tree search reads each one. */
+    public static final int MAX_COLUMNS = 100 * 100;
     private Block zoneA, zoneB; // its corners (saved)
 
     /** The zone's corners, or null. */
@@ -124,8 +126,8 @@ public final class Lumberjack extends Job {
     }
 
     /**
-     * The columns a zone covers, which its tree search walks: ours, also at most {@link #MAX_ZONE}, so a flat zone (0 by
-     * the mod's count) can't spread across the world.
+     * The columns a zone covers, which its tree search walks: ours, at most {@link #MAX_COLUMNS}, so a flat zone (0 by
+     * the mod's count) can't spread across the world and one search stays as cheap as its usual range.
      */
     public static long columns(Block a, Block b) {
         return columns(Math.abs(a.getX() - b.getX()), Math.abs(a.getZ() - b.getZ()));
@@ -137,7 +139,7 @@ public final class Lumberjack extends Job {
 
     /** Whether a zone may be set: within the mod's volume and our column limit. */
     public static boolean zoneFits(Block a, Block b) {
-        return volume(a, b) <= MAX_ZONE && columns(a, b) <= MAX_ZONE;
+        return volume(a, b) <= MAX_ZONE && columns(a, b) <= MAX_COLUMNS;
     }
 
     /** It cuts only in its zone: the setting is on and both corners are set. */

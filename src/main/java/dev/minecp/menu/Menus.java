@@ -305,7 +305,8 @@ public final class Menus {
         buttons.addFirst(button("Save", p, c, h, (player, view) -> {
             if (!c.permissions.has(player, Action.MANAGE_HUTS)) { refuse(player, c, Action.MANAGE_HUTS); return; }
             String mode = view.getText("hiring");
-            if (mode != null) h.hiring = Settings.Hiring.valueOf(mode);
+            // from the client: only a mode this hut offers
+            if (mode != null) for (Settings.Hiring m : Settings.modes(h.type)) if (m.name().equals(mode)) h.hiring = m;
             for (Settings.Setting s : Settings.of(h.type)) switch (s.kind()) {
                 case BOOL -> { Boolean on = view.getBoolean(s.key()); if (on != null) h.set(s.key(), on.toString()); }
                 case INT -> {

@@ -1,7 +1,6 @@
 package dev.minecp;
 
 import dev.minecp.build.BuildOrder;
-import dev.minecp.build.DecorationController;
 import dev.minecp.build.MapBorders;
 import dev.minecp.build.Placement;
 import dev.minecp.citizen.Colonist;
@@ -28,9 +27,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -59,6 +56,7 @@ public final class MineCP extends JavaPlugin implements Listener {
     private final Map<UUID, Colony> colonies = new HashMap<>(); // by owner
     public final ClaimMap claims = new ClaimMap();
     private final Set<UUID> tickFailed = new HashSet<>();
+    private final Set<UUID> saveFailed = new HashSet<>();
     public final Items items = new Items(this);
     private final MapBorders mapBorders = new MapBorders(this);
     private Saves saves;
@@ -218,7 +216,13 @@ public final class MineCP extends JavaPlugin implements Listener {
     }
 
     void saveAll() {
-        colonies.values().forEach(this::save);
+        for (Colony c : colonies.values()) {
+            try {
+                save(c);
+            } catch (RuntimeException e) { // one colony's bug must not stop the others saving; logged once
+                if (saveFailed.add(c.owner)) getLogger().log(java.util.logging.Level.SEVERE, "Colony " + c.name + " failed to save", e);
+            }
+        }
     }
 
     public void save(Colony c) {
@@ -283,6 +287,7 @@ public final class MineCP extends JavaPlugin implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
+        if (e instanceof dev.minecp.build.Placement.Asked) return; // the build tool asking; it does the placing itself
         if (Rack.is(e.getItemInHand())) { Rack.tag(e.getBlockPlaced()); return; } // item data doesn't carry over to the block
         Hut.Type type = items.hutType(e.getItemInHand());
         if (type == null) return;
@@ -526,16 +531,6 @@ public final class MineCP extends JavaPlugin implements Listener {
             else menus.visitor(p, c, v);
             return;
         }
-    }
-
-    @EventHandler(ignoreCancelled = true)
-    public void onExplode(EntityExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null || DecorationController.is(b));
-    }
-
-    @EventHandler(ignoreCancelled = true)
-    public void onExplode(BlockExplodeEvent e) {
-        e.blockList().removeIf(b -> colonyAt(b) != null || graveColony(b) != null || DecorationController.is(b));
     }
 
     /** Raiders: the mod's drops; a hurt one ends its horde's camp; they never hurt each other, and zombies among them don't turn into drowned. */

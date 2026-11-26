@@ -126,6 +126,7 @@ public final class Health {
                 && Boolean.TRUE.equals(at.getWorld().getGameRuleValue(org.bukkit.GameRule.DO_MOB_LOOT))) c.dropExperience(at);
         c.despawn();
         colony.colonists.remove(c);
+        colony.reindexWorkers();
         colony.assignJobs();
         boolean guard = job instanceof dev.minecp.job.Guard;
         if (!guard) colony.happiness.died();

@@ -58,7 +58,14 @@ final class Saves {
                 unloaded.add(owner);
                 continue;
             }
-            Colony colony = ColonyStore.load(owner, yaml);
+            Colony colony;
+            try {
+                colony = ColonyStore.load(owner, yaml);
+            } catch (RuntimeException e) { // a renamed enum or a bad value: skip it, as a file that can't be read
+                log.log(java.util.logging.Level.SEVERE, "Could not load " + f.getName() + "; that colony is skipped and its file left as is", e);
+                unloaded.add(owner);
+                continue;
+            }
             if (colony == null) {
                 log.warning("Colony of " + owner + " is in a world that is not loaded; skipped.");
                 unloaded.add(owner);

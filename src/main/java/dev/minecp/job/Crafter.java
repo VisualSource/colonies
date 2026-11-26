@@ -127,8 +127,18 @@ public class Crafter extends Job {
         return null;
     }
 
+    private static final Map<NamespacedKey, Recipe> SERVER_RECIPES = new java.util.HashMap<>();
+
+    /**
+     * A server recipe by key, kept: Bukkit builds a new recipe object on every lookup, and these are asked in loops.
+     * shortcut: not refreshed by /minecraft:reload; restart after changing data packs' recipes.
+     */
+    static Recipe recipe(NamespacedKey key) {
+        return SERVER_RECIPES.computeIfAbsent(key, Bukkit::getRecipe);
+    }
+
     public static ItemStack resultOf(NamespacedKey key) {
-        Recipe r = Bukkit.getRecipe(key);
+        Recipe r = recipe(key);
         return r == null ? null : r.getResult();
     }
 
@@ -146,9 +156,29 @@ public class Crafter extends Job {
 
     /** The same, making {@code result} (one of Colonies' own items, like a sifter mesh). */
     public static Recipe own(String id, ItemStack result, Map<Material, Integer> ingredients) {
-        var r = new ShapelessRecipe(new NamespacedKey("minecp", id), result);
-        ingredients.forEach((m, n) -> r.addIngredient(n, m));
+        var r = new OwnRecipe(new NamespacedKey("minecp", id), result);
+        ingredients.forEach((m, n) -> { for (int i = 0; i < n; i++) r.addIngredient(new RecipeChoice.MaterialChoice(m)); });
         return r;
+    }
+
+    /** A crafter's own recipe, never registered with the server: the mod's may take more than a crafting grid's 9 items. */
+    static final class OwnRecipe extends ShapelessRecipe {
+        private final List<RecipeChoice> all = new ArrayList<>();
+
+        OwnRecipe(NamespacedKey key, ItemStack result) {
+            super(key, result);
+        }
+
+        @Override
+        public ShapelessRecipe addIngredient(RecipeChoice c) {
+            all.add(c);
+            return this;
+        }
+
+        @Override
+        public List<RecipeChoice> getChoiceList() {
+            return new ArrayList<>(all);
+        }
     }
 
     /** The research each built-in recipe needs (the mod's research-id and not-research-id); none: always known. */
@@ -168,7 +198,7 @@ public class Crafter extends Job {
     public Recipe recipeFor(Predicate<ItemStack> want) {
         List<Recipe> found = new ArrayList<>();
         for (NamespacedKey key : recipes) {
-            Recipe r = Bukkit.getRecipe(key);
+            Recipe r = recipe(key);
             if (r != null && want.test(r.getResult())) found.add(r);
         }
         for (var e : builtIn.entrySet()) if (hut.level >= e.getValue() && knows(e.getKey()) && makes(e.getKey(), want)) found.add(e.getKey());
@@ -478,7 +508,7 @@ public class Crafter extends Job {
     private boolean isFuel(ItemStack i) {
         if (!Furnaces.isFuel(i)) return false;
         for (NamespacedKey key : recipes)
-            if (Bukkit.getRecipe(key) instanceof CookingRecipe<?> r && (r.getInputChoice().test(i) || r.getResult().getType() == i.getType())) return false;
+            if (recipe(key) instanceof CookingRecipe<?> r && (r.getInputChoice().test(i) || r.getResult().getType() == i.getType())) return false;
         return true;
     }
 
@@ -564,7 +594,7 @@ public class Crafter extends Job {
         super.load(s, c);
         for (String k : s.getStringList("recipes")) {
             NamespacedKey key = NamespacedKey.fromString(k);
-            if (key != null && Bukkit.getRecipe(key) != null && !recipes.contains(key)) recipes.add(key);
+            if (key != null && recipe(key) != null && !recipes.contains(key)) recipes.add(key);
         }
     }
 }

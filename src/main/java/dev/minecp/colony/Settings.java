@@ -117,9 +117,13 @@ public final class Settings {
 
     /** The settings a hut of this type has, in menu order. */
     public static List<Setting> of(Hut.Type t) {
-        List<Setting> own = own(t);
-        return RECIPE_HUTS.contains(t) ? Stream.concat(own.stream(), Stream.of(RECIPE)).toList() : own;
+        return OF.computeIfAbsent(t, type -> {
+            List<Setting> own = own(type);
+            return RECIPE_HUTS.contains(type) ? Stream.concat(own.stream(), Stream.of(RECIPE)).toList() : own;
+        });
     }
+
+    private static final java.util.Map<Hut.Type, List<Setting>> OF = new java.util.EnumMap<>(Hut.Type.class); // built once: read every tick
 
     private static List<Setting> own(Hut.Type t) {
         return switch (t) {

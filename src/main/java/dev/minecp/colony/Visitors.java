@@ -228,8 +228,7 @@ public final class Visitors {
     private List<Block> seatsOf(Hut tavern) {
         var known = seats.get(tavern);
         if (known == null || known.getKey() != tavern.level) {
-            var o = dev.minecp.build.BuildOrder.create(tavern.structure(colony.style, tavern.level), tavern.block.getLocation(),
-                    tavern.rotation, tavern.mirror, tavern.block);
+            var o = tavern.built(colony.style);
             known = Map.entry(tavern.level, o == null ? List.of() : List.copyOf(o.seats));
             seats.put(tavern, known);
         }

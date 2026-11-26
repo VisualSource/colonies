@@ -489,11 +489,28 @@ public final class Hut {
         else settings.put(key, value);
     }
 
+    /** Its building at {@code level} as placed here (turned and mirrored as it is), or null below level 1 or without the structure. */
+    public dev.minecp.build.BuildOrder built(String style, int level) {
+        return level < 1 ? null : dev.minecp.build.BuildOrder.create(structure(style, level), block.getLocation(), rotation, mirror, block);
+    }
+
+    /** The same at its level now. Each call reads the whole structure: callers keep what they need of it, by level. */
+    public dev.minecp.build.BuildOrder built(String style) {
+        return built(style, level);
+    }
+
+    private String spotsOf; // the style and level workSpots was read for
+    private java.util.Map<Block, String> spots = java.util.Map.of();
+
     /** Its building's spots with this blueprint tag (the converter's work spots) at its level now; none before level 1. */
     public java.util.List<Block> workSpots(String style, String tag) {
-        if (level < 1) return java.util.List.of();
-        var o = dev.minecp.build.BuildOrder.create(structure(style, level), block.getLocation(), rotation, mirror, block);
-        return o == null ? java.util.List.of() : o.workSpots.entrySet().stream().filter(e -> e.getValue().equals(tag)).map(java.util.Map.Entry::getKey).toList();
+        String key = style + "/" + level;
+        if (!key.equals(spotsOf)) {
+            var o = built(style);
+            spots = o == null ? java.util.Map.of() : java.util.Map.copyOf(o.workSpots);
+            spotsOf = key;
+        }
+        return spots.entrySet().stream().filter(e -> e.getValue().equals(tag)).map(java.util.Map.Entry::getKey).toList();
     }
 
     /** Its building at {@code level}: the version it was placed as, else (or where a style lacks that version) the usual one. */

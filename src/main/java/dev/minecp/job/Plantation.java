@@ -220,7 +220,7 @@ public final class Plantation extends Crafter {
         if (ownLevel != hut.level) {
             ownLevel = hut.level;
             List<Colony.PlantField> all = new ArrayList<>();
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = hut.built(colony.style);
             if (o != null) for (Kind k : List.of(Kind.SUGAR_CANE, Kind.CACTUS, Kind.BAMBOO)) {
                 List<Block> plots = plots(k, o);
                 if (!plots.isEmpty()) all.add(new Colony.PlantField(hut.block, k, plots));

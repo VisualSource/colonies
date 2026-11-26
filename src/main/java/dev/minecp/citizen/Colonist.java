@@ -1005,6 +1005,7 @@ public final class Colonist {
 
     /** Teleports the legs while walking (not into bed): counted, it's what better movement should make rare. */
     private void warp(Location to) {
+        if (legs == null) { last = to; return; } // despawned (its chunk unloaded): it spawns there
         dismount(); // the horse stays behind
         standUp();
         stats.teleports++;

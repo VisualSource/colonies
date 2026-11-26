@@ -56,7 +56,7 @@ public final class Student extends Job {
     private Block randomShelf() {
         if (shelvesLevel != hut.level) {
             shelvesLevel = hut.level;
-            BuildOrder o = hut.level < 1 ? null : BuildOrder.create(hut.structure(colony.style, hut.level), hut.block.getLocation(), hut.rotation, hut.mirror, hut.block);
+            BuildOrder o = hut.built(colony.style);
             shelves = o == null ? List.of() : o.steps.stream().filter(s -> s.data().getMaterial() == Material.BOOKSHELF).map(BuildOrder.Step::block).toList();
         }
         if (shelves.isEmpty()) return hut.block;
@@ -117,8 +117,8 @@ public final class Student extends Job {
     /**
      * The mod's tryLevelUpIntelligence, as written: it fails with chance 1 / {@code chance}; otherwise, while its
      * intelligence is under 9 x its happiness, 10 experience in intelligence.
-     * OPEN QUESTION: that makes studying with nothing (87.5%) beat paper (50%) and a book (25%); it may be a bug in the
-     * mod (CitizenSkillHandler.tryLevelUpIntelligence). Kept as the mod's until we know; see docs/parity.md (Library).
+     * That makes studying with nothing (87.5%) beat paper (50%) and a book (25%), which may be a bug in the mod, but no
+     * issue upstream reports it (checked 2026-11-25). Decided: kept as the mod's; see docs/parity.md (Library).
      */
     public static void tryIntelligence(dev.minecp.colony.Colony colony, Colonist w, double chance) {
         if (chance > 0 && ThreadLocalRandom.current().nextDouble() * chance < 1) return;
